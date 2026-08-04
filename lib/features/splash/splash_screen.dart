@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 
 class SplashScreen extends StatefulWidget {
@@ -12,42 +13,82 @@ class _SplashScreenState extends State<SplashScreen> {
   void initState() {
     super.initState();
 
-    Future.delayed(const Duration(seconds: 3), () {
+    Timer(const Duration(seconds: 3), () {
       // هنضيف التنقل بعدين
     });
   }
 
   @override
   Widget build(BuildContext context) {
-    return const Scaffold(
-      backgroundColor: Colors.white,
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.architecture,
-              size: 90,
-              color: Colors.blue,
+    return Scaffold(
+      backgroundColor: const Color(0xff071A2E),
+      body: Stack(
+        children: [
+          /// الخلفية
+          Positioned.fill(
+            child: Image.asset(
+              "assets/images/splash_background.png",
+              fit: BoxFit.cover,
             ),
-            SizedBox(height: 20),
-            Text(
-              "StructFlow",
-              style: TextStyle(
-                fontSize: 34,
-                fontWeight: FontWeight.bold,
-              ),
+          ),
+
+          /// طبقة تغميق
+          Positioned.fill(
+            child: Container(
+              color: Colors.black.withOpacity(0.25),
             ),
-            SizedBox(height: 10),
-            Text(
-              "Construction Management System",
-              style: TextStyle(
-                color: Colors.grey,
-                fontSize: 16,
-              ),
+          ),
+
+          /// المحتوى
+          Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Image.asset(
+                  "assets/images/sf_logo.png",
+                  width: 180,
+                ),
+
+                const SizedBox(height: 30),
+
+                const Text(
+                  "StructFlow",
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 42,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+
+                const SizedBox(height: 10),
+
+                const Text(
+                  "Construction Management System",
+                  style: TextStyle(
+                    color: Colors.white70,
+                    fontSize: 18,
+                  ),
+                ),
+
+                const SizedBox(height: 50),
+
+                SizedBox(
+                  width: 220,
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(30),
+                    child: const LinearProgressIndicator(
+                      minHeight: 6,
+                      backgroundColor: Colors.white24,
+                      valueColor: AlwaysStoppedAnimation(
+                        Color(0xffFF7A00),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
