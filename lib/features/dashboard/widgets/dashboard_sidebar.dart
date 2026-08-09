@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+
 import 'package:structflow/core/theme/app_colors.dart';
 
 class DashboardSidebar extends StatelessWidget {
@@ -6,41 +8,146 @@ class DashboardSidebar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: 260,
+    final currentPath =
+        GoRouterState.of(context).uri.path;
+
+    return Material(
       color: AppColors.primary,
-      child: Column(
-        children: [
-          const SizedBox(height: 30),
+      child: SizedBox(
+        width: 260,
+        height: double.infinity,
+        child: SafeArea(
+          child: Column(
+            children: [
+              const SizedBox(height: 28),
 
-          const Text(
-            "StructFlow",
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 26,
-              fontWeight: FontWeight.bold,
-            ),
+              const Text(
+                'StructFlow',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 26,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+
+              const SizedBox(height: 28),
+
+              Expanded(
+                child: SingleChildScrollView(
+                  physics:
+                      const BouncingScrollPhysics(),
+                  padding: const EdgeInsets.fromLTRB(
+                    12,
+                    0,
+                    12,
+                    24,
+                  ),
+                  child: Column(
+                    children: [
+                      _item(
+                        context,
+                        Icons.dashboard_rounded,
+                        'Dashboard',
+                        '/',
+                        currentPath,
+                      ),
+
+                      _item(
+                        context,
+                        Icons.folder_rounded,
+                        'Projects',
+                        '/projects',
+                        currentPath,
+                      ),
+
+                      _item(
+                        context,
+                        Icons.task_alt_rounded,
+                        'Tasks',
+                        '/tasks',
+                        currentPath,
+                      ),
+
+                      _item(
+                        context,
+                        Icons.people_alt_rounded,
+                        'Team',
+                        '/team',
+                        currentPath,
+                      ),
+
+                      _item(
+                        context,
+                        Icons.calendar_month_rounded,
+                        'Calendar',
+                        '/calendar',
+                        currentPath,
+                      ),
+
+                      _item(
+                        context,
+                        Icons.description_rounded,
+                        'Documents',
+                        '/documents',
+                        currentPath,
+                      ),
+
+                      _item(
+                        context,
+                        Icons.bar_chart_rounded,
+                        'Reports',
+                        '/reports',
+                        currentPath,
+                      ),
+
+                      _item(
+                        context,
+                        Icons.smart_toy_rounded,
+                        'AI Assistant',
+                        '/ai-assistant',
+                        currentPath,
+                      ),
+
+                      const SizedBox(height: 12),
+
+                      Divider(
+                        color:
+                            Colors.white.withOpacity(.15),
+                        height: 1,
+                      ),
+
+                      const SizedBox(height: 12),
+
+                      _item(
+                        context,
+                        Icons.settings_rounded,
+                        'Settings',
+                        '/settings',
+                        currentPath,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
           ),
-
-          const SizedBox(height: 40),
-
-          _item(Icons.dashboard, "Dashboard", true),
-          _item(Icons.folder, "Projects"),
-          _item(Icons.task, "Tasks"),
-          _item(Icons.people, "Team"),
-          _item(Icons.calendar_month, "Calendar"),
-          _item(Icons.description, "Documents"),
-          _item(Icons.bar_chart, "Reports"),
-          _item(Icons.smart_toy, "AI Assistant"),
-          _item(Icons.settings, "Settings"),
-        ],
+        ),
       ),
     );
   }
 
-  Widget _item(IconData icon, String title, [bool selected = false]) {
+  Widget _item(
+    BuildContext context,
+    IconData icon,
+    String title,
+    String route,
+    String currentPath,
+  ) {
+    final selected = currentPath == route;
+
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 6),
       decoration: BoxDecoration(
         color: selected
             ? Colors.white.withOpacity(.15)
@@ -48,10 +155,37 @@ class DashboardSidebar extends StatelessWidget {
         borderRadius: BorderRadius.circular(12),
       ),
       child: ListTile(
-        leading: Icon(icon, color: Colors.white),
+        dense: true,
+
+        contentPadding:
+            const EdgeInsets.symmetric(
+          horizontal: 14,
+          vertical: 2,
+        ),
+
+        leading: Icon(
+          icon,
+          color: Colors.white,
+          size: 22,
+        ),
+
         title: Text(
           title,
-          style: const TextStyle(color: Colors.white),
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 15,
+            fontWeight: selected
+                ? FontWeight.w700
+                : FontWeight.w500,
+          ),
+        ),
+
+        onTap: () {
+          context.go(route);
+        },
+
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
         ),
       ),
     );
