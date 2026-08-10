@@ -13,12 +13,18 @@ class DashboardSidebar extends StatelessWidget {
 
     return Material(
       color: AppColors.primary,
+
       child: SizedBox(
         width: 260,
         height: double.infinity,
+
         child: SafeArea(
           child: Column(
             children: [
+              // ========================================================
+              // LOGO
+              // ========================================================
+
               const SizedBox(height: 28),
 
               const Text(
@@ -27,21 +33,29 @@ class DashboardSidebar extends StatelessWidget {
                   color: Colors.white,
                   fontSize: 26,
                   fontWeight: FontWeight.bold,
+                  letterSpacing: .3,
                 ),
               ),
 
               const SizedBox(height: 28),
 
+              // ========================================================
+              // MENU
+              // ========================================================
+
               Expanded(
                 child: SingleChildScrollView(
                   physics:
                       const BouncingScrollPhysics(),
-                  padding: const EdgeInsets.fromLTRB(
+
+                  padding:
+                      const EdgeInsets.fromLTRB(
                     12,
                     0,
                     12,
                     24,
                   ),
+
                   child: Column(
                     children: [
                       _item(
@@ -129,12 +143,36 @@ class DashboardSidebar extends StatelessWidget {
                   ),
                 ),
               ),
+
+              // ========================================================
+              // VERSION
+              // ========================================================
+
+              Padding(
+                padding:
+                    const EdgeInsets.only(
+                  bottom: 16,
+                ),
+
+                child: Text(
+                  'StructFlow • v1.0',
+                  style: TextStyle(
+                    color:
+                        Colors.white.withOpacity(.45),
+                    fontSize: 11,
+                  ),
+                ),
+              ),
             ],
           ),
         ),
       ),
     );
   }
+
+  // ================================================================
+  // SIDEBAR ITEM
+  // ================================================================
 
   Widget _item(
     BuildContext context,
@@ -143,17 +181,33 @@ class DashboardSidebar extends StatelessWidget {
     String route,
     String currentPath,
   ) {
-    final selected = currentPath == route;
+    // ================================================================
+    // PROJECTS SHOULD STAY SELECTED INSIDE PROJECT DETAILS
+    // ================================================================
+
+    final isProjectsRoute =
+        route == '/projects' &&
+        currentPath.startsWith('/projects/');
+
+    final selected =
+        currentPath == route ||
+        isProjectsRoute;
 
     return Container(
       width: double.infinity,
-      margin: const EdgeInsets.only(bottom: 6),
+
+      margin:
+          const EdgeInsets.only(bottom: 6),
+
       decoration: BoxDecoration(
         color: selected
             ? Colors.white.withOpacity(.15)
             : Colors.transparent,
-        borderRadius: BorderRadius.circular(12),
+
+        borderRadius:
+            BorderRadius.circular(12),
       ),
+
       child: ListTile(
         dense: true,
 
@@ -174,6 +228,7 @@ class DashboardSidebar extends StatelessWidget {
           style: TextStyle(
             color: Colors.white,
             fontSize: 15,
+
             fontWeight: selected
                 ? FontWeight.w700
                 : FontWeight.w500,
@@ -181,11 +236,25 @@ class DashboardSidebar extends StatelessWidget {
         ),
 
         onTap: () {
+          // ==========================================================
+          // NAVIGATION
+          // ==========================================================
+
           context.go(route);
+
+          // ==========================================================
+          // CLOSE DRAWER ON MOBILE / TABLET
+          // ==========================================================
+
+          if (Navigator.of(context).canPop()) {
+            Navigator.of(context).pop();
+          }
         },
 
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
+        shape:
+            RoundedRectangleBorder(
+          borderRadius:
+              BorderRadius.circular(12),
         ),
       ),
     );

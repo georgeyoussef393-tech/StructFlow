@@ -2,9 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:structflow/features/dashboard/screens/dashboard_screen.dart';
+
 import 'package:structflow/features/projects/screens/projects_screen.dart';
 import 'package:structflow/features/projects/screens/project_details_screen.dart';
 import 'package:structflow/features/projects/screens/create_project_screen.dart';
+
+import 'package:structflow/features/tasks/screens/tasks_screen.dart';
+import 'package:structflow/features/tasks/screens/create_task_screen.dart';
+import 'package:structflow/features/tasks/screens/task_details_screen.dart';
 
 final GoRouter appRouter = GoRouter(
   initialLocation: '/',
@@ -30,12 +35,7 @@ final GoRouter appRouter = GoRouter(
       builder: (context, state) {
         return const ProjectsScreen();
       },
-
       routes: [
-        // ==========================================================
-        // PROJECT DETAILS
-        // ==========================================================
-
         GoRoute(
           path: ':projectId',
           builder: (context, state) {
@@ -69,10 +69,35 @@ final GoRouter appRouter = GoRouter(
     GoRoute(
       path: '/tasks',
       builder: (context, state) {
-        return const _ComingSoonScreen(
-          title: 'Tasks',
-          icon: Icons.task_alt_rounded,
-        );
+        return const TasksScreen();
+      },
+      routes: [
+        // ==========================================================
+        // TASK DETAILS
+        // ==========================================================
+
+        GoRoute(
+          path: ':taskId',
+          builder: (context, state) {
+            final taskId =
+                state.pathParameters['taskId'] ?? '';
+
+            return TaskDetailsScreen(
+              taskId: taskId,
+            );
+          },
+        ),
+      ],
+    ),
+
+    // ============================================================
+    // CREATE TASK
+    // ============================================================
+
+    GoRoute(
+      path: '/create-task',
+      builder: (context, state) {
+        return const CreateTaskScreen();
       },
     ),
 
@@ -163,7 +188,7 @@ final GoRouter appRouter = GoRouter(
 );
 
 // ============================================================================
-// TEMPORARY SCREEN
+// COMING SOON
 // ============================================================================
 
 class _ComingSoonScreen extends StatelessWidget {
@@ -178,66 +203,87 @@ class _ComingSoonScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xffF5F7FB),
+      backgroundColor:
+          const Color(0xffF5F7FB),
 
       appBar: AppBar(
         title: Text(title),
         backgroundColor: Colors.white,
-        foregroundColor: const Color(0xff1F2937),
+        foregroundColor:
+            const Color(0xff1F2937),
         elevation: 0,
       ),
 
       body: Center(
         child: Container(
-          padding: const EdgeInsets.all(40),
-          margin: const EdgeInsets.all(24),
+          padding:
+              const EdgeInsets.all(40),
 
-          decoration: BoxDecoration(
+          margin:
+              const EdgeInsets.all(24),
+
+          decoration:
+              BoxDecoration(
             color: Colors.white,
-            borderRadius: BorderRadius.circular(24),
+            borderRadius:
+                BorderRadius.circular(24),
           ),
 
           child: Column(
-            mainAxisSize: MainAxisSize.min,
+            mainAxisSize:
+                MainAxisSize.min,
+
             children: [
               Icon(
                 icon,
                 size: 60,
-                color: const Color(0xff0B3D91),
+                color:
+                    const Color(0xff0B3D91),
               ),
 
-              const SizedBox(height: 20),
+              const SizedBox(
+                height: 20,
+              ),
 
               Text(
                 title,
-                style: const TextStyle(
+                style:
+                    const TextStyle(
                   fontSize: 28,
-                  fontWeight: FontWeight.bold,
+                  fontWeight:
+                      FontWeight.bold,
                 ),
               ),
 
-              const SizedBox(height: 10),
+              const SizedBox(
+                height: 10,
+              ),
 
               const Text(
                 'This module is under development.',
-                style: TextStyle(
+                style:
+                    TextStyle(
                   color: Colors.grey,
                   fontSize: 15,
                 ),
               ),
 
-              const SizedBox(height: 25),
+              const SizedBox(
+                height: 25,
+              ),
 
               ElevatedButton.icon(
                 onPressed: () {
                   context.go('/');
                 },
 
-                icon: const Icon(
+                icon:
+                    const Icon(
                   Icons.dashboard_rounded,
                 ),
 
-                label: const Text(
+                label:
+                    const Text(
                   'Back to Dashboard',
                 ),
               ),
