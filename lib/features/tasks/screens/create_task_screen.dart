@@ -591,6 +591,10 @@ class _CreateTaskScreenState extends State<CreateTaskScreen> {
                 : (value) {
                     setState(() {
                       _progress = value;
+
+                      if (value == 1.0) {
+                        _status = 'Done';
+                      }
                     });
                   },
           ),
@@ -610,10 +614,19 @@ class _CreateTaskScreenState extends State<CreateTaskScreen> {
   // ================================================================
 
   Future<void> _selectDueDate() async {
+    final today = DateTime.now();
+    final firstDate = DateTime(
+      today.year,
+      today.month,
+      today.day,
+    );
+
     final selected = await showDatePicker(
       context: context,
-      initialDate: _dueDate,
-      firstDate: DateTime.now(),
+      initialDate: _dueDate.isBefore(firstDate)
+          ? firstDate
+          : _dueDate,
+      firstDate: firstDate,
       lastDate: DateTime(2100),
     );
 
@@ -636,12 +649,16 @@ class _CreateTaskScreenState extends State<CreateTaskScreen> {
     }
 
     if (_selectedProject == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please select a project before creating the task.'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
       return;
     }
 
-    final nextNumber = _taskRepository.taskCount + 1;
-
-    final id = 'TSK-${nextNumber.toString().padLeft(3, '0')}';
+    final id = _taskRepository.nextTaskId;
 
     final newTask = TaskModel(
       id: id,

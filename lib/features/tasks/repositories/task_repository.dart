@@ -101,6 +101,21 @@ class TaskRepository extends ChangeNotifier {
     return _tasks.length;
   }
 
+  String get nextTaskId {
+    var highestNumber = 0;
+
+    for (final task in _tasks) {
+      final match = RegExp(r'^TSK-(\d+)$').firstMatch(task.id);
+      final number = int.tryParse(match?.group(1) ?? '');
+
+      if (number != null && number > highestNumber) {
+        highestNumber = number;
+      }
+    }
+
+    return 'TSK-${(highestNumber + 1).toString().padLeft(3, '0')}';
+  }
+
   int get toDoCount {
     return _tasks
         .where(
