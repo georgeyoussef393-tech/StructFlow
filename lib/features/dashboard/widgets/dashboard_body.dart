@@ -1,82 +1,98 @@
 import 'package:flutter/material.dart';
 import 'package:structflow/core/responsive/responsive.dart';
 import 'package:structflow/features/dashboard/widgets/statistics_card.dart';
+import 'package:structflow/features/projects/models/project_model.dart';
+import 'package:structflow/features/projects/repositories/project_repository.dart';
+import 'package:structflow/features/tasks/models/task_model.dart';
+import 'package:structflow/features/tasks/repositories/task_repository.dart';
 
 class DashboardBody extends StatelessWidget {
   const DashboardBody({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final columns = Responsive.gridColumns(context);
-    final horizontalPadding = Responsive.horizontalPadding(context);
-    final spacing = Responsive.spacing(context);
-
-    return SingleChildScrollView(
-      padding: EdgeInsets.all(horizontalPadding),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          GridView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            itemCount: 4,
-            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: columns,
-              crossAxisSpacing: spacing,
-              mainAxisSpacing: spacing,
-              mainAxisExtent: 225,
-            ),
-            itemBuilder: (context, index) {
-              const cards = [
-                StatisticsCard(
-                  title: "Projects",
-                  value: "48",
-                  icon: Icons.apartment_rounded,
-                  color: Colors.blue,
-                  change: 12.4,
-                  isPositive: true,
-                ),
-                StatisticsCard(
-                  title: "Engineers",
-                  value: "132",
-                  icon: Icons.engineering_rounded,
-                  color: Colors.green,
-                  change: 4.8,
-                  isPositive: true,
-                ),
-                StatisticsCard(
-                  title: "Budget",
-                  value: "\$2.8M",
-                  icon: Icons.account_balance_wallet_rounded,
-                  color: Colors.orange,
-                  change: 2.1,
-                  isPositive: false,
-                ),
-                StatisticsCard(
-                  title: "Progress",
-                  value: "78%",
-                  icon: Icons.trending_up_rounded,
-                  color: Colors.purple,
-                  change: 8.7,
-                  isPositive: true,
-                ),
-              ];
-
-              return cards[index];
-            },
+    return AnimatedBuilder(
+      animation: Listenable.merge([
+        ProjectRepository.instance,
+        TaskRepository.instance,
+      ]),
+      builder: (context, child) {
+        final projects = ProjectRepository.instance.projects;
+        final tasks = TaskRepository.instance.tasks;
+        final completedTasks = tasks.where((task) => task.status == 'Done').length;
+        final averageProgress = tasks.isEmpty
+            ? 0
+            : (tasks.map((task) => task.progress).reduce((total, progress) => total + progress) * 100).round();
+        final columns = Responsive.gridColumns(context);
+        final horizontalPadding = Responsive.horizontalPadding(context);
+        final spacing = Responsive.spacing(context);
+        final cards = [
+          StatisticsCard(
+            title: 'Projects',
+            value: '${projects.length}',
+            icon: Icons.apartment_rounded,
+            color: Colors.blue,
+            change: 0,
+            isPositive: true,
           ),
+          StatisticsCard(
+            title: 'Tasks',
+            value: '${tasks.length}',
+            icon: Icons.task_alt_rounded,
+            color: Colors.orange,
+            change: 0,
+            isPositive: true,
+          ),
+          StatisticsCard(
+            title: 'Completed',
+            value: '$completedTasks',
+            icon: Icons.check_circle_rounded,
+            color: Colors.green,
+            change: 0,
+            isPositive: true,
+          ),
+          StatisticsCard(
+            title: 'Task Progress',
+            value: '$averageProgress%',
+            icon: Icons.trending_up_rounded,
+            color: Colors.purple,
+            change: 0,
+            isPositive: true,
+          ),
+        ];
 
-          SizedBox(height: spacing + 10),
-
-          _buildMainSections(context),
-
-          SizedBox(height: spacing),
-        ],
-      ),
+        return SingleChildScrollView(
+          padding: EdgeInsets.all(horizontalPadding),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              GridView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: cards.length,
+                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: columns,
+                  crossAxisSpacing: spacing,
+                  mainAxisSpacing: spacing,
+                  mainAxisExtent: 225,
+                ),
+                itemBuilder: (context, index) => cards[index],
+              ),
+              SizedBox(height: spacing + 10),
+              _buildMainSections(context, projects, tasks),
+              SizedBox(height: spacing),
+            ],
+          ),
+        );
+      },
     );
   }
 
-Widget _buildMainSections(BuildContext context) {
+Widget _buildMainSections(
+  BuildContext context,
+  List<ProjectModel> projects,
+  List<TaskModel> tasks,
+) {
   return LayoutBuilder(
     builder: (context, constraints) {
       final availableWidth = constraints.maxWidth;
@@ -87,11 +103,11 @@ Widget _buildMainSections(BuildContext context) {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            _activeProjectsCard(),
+            _activeProjectsCard(projects),
 
             const SizedBox(height: 20),
 
-            _recentActivityCard(),
+            _recentActivityCard(tasks),
           ],
         );
       }
@@ -102,14 +118,14 @@ Widget _buildMainSections(BuildContext context) {
         children: [
           Expanded(
             flex: 2,
-            child: _activeProjectsCard(),
+            child: _activeProjectsCard(projects),
           ),
 
           const SizedBox(width: 20),
 
           Expanded(
             flex: 1,
-            child: _recentActivityCard(),
+            child: _recentActivityCard(tasks),
           ),
         ],
       );
@@ -117,67 +133,50 @@ Widget _buildMainSections(BuildContext context) {
   );
 }
 
-  Widget _activeProjectsCard() {
+  Widget _activeProjectsCard(List<ProjectModel> projects) {
     return _sectionCard(
       title: "Active Projects",
       icon: Icons.apartment_rounded,
       child: Column(
         children: [
-          _projectTile(
-            "New Capital Tower",
-            0.82,
-            Colors.green,
-          ),
-          _projectTile(
-            "Cairo Business Park",
-            0.64,
-            Colors.orange,
-          ),
-          _projectTile(
-            "Smart Village",
-            0.39,
-            Colors.red,
-          ),
-          _projectTile(
-            "Alex Mall",
-            0.95,
-            Colors.blue,
+          ...projects.take(4).map(
+            (project) => _projectTile(
+              project.name,
+              project.progress,
+              project.color,
+            ),
           ),
         ],
       ),
     );
   }
 
-  Widget _recentActivityCard() {
+  Widget _recentActivityCard(List<TaskModel> tasks) {
+    final upcomingTasks = [...tasks]
+      ..sort((first, second) => first.dueDate.compareTo(second.dueDate));
+
     return _sectionCard(
-      title: "Recent Activity",
-      icon: Icons.timeline_rounded,
+      title: 'Upcoming Tasks',
+      icon: Icons.schedule_rounded,
       child: Column(
         children: [
-          _activityTile(
-            Icons.check_circle_rounded,
-            "BOQ Approved",
-            "5 min ago",
-            Colors.green,
-          ),
-          _activityTile(
-            Icons.upload_file_rounded,
-            "Shop Drawings Uploaded",
-            "18 min ago",
-            Colors.blue,
-          ),
-          _activityTile(
-            Icons.warning_amber_rounded,
-            "RFI Waiting Response",
-            "40 min ago",
-            Colors.orange,
-          ),
-          _activityTile(
-            Icons.person_add_alt_1_rounded,
-            "New Engineer Added",
-            "1 hour ago",
-            Colors.purple,
-          ),
+          if (upcomingTasks.isEmpty)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 20),
+              child: Text(
+                'No upcoming tasks.',
+                style: TextStyle(color: Color(0xff6B7280)),
+              ),
+            )
+          else
+            ...upcomingTasks.take(4).map(
+              (task) => _activityTile(
+                Icons.task_alt_rounded,
+                task.title,
+                'Due ${_formatDate(task.dueDate)} • ${task.status}',
+                task.color,
+              ),
+            ),
         ],
       ),
     );
@@ -330,5 +329,12 @@ Widget _buildMainSections(BuildContext context) {
         ],
       ),
     );
+  }
+
+  String _formatDate(DateTime date) {
+    final day = date.day.toString().padLeft(2, '0');
+    final month = date.month.toString().padLeft(2, '0');
+
+    return '$day/$month/${date.year}';
   }
 }
