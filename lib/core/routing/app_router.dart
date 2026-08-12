@@ -18,7 +18,6 @@ final GoRouter appRouter = GoRouter(
     // ============================================================
     // DASHBOARD
     // ============================================================
-
     GoRoute(
       path: '/',
       builder: (context, state) {
@@ -29,7 +28,6 @@ final GoRouter appRouter = GoRouter(
     // ============================================================
     // PROJECTS
     // ============================================================
-
     GoRoute(
       path: '/projects',
       builder: (context, state) {
@@ -39,13 +37,9 @@ final GoRouter appRouter = GoRouter(
         GoRoute(
           path: ':projectId',
           builder: (context, state) {
-            final projectId =
-                state.pathParameters['projectId'] ??
-                    'PRJ-001';
+            final projectId = state.pathParameters['projectId'] ?? 'PRJ-001';
 
-            return ProjectDetailsScreen(
-              projectId: projectId,
-            );
+            return ProjectDetailsScreen(projectId: projectId);
           },
         ),
       ],
@@ -54,7 +48,6 @@ final GoRouter appRouter = GoRouter(
     // ============================================================
     // CREATE PROJECT
     // ============================================================
-
     GoRoute(
       path: '/create-project',
       builder: (context, state) {
@@ -65,7 +58,6 @@ final GoRouter appRouter = GoRouter(
     // ============================================================
     // TASKS
     // ============================================================
-
     GoRoute(
       path: '/tasks',
       builder: (context, state) {
@@ -75,17 +67,23 @@ final GoRouter appRouter = GoRouter(
         // ==========================================================
         // TASK DETAILS
         // ==========================================================
-
         GoRoute(
           path: ':taskId',
           builder: (context, state) {
-            final taskId =
-                state.pathParameters['taskId'] ?? '';
+            final taskId = state.pathParameters['taskId'] ?? '';
 
-            return TaskDetailsScreen(
-              taskId: taskId,
-            );
+            return TaskDetailsScreen(taskId: taskId);
           },
+          routes: [
+            GoRoute(
+              path: 'edit',
+              builder: (context, state) {
+                final taskId = state.pathParameters['taskId'] ?? '';
+
+                return CreateTaskScreen(taskId: taskId);
+              },
+            ),
+          ],
         ),
       ],
     ),
@@ -93,18 +91,19 @@ final GoRouter appRouter = GoRouter(
     // ============================================================
     // CREATE TASK
     // ============================================================
-
     GoRoute(
       path: '/create-task',
       builder: (context, state) {
-        return const CreateTaskScreen();
+        return CreateTaskScreen(
+          initialProjectCode:
+              state.uri.queryParameters['projectCode'],
+        );
       },
     ),
 
     // ============================================================
     // TEAM
     // ============================================================
-
     GoRoute(
       path: '/team',
       builder: (context, state) {
@@ -118,7 +117,6 @@ final GoRouter appRouter = GoRouter(
     // ============================================================
     // CALENDAR
     // ============================================================
-
     GoRoute(
       path: '/calendar',
       builder: (context, state) {
@@ -132,7 +130,6 @@ final GoRouter appRouter = GoRouter(
     // ============================================================
     // DOCUMENTS
     // ============================================================
-
     GoRoute(
       path: '/documents',
       builder: (context, state) {
@@ -146,7 +143,6 @@ final GoRouter appRouter = GoRouter(
     // ============================================================
     // REPORTS
     // ============================================================
-
     GoRoute(
       path: '/reports',
       builder: (context, state) {
@@ -160,7 +156,6 @@ final GoRouter appRouter = GoRouter(
     // ============================================================
     // AI ASSISTANT
     // ============================================================
-
     GoRoute(
       path: '/ai-assistant',
       builder: (context, state) {
@@ -174,7 +169,6 @@ final GoRouter appRouter = GoRouter(
     // ============================================================
     // SETTINGS
     // ============================================================
-
     GoRoute(
       path: '/settings',
       builder: (context, state) {
@@ -195,97 +189,64 @@ class _ComingSoonScreen extends StatelessWidget {
   final String title;
   final IconData icon;
 
-  const _ComingSoonScreen({
-    required this.title,
-    required this.icon,
-  });
+  const _ComingSoonScreen({required this.title, required this.icon});
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor:
-          const Color(0xffF5F7FB),
+      backgroundColor: const Color(0xffF5F7FB),
 
       appBar: AppBar(
         title: Text(title),
         backgroundColor: Colors.white,
-        foregroundColor:
-            const Color(0xff1F2937),
+        foregroundColor: const Color(0xff1F2937),
         elevation: 0,
       ),
 
       body: Center(
         child: Container(
-          padding:
-              const EdgeInsets.all(40),
+          padding: const EdgeInsets.all(40),
 
-          margin:
-              const EdgeInsets.all(24),
+          margin: const EdgeInsets.all(24),
 
-          decoration:
-              BoxDecoration(
+          decoration: BoxDecoration(
             color: Colors.white,
-            borderRadius:
-                BorderRadius.circular(24),
+            borderRadius: BorderRadius.circular(24),
           ),
 
           child: Column(
-            mainAxisSize:
-                MainAxisSize.min,
+            mainAxisSize: MainAxisSize.min,
 
             children: [
-              Icon(
-                icon,
-                size: 60,
-                color:
-                    const Color(0xff0B3D91),
-              ),
+              Icon(icon, size: 60, color: const Color(0xff0B3D91)),
 
-              const SizedBox(
-                height: 20,
-              ),
+              const SizedBox(height: 20),
 
               Text(
                 title,
-                style:
-                    const TextStyle(
+                style: const TextStyle(
                   fontSize: 28,
-                  fontWeight:
-                      FontWeight.bold,
+                  fontWeight: FontWeight.bold,
                 ),
               ),
 
-              const SizedBox(
-                height: 10,
-              ),
+              const SizedBox(height: 10),
 
               const Text(
                 'This module is under development.',
-                style:
-                    TextStyle(
-                  color: Colors.grey,
-                  fontSize: 15,
-                ),
+                style: TextStyle(color: Colors.grey, fontSize: 15),
               ),
 
-              const SizedBox(
-                height: 25,
-              ),
+              const SizedBox(height: 25),
 
               ElevatedButton.icon(
                 onPressed: () {
                   context.go('/');
                 },
 
-                icon:
-                    const Icon(
-                  Icons.dashboard_rounded,
-                ),
+                icon: const Icon(Icons.dashboard_rounded),
 
-                label:
-                    const Text(
-                  'Back to Dashboard',
-                ),
+                label: const Text('Back to Dashboard'),
               ),
             ],
           ),

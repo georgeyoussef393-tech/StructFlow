@@ -4,6 +4,8 @@ import 'package:go_router/go_router.dart';
 import 'package:structflow/core/theme/app_colors.dart';
 import 'package:structflow/features/projects/models/project_model.dart';
 import 'package:structflow/features/projects/repositories/project_repository.dart';
+import 'package:structflow/features/tasks/models/task_model.dart';
+import 'package:structflow/features/tasks/repositories/task_repository.dart';
 
 class ProjectDetailsScreen extends StatelessWidget {
   final String projectId;
@@ -121,7 +123,13 @@ class ProjectDetailsScreen extends StatelessWidget {
     return Scaffold(
       backgroundColor: const Color(0xffF5F7FB),
 
-      body: SafeArea(
+      body: AnimatedBuilder(
+        animation: TaskRepository.instance,
+        builder: (context, child) {
+          final tasks = TaskRepository.instance
+              .getTasksByProject(project.code);
+
+          return SafeArea(
         child: LayoutBuilder(
           builder: (context, constraints) {
             final width = constraints.maxWidth;
@@ -147,19 +155,24 @@ class ProjectDetailsScreen extends StatelessWidget {
                   _buildOverviewCard(
                     project,
                     isMobile,
+                    tasks,
                   ),
 
                   const SizedBox(height: 20),
 
                   _buildMainContent(
+                    context,
                     project,
                     width,
+                    tasks,
                   ),
                 ],
               ),
             );
           },
         ),
+          );
+        },
       ),
     );
   }
@@ -359,7 +372,16 @@ class ProjectDetailsScreen extends StatelessWidget {
   Widget _buildOverviewCard(
     ProjectModel project,
     bool isMobile,
+    List<TaskModel> tasks,
   ) {
+    final averageProgress = tasks.isEmpty
+        ? 0
+        : (tasks
+                    .map((task) => task.progress)
+                    .reduce((total, progress) => total + progress) *
+                100)
+            .round();
+
     return Container(
       width: double.infinity,
 
@@ -445,6 +467,20 @@ class ProjectDetailsScreen extends StatelessWidget {
                     'Team',
                     '${project.team} Members',
                     Colors.purple,
+                  ),
+
+                  _infoCard(
+                    Icons.task_alt_rounded,
+                    'Tasks',
+                    '${tasks.length} Tasks',
+                    Colors.teal,
+                  ),
+
+                  _infoCard(
+                    Icons.trending_up_rounded,
+                    'Task Progress',
+                    '$averageProgress%',
+                    AppColors.primary,
                   ),
                 ],
               );
@@ -537,13 +573,19 @@ class ProjectDetailsScreen extends StatelessWidget {
   // ================================================================
 
   Widget _buildMainContent(
+    BuildContext context,
     ProjectModel project,
     double width,
+    List<TaskModel> tasks,
   ) {
     if (width < 950) {
       return Column(
         children: [
           _buildProgressCard(project),
+
+          const SizedBox(height: 20),
+
+          _buildTasksCard(context, project, tasks),
 
           const SizedBox(height: 20),
 
@@ -567,6 +609,10 @@ class ProjectDetailsScreen extends StatelessWidget {
           child: Column(
             children: [
               _buildProgressCard(project),
+
+              const SizedBox(height: 20),
+
+              _buildTasksCard(context, project, tasks),
 
               const SizedBox(height: 20),
 
@@ -733,6 +779,112 @@ class ProjectDetailsScreen extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  // ================================================================
+  // TASKS
+  // ================================================================
+
+  Widget _buildTasksCard(
+    BuildContext context,
+    ProjectModel project,
+    List<TaskModel> tasks,
+  ) {
+    return _sectionCard(
+      title: 'Project Tasks',
+      icon: Icons.task_alt_rounded,
+      child: Column(
+        children: [
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: () {
+                context.go('/create-task?projectCode=${project.code}');
+              },
+              icon: const Icon(Icons.add_task_rounded),
+              label: const Text('Create Task'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.primary,
+                side: const BorderSide(color: AppColors.primary),
+                padding: const EdgeInsets.symmetric(vertical: 13),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 14),
+          if (tasks.isEmpty)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 18),
+              child: Text(
+                'No tasks have been added to this project yet.',
+                style: TextStyle(color: AppColors.textLight),
+              ),
+            )
+          else
+            ...tasks.map(
+              (task) => _taskItem(context, task),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _taskItem(
+    BuildContext context,
+    TaskModel task,
+  ) {
+    final percentage = (task.progress * 100).round();
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: InkWell(
+        onTap: () {
+          context.go('/tasks/${task.id}');
+        },
+        borderRadius: BorderRadius.circular(14),
+        child: Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: task.color.withOpacity(.06),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: task.color.withOpacity(.15)),
+          ),
+          child: Row(
+            children: [
+              Icon(Icons.task_alt_rounded, color: task.color),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      task.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.textDark,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      '${task.status} • $percentage%',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: AppColors.textLight,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(Icons.arrow_forward_ios_rounded, size: 14, color: task.color),
+            ],
+          ),
+        ),
       ),
     );
   }
