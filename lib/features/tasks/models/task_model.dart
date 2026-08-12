@@ -60,4 +60,36 @@ class TaskModel {
       color: color ?? this.color,
     );
   }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'title': title,
+      'description': description,
+      'projectCode': projectCode,
+      'projectName': projectName,
+      'assignee': assignee,
+      'status': status,
+      'priority': priority,
+      'dueDate': dueDate.toIso8601String(),
+      'progress': progress,
+      'color': color.value,
+    };
+  }
+
+  factory TaskModel.fromJson(Map<String, dynamic> json) {
+    return TaskModel(
+      id: json['id'] as String,
+      title: json['title'] as String,
+      description: json['description'] as String,
+      projectCode: json['projectCode'] as String,
+      projectName: json['projectName'] as String,
+      assignee: json['assignee'] as String,
+      status: json['status'] as String,
+      priority: json['priority'] as String,
+      dueDate: DateTime.parse(json['dueDate'] as String),
+      progress: (json['progress'] as num).toDouble(),
+      color: Color((json['color'] as num).toInt()),
+    );
+  }
 }

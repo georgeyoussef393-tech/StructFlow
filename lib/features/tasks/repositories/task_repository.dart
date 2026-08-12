@@ -1,8 +1,12 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:structflow/features/tasks/models/task_model.dart';
 
 class TaskRepository extends ChangeNotifier {
+  static const _storageKey = 'structflow_tasks';
   TaskRepository._();
 
   static final TaskRepository instance =
@@ -101,6 +105,43 @@ class TaskRepository extends ChangeNotifier {
     return _tasks.length;
   }
 
+  Future<void> loadTasks() async {
+    final preferences = await SharedPreferences.getInstance();
+    final savedTasks = preferences.getString(_storageKey);
+
+    if (savedTasks == null) {
+      return;
+    }
+
+    try {
+      final decoded = jsonDecode(savedTasks) as List<dynamic>;
+      final restoredTasks = decoded
+          .map(
+            (task) => TaskModel.fromJson(
+              Map<String, dynamic>.from(task as Map),
+            ),
+          )
+          .toList();
+
+      _tasks
+        ..clear()
+        ..addAll(restoredTasks);
+
+      notifyListeners();
+    } catch (_) {
+      // Keep the bundled sample tasks if saved data cannot be restored.
+    }
+  }
+
+  Future<void> _saveTasks() async {
+    final preferences = await SharedPreferences.getInstance();
+    final encodedTasks = jsonEncode(
+      _tasks.map((task) => task.toJson()).toList(),
+    );
+
+    await preferences.setString(_storageKey, encodedTasks);
+  }
+
   String get nextTaskId {
     var highestNumber = 0;
 
@@ -181,6 +222,7 @@ class TaskRepository extends ChangeNotifier {
   ) {
     _tasks.add(task);
 
+    _saveTasks();
     notifyListeners();
   }
 
@@ -201,6 +243,7 @@ class TaskRepository extends ChangeNotifier {
 
     _tasks[index] = updatedTask;
 
+    _saveTasks();
     notifyListeners();
   }
 
@@ -215,6 +258,7 @@ class TaskRepository extends ChangeNotifier {
       (task) => task.id == id,
     );
 
+    _saveTasks();
     notifyListeners();
   }
 

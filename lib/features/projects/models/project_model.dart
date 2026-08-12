@@ -50,4 +50,37 @@ class ProjectModel {
       icon: icon ?? this.icon,
     );
   }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'name': name,
+      'code': code,
+      'client': client,
+      'location': location,
+      'status': status,
+      'progress': progress,
+      'budget': budget,
+      'team': team,
+      'color': color.value,
+      'iconCodePoint': icon.codePoint,
+    };
+  }
+
+  factory ProjectModel.fromJson(Map<String, dynamic> json) {
+    return ProjectModel(
+      name: json['name'] as String,
+      code: json['code'] as String,
+      client: json['client'] as String,
+      location: json['location'] as String,
+      status: json['status'] as String,
+      progress: (json['progress'] as num).toDouble(),
+      budget: json['budget'] as String,
+      team: (json['team'] as num).toInt(),
+      color: Color((json['color'] as num).toInt()),
+      icon: IconData(
+        (json['iconCodePoint'] as num).toInt(),
+        fontFamily: 'MaterialIcons',
+      ),
+    );
+  }
 }

@@ -1,8 +1,12 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:structflow/features/projects/models/project_model.dart';
 
 class ProjectRepository extends ChangeNotifier {
+  static const _storageKey = 'structflow_projects';
   ProjectRepository._internal();
 
   static final ProjectRepository instance =
@@ -96,6 +100,43 @@ class ProjectRepository extends ChangeNotifier {
     return List.unmodifiable(_projects);
   }
 
+  Future<void> loadProjects() async {
+    final preferences = await SharedPreferences.getInstance();
+    final savedProjects = preferences.getString(_storageKey);
+
+    if (savedProjects == null) {
+      return;
+    }
+
+    try {
+      final decoded = jsonDecode(savedProjects) as List<dynamic>;
+      final restoredProjects = decoded
+          .map(
+            (project) => ProjectModel.fromJson(
+              Map<String, dynamic>.from(project as Map),
+            ),
+          )
+          .toList();
+
+      _projects
+        ..clear()
+        ..addAll(restoredProjects);
+
+      notifyListeners();
+    } catch (_) {
+      // Keep the bundled sample projects if saved data cannot be restored.
+    }
+  }
+
+  Future<void> _saveProjects() async {
+    final preferences = await SharedPreferences.getInstance();
+    final encodedProjects = jsonEncode(
+      _projects.map((project) => project.toJson()).toList(),
+    );
+
+    await preferences.setString(_storageKey, encodedProjects);
+  }
+
   // ================================================================
   // GET PROJECT BY CODE
   // ================================================================
@@ -121,6 +162,7 @@ class ProjectRepository extends ChangeNotifier {
   ) {
     _projects.add(project);
 
+    _saveProjects();
     notifyListeners();
   }
 
@@ -142,6 +184,7 @@ class ProjectRepository extends ChangeNotifier {
 
     _projects[index] = updatedProject;
 
+    _saveProjects();
     notifyListeners();
   }
 
@@ -156,6 +199,7 @@ class ProjectRepository extends ChangeNotifier {
       (project) => project.code == code,
     );
 
+    _saveProjects();
     notifyListeners();
   }
 
