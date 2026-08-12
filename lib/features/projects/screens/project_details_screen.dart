@@ -21,10 +21,10 @@ class ProjectDetailsScreen extends StatelessWidget {
     // GET REAL PROJECT FROM REPOSITORY
     // ================================================================
 
-    final repository = ProjectRepository.instance;
+    final projectRepository = ProjectRepository.instance;
 
     final ProjectModel? project =
-        repository.getProjectByCode(projectId);
+        projectRepository.getProjectByCode(projectId);
 
     // ================================================================
     // PROJECT NOT FOUND
@@ -62,9 +62,7 @@ class ProjectDetailsScreen extends StatelessWidget {
                   size: 60,
                   color: Colors.grey.shade400,
                 ),
-
                 const SizedBox(height: 18),
-
                 const Text(
                   'Project Not Found',
                   style: TextStyle(
@@ -73,9 +71,7 @@ class ProjectDetailsScreen extends StatelessWidget {
                     color: AppColors.textDark,
                   ),
                 ),
-
                 const SizedBox(height: 8),
-
                 Text(
                   'No project was found with code: $projectId',
                   textAlign: TextAlign.center,
@@ -83,12 +79,10 @@ class ProjectDetailsScreen extends StatelessWidget {
                     color: AppColors.textLight,
                   ),
                 ),
-
                 const SizedBox(height: 24),
-
                 ElevatedButton.icon(
                   onPressed: () {
-                    context.go('/projects');
+                    context.pop();
                   },
                   icon: const Icon(
                     Icons.arrow_back_rounded,
@@ -122,55 +116,50 @@ class ProjectDetailsScreen extends StatelessWidget {
 
     return Scaffold(
       backgroundColor: const Color(0xffF5F7FB),
-
       body: AnimatedBuilder(
         animation: TaskRepository.instance,
         builder: (context, child) {
-          final tasks = TaskRepository.instance
-              .getTasksByProject(project.code);
+          final tasks = TaskRepository.instance.getTasksByProject(
+            project.code,
+          );
 
           return SafeArea(
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            final width = constraints.maxWidth;
-            final isMobile = width < 700;
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final width = constraints.maxWidth;
+                final isMobile = width < 700;
 
-            return SingleChildScrollView(
-              padding: EdgeInsets.all(
-                isMobile ? 16 : 28,
-              ),
-
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-
-                children: [
-                  _buildHeader(
-                    context,
-                    project,
-                    isMobile,
+                return SingleChildScrollView(
+                  padding: EdgeInsets.all(
+                    isMobile ? 16 : 28,
                   ),
-
-                  const SizedBox(height: 24),
-
-                  _buildOverviewCard(
-                    project,
-                    isMobile,
-                    tasks,
+                  child: Column(
+                    crossAxisAlignment:
+                        CrossAxisAlignment.start,
+                    children: [
+                      _buildHeader(
+                        context,
+                        project,
+                        isMobile,
+                      ),
+                      const SizedBox(height: 24),
+                      _buildOverviewCard(
+                        project,
+                        isMobile,
+                        tasks,
+                      ),
+                      const SizedBox(height: 20),
+                      _buildMainContent(
+                        context,
+                        project,
+                        width,
+                        tasks,
+                      ),
+                    ],
                   ),
-
-                  const SizedBox(height: 20),
-
-                  _buildMainContent(
-                    context,
-                    project,
-                    width,
-                    tasks,
-                  ),
-                ],
-              ),
-            );
-          },
-        ),
+                );
+              },
+            ),
           );
         },
       ),
@@ -201,15 +190,11 @@ class ProjectDetailsScreen extends StatelessWidget {
               'Back to Projects',
             ),
           ),
-
           const SizedBox(height: 10),
-
           Row(
             children: [
               _projectIcon(project),
-
               const SizedBox(width: 14),
-
               Expanded(
                 child: Column(
                   crossAxisAlignment:
@@ -218,21 +203,23 @@ class ProjectDetailsScreen extends StatelessWidget {
                     Text(
                       project.name,
                       maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
+                      overflow:
+                          TextOverflow.ellipsis,
                       style: const TextStyle(
                         fontSize: 25,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.textDark,
+                        fontWeight:
+                            FontWeight.bold,
+                        color:
+                            AppColors.textDark,
                       ),
                     ),
-
                     const SizedBox(height: 4),
-
                     Text(
                       project.code,
                       style: const TextStyle(
                         fontSize: 13,
-                        color: AppColors.textLight,
+                        color:
+                            AppColors.textLight,
                       ),
                     ),
                   ],
@@ -240,9 +227,7 @@ class ProjectDetailsScreen extends StatelessWidget {
               ),
             ],
           ),
-
           const SizedBox(height: 14),
-
           _statusBadge(
             project.status,
           ),
@@ -261,13 +246,9 @@ class ProjectDetailsScreen extends StatelessWidget {
             Icons.arrow_back_rounded,
           ),
         ),
-
         const SizedBox(width: 8),
-
         _projectIcon(project),
-
         const SizedBox(width: 14),
-
         Expanded(
           child: Column(
             crossAxisAlignment:
@@ -276,35 +257,35 @@ class ProjectDetailsScreen extends StatelessWidget {
               Text(
                 project.name,
                 maxLines: 1,
-                overflow: TextOverflow.ellipsis,
+                overflow:
+                    TextOverflow.ellipsis,
                 style: const TextStyle(
                   fontSize: 30,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.textDark,
+                  fontWeight:
+                      FontWeight.bold,
+                  color:
+                      AppColors.textDark,
                 ),
               ),
-
               const SizedBox(height: 4),
-
               Text(
                 '${project.code} • ${project.location}',
                 maxLines: 1,
-                overflow: TextOverflow.ellipsis,
+                overflow:
+                    TextOverflow.ellipsis,
                 style: const TextStyle(
                   fontSize: 13,
-                  color: AppColors.textLight,
+                  color:
+                      AppColors.textLight,
                 ),
               ),
             ],
           ),
         ),
-
         _statusBadge(
           project.status,
         ),
-
         const SizedBox(width: 12),
-
         ElevatedButton.icon(
           onPressed: () {
             _showComingSoon(
@@ -312,28 +293,28 @@ class ProjectDetailsScreen extends StatelessWidget {
               'Edit Project',
             );
           },
-
           icon: const Icon(
             Icons.edit_rounded,
             size: 18,
           ),
-
           label: const Text(
             'Edit Project',
           ),
-
           style: ElevatedButton.styleFrom(
-            backgroundColor: AppColors.primary,
-            foregroundColor: Colors.white,
+            backgroundColor:
+                AppColors.primary,
+            foregroundColor:
+                Colors.white,
             elevation: 0,
-
-            padding: const EdgeInsets.symmetric(
+            padding:
+                const EdgeInsets.symmetric(
               horizontal: 18,
               vertical: 14,
             ),
-
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
+            shape:
+                RoundedRectangleBorder(
+              borderRadius:
+                  BorderRadius.circular(12),
             ),
           ),
         ),
@@ -351,12 +332,12 @@ class ProjectDetailsScreen extends StatelessWidget {
     return Container(
       width: 58,
       height: 58,
-
       decoration: BoxDecoration(
-        color: project.color.withOpacity(.10),
-        borderRadius: BorderRadius.circular(16),
+        color:
+            project.color.withValues(alpha: .10),
+        borderRadius:
+            BorderRadius.circular(16),
       ),
-
       child: Icon(
         project.icon,
         color: project.color,
@@ -374,25 +355,18 @@ class ProjectDetailsScreen extends StatelessWidget {
     bool isMobile,
     List<TaskModel> tasks,
   ) {
-    final averageProgress = tasks.isEmpty
-        ? 0
-        : (tasks
-                    .map((task) => task.progress)
-                    .reduce((total, progress) => total + progress) *
-                100)
-            .round();
+    final averageProgress =
+        _calculateAverageProgress(tasks);
 
     return Container(
       width: double.infinity,
-
       padding: EdgeInsets.all(
         isMobile ? 18 : 24,
       ),
-
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-
+        borderRadius:
+            BorderRadius.circular(20),
         boxShadow: const [
           BoxShadow(
             color: Colors.black12,
@@ -401,25 +375,24 @@ class ProjectDetailsScreen extends StatelessWidget {
           ),
         ],
       ),
-
       child: Column(
         crossAxisAlignment:
             CrossAxisAlignment.start,
-
         children: [
           const Text(
             'Project Overview',
             style: TextStyle(
               fontSize: 20,
-              fontWeight: FontWeight.bold,
-              color: AppColors.textDark,
+              fontWeight:
+                  FontWeight.bold,
+              color:
+                  AppColors.textDark,
             ),
           ),
-
           const SizedBox(height: 22),
-
           LayoutBuilder(
-            builder: (context, constraints) {
+            builder:
+                (context, constraints) {
               final columns =
                   constraints.maxWidth >= 900
                       ? 4
@@ -428,18 +401,14 @@ class ProjectDetailsScreen extends StatelessWidget {
                           : 1;
 
               return GridView.count(
-                crossAxisCount: columns,
-
+                crossAxisCount:
+                    columns,
                 shrinkWrap: true,
-
                 physics:
                     const NeverScrollableScrollPhysics(),
-
                 crossAxisSpacing: 18,
                 mainAxisSpacing: 18,
-
                 childAspectRatio: 2.8,
-
                 children: [
                   _infoCard(
                     Icons.person_outline_rounded,
@@ -447,35 +416,30 @@ class ProjectDetailsScreen extends StatelessWidget {
                     project.client,
                     Colors.blue,
                   ),
-
                   _infoCard(
                     Icons.location_on_outlined,
                     'Location',
                     project.location,
                     Colors.red,
                   ),
-
                   _infoCard(
                     Icons.account_balance_wallet_outlined,
                     'Budget',
                     project.budget,
                     Colors.orange,
                   ),
-
                   _infoCard(
                     Icons.people_outline_rounded,
                     'Team',
                     '${project.team} Members',
                     Colors.purple,
                   ),
-
                   _infoCard(
                     Icons.task_alt_rounded,
                     'Tasks',
                     '${tasks.length} Tasks',
                     Colors.teal,
                   ),
-
                   _infoCard(
                     Icons.trending_up_rounded,
                     'Task Progress',
@@ -491,6 +455,24 @@ class ProjectDetailsScreen extends StatelessWidget {
     );
   }
 
+  int _calculateAverageProgress(
+    List<TaskModel> tasks,
+  ) {
+    if (tasks.isEmpty) {
+      return 0;
+    }
+
+    final totalProgress = tasks.fold<double>(
+      0,
+      (total, task) {
+        return total + task.progress;
+      },
+    );
+
+    return ((totalProgress / tasks.length) * 100)
+        .round();
+  }
+
   Widget _infoCard(
     IconData icon,
     String title,
@@ -498,66 +480,65 @@ class ProjectDetailsScreen extends StatelessWidget {
     Color color,
   ) {
     return Container(
-      padding: const EdgeInsets.all(14),
-
+      padding:
+          const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: const Color(0xffFAFBFD),
-        borderRadius: BorderRadius.circular(14),
-
+        color:
+            const Color(0xffFAFBFD),
+        borderRadius:
+            BorderRadius.circular(14),
         border: Border.all(
-          color: Colors.grey.shade200,
+          color:
+              Colors.grey.shade200,
         ),
       ),
-
       child: Row(
         children: [
           Container(
             width: 42,
             height: 42,
-
             decoration: BoxDecoration(
-              color: color.withOpacity(.10),
-              borderRadius: BorderRadius.circular(12),
+              color:
+                  color.withValues(alpha: .10),
+              borderRadius:
+                  BorderRadius.circular(12),
             ),
-
             child: Icon(
               icon,
               color: color,
               size: 20,
             ),
           ),
-
           const SizedBox(width: 10),
-
           Expanded(
             child: Column(
               mainAxisAlignment:
                   MainAxisAlignment.center,
-
               crossAxisAlignment:
                   CrossAxisAlignment.start,
-
               children: [
                 Text(
                   title,
-                  style: const TextStyle(
+                  style:
+                      const TextStyle(
                     fontSize: 11,
-                    color: AppColors.textLight,
+                    color:
+                        AppColors.textLight,
                   ),
                 ),
-
                 const SizedBox(height: 3),
-
                 Text(
                   value,
                   maxLines: 1,
                   overflow:
                       TextOverflow.ellipsis,
-
-                  style: const TextStyle(
+                  style:
+                      const TextStyle(
                     fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.textDark,
+                    fontWeight:
+                        FontWeight.w600,
+                    color:
+                        AppColors.textDark,
                   ),
                 ),
               ],
@@ -582,17 +563,15 @@ class ProjectDetailsScreen extends StatelessWidget {
       return Column(
         children: [
           _buildProgressCard(project),
-
           const SizedBox(height: 20),
-
-          _buildTasksCard(context, project, tasks),
-
+          _buildTasksCard(
+            context,
+            project,
+            tasks,
+          ),
           const SizedBox(height: 20),
-
           _buildModulesCard(),
-
           const SizedBox(height: 20),
-
           _buildActivityCard(),
         ],
       );
@@ -601,37 +580,34 @@ class ProjectDetailsScreen extends StatelessWidget {
     return Row(
       crossAxisAlignment:
           CrossAxisAlignment.start,
-
       children: [
         Expanded(
           flex: 2,
-
           child: Column(
             children: [
               _buildProgressCard(project),
-
               const SizedBox(height: 20),
-
-              _buildTasksCard(context, project, tasks),
-
+              _buildTasksCard(
+                context,
+                project,
+                tasks,
+              ),
               const SizedBox(height: 20),
-
               _buildModulesCard(),
             ],
           ),
         ),
-
         const SizedBox(width: 20),
-
         Expanded(
-          child: _buildActivityCard(),
+          child:
+              _buildActivityCard(),
         ),
       ],
     );
   }
 
   // ================================================================
-  // PROGRESS
+  // PROJECT PROGRESS
   // ================================================================
 
   Widget _buildProgressCard(
@@ -642,12 +618,11 @@ class ProjectDetailsScreen extends StatelessWidget {
 
     return _sectionCard(
       title: 'Project Progress',
-      icon: Icons.trending_up_rounded,
-
+      icon:
+          Icons.trending_up_rounded,
       child: Column(
         crossAxisAlignment:
             CrossAxisAlignment.start,
-
         children: [
           Row(
             children: [
@@ -655,64 +630,58 @@ class ProjectDetailsScreen extends StatelessWidget {
                 '$percentage%',
                 style: TextStyle(
                   fontSize: 34,
-                  fontWeight: FontWeight.bold,
-                  color: project.color,
+                  fontWeight:
+                      FontWeight.bold,
+                  color:
+                      project.color,
                 ),
               ),
-
               const Spacer(),
-
               const Text(
                 'Overall Progress',
                 style: TextStyle(
-                  color: AppColors.textLight,
+                  color:
+                      AppColors.textLight,
                   fontSize: 13,
                 ),
               ),
             ],
           ),
-
           const SizedBox(height: 14),
-
           ClipRRect(
             borderRadius:
                 BorderRadius.circular(20),
-
-            child: LinearProgressIndicator(
-              value: project.progress,
-
+            child:
+                LinearProgressIndicator(
+              value:
+                  project.progress,
               minHeight: 12,
-
               backgroundColor:
-                  project.color.withOpacity(.10),
-
+                  project.color
+                      .withValues(alpha: .10),
               valueColor:
-                  AlwaysStoppedAnimation<Color>(
+                  AlwaysStoppedAnimation<
+                      Color>(
                 project.color,
               ),
             ),
           ),
-
           const SizedBox(height: 22),
-
           _progressRow(
             'Civil Works',
             .91,
             Colors.blue,
           ),
-
           _progressRow(
             'Architecture',
             .76,
             Colors.green,
           ),
-
           _progressRow(
             'Mechanical',
             .62,
             Colors.orange,
           ),
-
           _progressRow(
             'Electrical',
             .55,
@@ -730,8 +699,9 @@ class ProjectDetailsScreen extends StatelessWidget {
   ) {
     return Padding(
       padding:
-          const EdgeInsets.only(bottom: 15),
-
+          const EdgeInsets.only(
+        bottom: 15,
+      ),
       child: Column(
         children: [
           Row(
@@ -739,41 +709,40 @@ class ProjectDetailsScreen extends StatelessWidget {
               Expanded(
                 child: Text(
                   title,
-                  style: const TextStyle(
+                  style:
+                      const TextStyle(
                     fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.textDark,
+                    fontWeight:
+                        FontWeight.w600,
+                    color:
+                        AppColors.textDark,
                   ),
                 ),
               ),
-
               Text(
                 '${(value * 100).round()}%',
                 style: TextStyle(
                   fontSize: 12,
-                  fontWeight: FontWeight.bold,
+                  fontWeight:
+                      FontWeight.bold,
                   color: color,
                 ),
               ),
             ],
           ),
-
           const SizedBox(height: 7),
-
           ClipRRect(
             borderRadius:
                 BorderRadius.circular(20),
-
-            child: LinearProgressIndicator(
+            child:
+                LinearProgressIndicator(
               value: value,
-
               minHeight: 7,
-
               backgroundColor:
-                  color.withOpacity(.10),
-
+                  color.withValues(alpha: .10),
               valueColor:
-                  AlwaysStoppedAnimation<Color>(
+                  AlwaysStoppedAnimation<
+                      Color>(
                 color,
               ),
             ),
@@ -784,7 +753,7 @@ class ProjectDetailsScreen extends StatelessWidget {
   }
 
   // ================================================================
-  // TASKS
+  // PROJECT TASKS
   // ================================================================
 
   Widget _buildTasksCard(
@@ -794,40 +763,102 @@ class ProjectDetailsScreen extends StatelessWidget {
   ) {
     return _sectionCard(
       title: 'Project Tasks',
-      icon: Icons.task_alt_rounded,
+      icon:
+          Icons.task_alt_rounded,
       child: Column(
         children: [
           SizedBox(
             width: double.infinity,
-            child: OutlinedButton.icon(
+            child:
+                OutlinedButton.icon(
               onPressed: () {
-                context.go('/create-task?projectCode=${project.code}');
+                // IMPORTANT:
+                // push keeps Project Details in navigation stack.
+                // Create Task -> Back returns here.
+                context.push(
+                  '/create-task?projectCode=${project.code}',
+                );
               },
-              icon: const Icon(Icons.add_task_rounded),
-              label: const Text('Create Task'),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: AppColors.primary,
-                side: const BorderSide(color: AppColors.primary),
-                padding: const EdgeInsets.symmetric(vertical: 13),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
+              icon: const Icon(
+                Icons.add_task_rounded,
+              ),
+              label: const Text(
+                'Create Task',
+              ),
+              style:
+                  OutlinedButton.styleFrom(
+                foregroundColor:
+                    AppColors.primary,
+                side: const BorderSide(
+                  color:
+                      AppColors.primary,
+                ),
+                padding:
+                    const EdgeInsets.symmetric(
+                  vertical: 13,
+                ),
+                shape:
+                    RoundedRectangleBorder(
+                  borderRadius:
+                      BorderRadius.circular(
+                    12,
+                  ),
                 ),
               ),
             ),
           ),
           const SizedBox(height: 14),
           if (tasks.isEmpty)
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 18),
-              child: Text(
-                'No tasks have been added to this project yet.',
-                style: TextStyle(color: AppColors.textLight),
-              ),
-            )
+            _buildNoTasksState()
           else
             ...tasks.map(
-              (task) => _taskItem(context, task),
+              (task) => _taskItem(
+                context,
+                task,
+              ),
             ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildNoTasksState() {
+    return Container(
+      width: double.infinity,
+      padding:
+          const EdgeInsets.symmetric(
+        vertical: 24,
+      ),
+      child: Column(
+        children: [
+          Icon(
+            Icons.task_alt_rounded,
+            size: 42,
+            color:
+                Colors.grey.shade400,
+          ),
+          const SizedBox(height: 10),
+          const Text(
+            'No tasks yet',
+            style: TextStyle(
+              fontSize: 15,
+              fontWeight:
+                  FontWeight.w600,
+              color:
+                  AppColors.textDark,
+            ),
+          ),
+          const SizedBox(height: 4),
+          const Text(
+            'Create the first task for this project.',
+            textAlign:
+                TextAlign.center,
+            style: TextStyle(
+              fontSize: 12,
+              color:
+                  AppColors.textLight,
+            ),
+          ),
         ],
       ),
     );
@@ -837,53 +868,264 @@ class ProjectDetailsScreen extends StatelessWidget {
     BuildContext context,
     TaskModel task,
   ) {
-    final percentage = (task.progress * 100).round();
+    final percentage =
+        (task.progress * 100).round();
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
+      padding:
+          const EdgeInsets.only(
+        bottom: 12,
+      ),
       child: InkWell(
         onTap: () {
-          context.go('/tasks/${task.id}');
+          // IMPORTANT:
+          // push instead of go.
+          // This preserves Project Details,
+          // so Task Details -> Back returns here.
+          context.push(
+            '/tasks/${task.id}',
+          );
         },
-        borderRadius: BorderRadius.circular(14),
+        borderRadius:
+            BorderRadius.circular(16),
         child: Container(
-          padding: const EdgeInsets.all(14),
+          padding:
+              const EdgeInsets.all(14),
           decoration: BoxDecoration(
-            color: task.color.withOpacity(.06),
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: task.color.withOpacity(.15)),
+            color:
+                task.color.withValues(alpha: .06),
+            borderRadius:
+                BorderRadius.circular(16),
+            border: Border.all(
+              color:
+                  task.color.withValues(alpha: .15),
+            ),
           ),
-          child: Row(
+          child: Column(
+            crossAxisAlignment:
+                CrossAxisAlignment.start,
             children: [
-              Icon(Icons.task_alt_rounded, color: task.color),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      task.title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.textDark,
+              Row(
+                children: [
+                  Container(
+                    width: 42,
+                    height: 42,
+                    decoration:
+                        BoxDecoration(
+                      color: task.color
+                          .withValues(alpha: .10),
+                      borderRadius:
+                          BorderRadius.circular(
+                        12,
                       ),
                     ),
-                    const SizedBox(height: 3),
-                    Text(
-                      '${task.status} • $percentage%',
-                      style: const TextStyle(
-                        fontSize: 12,
-                        color: AppColors.textLight,
+                    child: Icon(
+                      Icons.task_alt_rounded,
+                      color:
+                          task.color,
+                      size: 21,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment:
+                          CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          task.title,
+                          maxLines: 1,
+                          overflow:
+                              TextOverflow.ellipsis,
+                          style:
+                              const TextStyle(
+                            fontSize: 14,
+                            fontWeight:
+                                FontWeight.w600,
+                            color:
+                                AppColors.textDark,
+                          ),
+                        ),
+                        const SizedBox(height: 3),
+                        Text(
+                          task.id,
+                          style:
+                              const TextStyle(
+                            fontSize: 11,
+                            color:
+                                AppColors.textLight,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  _buildTaskPriorityBadge(
+                    task.priority,
+                  ),
+                  const SizedBox(width: 6),
+                  Icon(
+                    Icons.arrow_forward_ios_rounded,
+                    size: 13,
+                    color:
+                        task.color,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: _taskMeta(
+                      Icons.person_outline_rounded,
+                      task.assignee,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: _taskMeta(
+                      Icons.calendar_today_outlined,
+                      _formatDate(
+                        task.dueDate,
                       ),
                     ),
-                  ],
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  _buildTaskStatusBadge(
+                    task.status,
+                  ),
+                  const Spacer(),
+                  Text(
+                    '$percentage%',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight:
+                          FontWeight.bold,
+                      color:
+                          task.color,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 6),
+              ClipRRect(
+                borderRadius:
+                    BorderRadius.circular(
+                  20,
+                ),
+                child:
+                    LinearProgressIndicator(
+                  value:
+                      task.progress,
+                  minHeight: 6,
+                  backgroundColor:
+                      task.color
+                          .withValues(alpha: .10),
+                  valueColor:
+                      AlwaysStoppedAnimation<
+                          Color>(
+                    task.color,
+                  ),
                 ),
               ),
-              Icon(Icons.arrow_forward_ios_rounded, size: 14, color: task.color),
             ],
           ),
+        ),
+      ),
+    );
+  }
+
+  Widget _taskMeta(
+    IconData icon,
+    String text,
+  ) {
+    return Row(
+      children: [
+        Icon(
+          icon,
+          size: 14,
+          color:
+              Colors.grey.shade500,
+        ),
+        const SizedBox(width: 5),
+        Expanded(
+          child: Text(
+            text,
+            maxLines: 1,
+            overflow:
+                TextOverflow.ellipsis,
+            style:
+                const TextStyle(
+              fontSize: 11,
+              color:
+                  AppColors.textLight,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildTaskStatusBadge(
+    String status,
+  ) {
+    final color =
+        _taskStatusColor(status);
+
+    return Container(
+      padding:
+          const EdgeInsets.symmetric(
+        horizontal: 8,
+        vertical: 4,
+      ),
+      decoration:
+          BoxDecoration(
+        color:
+            color.withValues(alpha: .10),
+        borderRadius:
+            BorderRadius.circular(20),
+      ),
+      child: Text(
+        status,
+        style: TextStyle(
+          color: color,
+          fontSize: 10,
+          fontWeight:
+              FontWeight.bold,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTaskPriorityBadge(
+    String priority,
+  ) {
+    final color =
+        _taskPriorityColor(priority);
+
+    return Container(
+      padding:
+          const EdgeInsets.symmetric(
+        horizontal: 8,
+        vertical: 4,
+      ),
+      decoration:
+          BoxDecoration(
+        color:
+            color.withValues(alpha: .10),
+        borderRadius:
+            BorderRadius.circular(20),
+      ),
+      child: Text(
+        priority,
+        style: TextStyle(
+          color: color,
+          fontSize: 10,
+          fontWeight:
+              FontWeight.bold,
         ),
       ),
     );
@@ -896,52 +1138,42 @@ class ProjectDetailsScreen extends StatelessWidget {
   Widget _buildModulesCard() {
     return _sectionCard(
       title: 'Project Modules',
-      icon: Icons.dashboard_customize_rounded,
-
+      icon:
+          Icons.dashboard_customize_rounded,
       child: GridView.count(
         crossAxisCount: 2,
-
         shrinkWrap: true,
-
         physics:
             const NeverScrollableScrollPhysics(),
-
         crossAxisSpacing: 12,
         mainAxisSpacing: 12,
-
         childAspectRatio: 2.7,
-
         children: [
           _moduleItem(
             Icons.description_rounded,
             'Documents',
             Colors.blue,
           ),
-
           _moduleItem(
             Icons.architecture_rounded,
             'Drawings',
             Colors.purple,
           ),
-
           _moduleItem(
             Icons.request_quote_rounded,
             'BOQ',
             Colors.orange,
           ),
-
           _moduleItem(
             Icons.help_outline_rounded,
             'RFIs',
             Colors.red,
           ),
-
           _moduleItem(
             Icons.people_alt_rounded,
             'Team',
             Colors.green,
           ),
-
           _moduleItem(
             Icons.analytics_rounded,
             'Reports',
@@ -959,29 +1191,26 @@ class ProjectDetailsScreen extends StatelessWidget {
   ) {
     return InkWell(
       onTap: () {
-        // سيتم ربط الموديول لاحقًا
+        // سيتم ربط الموديول لاحقًا.
       },
-
       borderRadius:
           BorderRadius.circular(14),
-
       child: Container(
         padding:
             const EdgeInsets.symmetric(
           horizontal: 12,
         ),
-
-        decoration: BoxDecoration(
-          color: color.withOpacity(.06),
-
+        decoration:
+            BoxDecoration(
+          color:
+              color.withValues(alpha: .06),
           borderRadius:
               BorderRadius.circular(14),
-
           border: Border.all(
-            color: color.withOpacity(.15),
+            color:
+                color.withValues(alpha: .15),
           ),
         ),
-
         child: Row(
           children: [
             Icon(
@@ -989,20 +1218,20 @@ class ProjectDetailsScreen extends StatelessWidget {
               color: color,
               size: 21,
             ),
-
             const SizedBox(width: 9),
-
             Expanded(
               child: Text(
                 title,
-                style: const TextStyle(
+                style:
+                    const TextStyle(
                   fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.textDark,
+                  fontWeight:
+                      FontWeight.w600,
+                  color:
+                      AppColors.textDark,
                 ),
               ),
             ),
-
             Icon(
               Icons.arrow_forward_ios_rounded,
               size: 12,
@@ -1021,8 +1250,8 @@ class ProjectDetailsScreen extends StatelessWidget {
   Widget _buildActivityCard() {
     return _sectionCard(
       title: 'Recent Activity',
-      icon: Icons.timeline_rounded,
-
+      icon:
+          Icons.timeline_rounded,
       child: Column(
         children: [
           _activityItem(
@@ -1032,7 +1261,6 @@ class ProjectDetailsScreen extends StatelessWidget {
             '5 min ago',
             Colors.green,
           ),
-
           _activityItem(
             Icons.upload_file_rounded,
             'Drawing Uploaded',
@@ -1040,7 +1268,6 @@ class ProjectDetailsScreen extends StatelessWidget {
             '18 min ago',
             Colors.blue,
           ),
-
           _activityItem(
             Icons.warning_amber_rounded,
             'RFI Waiting Response',
@@ -1048,7 +1275,6 @@ class ProjectDetailsScreen extends StatelessWidget {
             '40 min ago',
             Colors.orange,
           ),
-
           _activityItem(
             Icons.person_add_alt_1_rounded,
             'Engineer Added',
@@ -1070,60 +1296,59 @@ class ProjectDetailsScreen extends StatelessWidget {
   ) {
     return Padding(
       padding:
-          const EdgeInsets.only(bottom: 18),
-
+          const EdgeInsets.only(
+        bottom: 18,
+      ),
       child: Row(
         crossAxisAlignment:
             CrossAxisAlignment.start,
-
         children: [
           Container(
             width: 40,
             height: 40,
-
-            decoration: BoxDecoration(
-              color: color.withOpacity(.10),
+            decoration:
+                BoxDecoration(
+              color:
+                  color.withValues(alpha: .10),
               shape: BoxShape.circle,
             ),
-
             child: Icon(
               icon,
               color: color,
               size: 20,
             ),
           ),
-
           const SizedBox(width: 11),
-
           Expanded(
             child: Column(
               crossAxisAlignment:
                   CrossAxisAlignment.start,
-
               children: [
                 Text(
                   title,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.textDark,
+                  style:
+                      const TextStyle(
+                    fontWeight:
+                        FontWeight.w600,
+                    color:
+                        AppColors.textDark,
                   ),
                 ),
-
                 const SizedBox(height: 3),
-
                 Text(
                   description,
-                  style: const TextStyle(
+                  style:
+                      const TextStyle(
                     fontSize: 12,
-                    color: AppColors.textLight,
+                    color:
+                        AppColors.textLight,
                   ),
                 ),
-
                 const SizedBox(height: 3),
-
                 Text(
                   time,
-                  style: const TextStyle(
+                  style:
+                      const TextStyle(
                     fontSize: 11,
                     color: Colors.grey,
                   ),
@@ -1147,15 +1372,13 @@ class ProjectDetailsScreen extends StatelessWidget {
   }) {
     return Container(
       width: double.infinity,
-
-      padding: const EdgeInsets.all(22),
-
-      decoration: BoxDecoration(
+      padding:
+          const EdgeInsets.all(22),
+      decoration:
+          BoxDecoration(
         color: Colors.white,
-
         borderRadius:
             BorderRadius.circular(20),
-
         boxShadow: const [
           BoxShadow(
             color: Colors.black12,
@@ -1164,35 +1387,33 @@ class ProjectDetailsScreen extends StatelessWidget {
           ),
         ],
       ),
-
       child: Column(
         crossAxisAlignment:
             CrossAxisAlignment.start,
-
         children: [
           Row(
             children: [
               Icon(
                 icon,
-                color: AppColors.primary,
+                color:
+                    AppColors.primary,
                 size: 22,
               ),
-
               const SizedBox(width: 10),
-
               Text(
                 title,
-                style: const TextStyle(
+                style:
+                    const TextStyle(
                   fontSize: 19,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.textDark,
+                  fontWeight:
+                      FontWeight.bold,
+                  color:
+                      AppColors.textDark,
                 ),
               ),
             ],
           ),
-
           const SizedBox(height: 20),
-
           child,
         ],
       ),
@@ -1200,54 +1421,111 @@ class ProjectDetailsScreen extends StatelessWidget {
   }
 
   // ================================================================
-  // STATUS
+  // PROJECT STATUS
   // ================================================================
 
   Widget _statusBadge(
     String status,
   ) {
-    Color color;
-
-    switch (status) {
-      case 'Active':
-        color = Colors.green;
-        break;
-
-      case 'Planning':
-        color = Colors.orange;
-        break;
-
-      case 'On Hold':
-        color = Colors.red;
-        break;
-
-      default:
-        color = Colors.grey;
-    }
+    final color =
+        _projectStatusColor(status);
 
     return Container(
-      padding: const EdgeInsets.symmetric(
+      padding:
+          const EdgeInsets.symmetric(
         horizontal: 12,
         vertical: 7,
       ),
-
-      decoration: BoxDecoration(
-        color: color.withOpacity(.10),
-
+      decoration:
+          BoxDecoration(
+        color:
+            color.withValues(alpha: .10),
         borderRadius:
             BorderRadius.circular(20),
       ),
-
       child: Text(
         status,
-
         style: TextStyle(
           color: color,
           fontSize: 12,
-          fontWeight: FontWeight.bold,
+          fontWeight:
+              FontWeight.bold,
         ),
       ),
     );
+  }
+
+  Color _projectStatusColor(
+    String status,
+  ) {
+    switch (status) {
+      case 'Active':
+        return Colors.green;
+      case 'Planning':
+        return Colors.orange;
+      case 'On Hold':
+        return Colors.red;
+      default:
+        return Colors.grey;
+    }
+  }
+
+  // ================================================================
+  // TASK STATUS
+  // ================================================================
+
+  Color _taskStatusColor(
+    String status,
+  ) {
+    switch (status) {
+      case 'To Do':
+        return Colors.blue;
+      case 'In Progress':
+        return Colors.orange;
+      case 'Review':
+        return Colors.purple;
+      case 'Done':
+        return Colors.green;
+      default:
+        return Colors.grey;
+    }
+  }
+
+  // ================================================================
+  // TASK PRIORITY
+  // ================================================================
+
+  Color _taskPriorityColor(
+    String priority,
+  ) {
+    switch (priority) {
+      case 'Urgent':
+        return Colors.red;
+      case 'High':
+        return Colors.orange;
+      case 'Medium':
+        return Colors.blue;
+      case 'Low':
+        return Colors.green;
+      default:
+        return Colors.grey;
+    }
+  }
+
+  // ================================================================
+  // DATE
+  // ================================================================
+
+  String _formatDate(
+    DateTime date,
+  ) {
+    final day =
+        date.day.toString().padLeft(2, '0');
+
+    final month =
+        date.month.toString().padLeft(2, '0');
+
+    return '$day/$month/${date.year}';
   }
 
   // ================================================================
@@ -1258,7 +1536,8 @@ class ProjectDetailsScreen extends StatelessWidget {
     BuildContext context,
     String title,
   ) {
-    ScaffoldMessenger.of(context).showSnackBar(
+    ScaffoldMessenger.of(context)
+        .showSnackBar(
       SnackBar(
         content: Text(
           '$title will be connected next.',

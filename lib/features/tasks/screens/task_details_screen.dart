@@ -8,7 +8,10 @@ import 'package:structflow/features/tasks/repositories/task_repository.dart';
 class TaskDetailsScreen extends StatefulWidget {
   final String taskId;
 
-  const TaskDetailsScreen({super.key, required this.taskId});
+  const TaskDetailsScreen({
+    super.key,
+    required this.taskId,
+  });
 
   @override
   State<TaskDetailsScreen> createState() => _TaskDetailsScreenState();
@@ -31,7 +34,20 @@ class _TaskDetailsScreenState extends State<TaskDetailsScreen> {
 
   void _onTaskChanged() {
     if (!mounted) return;
+
     setState(() {});
+  }
+
+  // ================================================================
+  // BACK NAVIGATION
+  // ================================================================
+
+  void _goBack() {
+    if (context.canPop()) {
+      context.pop();
+    } else {
+      context.go('/tasks');
+    }
   }
 
   // ================================================================
@@ -48,34 +64,43 @@ class _TaskDetailsScreenState extends State<TaskDetailsScreen> {
 
     return Scaffold(
       backgroundColor: const Color(0xffF5F7FB),
-
       body: SafeArea(
         child: LayoutBuilder(
           builder: (context, constraints) {
             final width = constraints.maxWidth;
-
             final isMobile = width < 750;
 
             return SingleChildScrollView(
-              padding: EdgeInsets.all(isMobile ? 16 : 28),
-
+              padding: EdgeInsets.all(
+                isMobile ? 16 : 28,
+              ),
               child: Center(
                 child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 1200),
-
+                  constraints: const BoxConstraints(
+                    maxWidth: 1200,
+                  ),
                   child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-
+                    crossAxisAlignment:
+                        CrossAxisAlignment.start,
                     children: [
-                      _buildHeader(task, isMobile),
+                      _buildHeader(
+                        task,
+                        isMobile,
+                      ),
 
                       const SizedBox(height: 24),
 
-                      _buildOverview(task, isMobile),
+                      _buildOverview(
+                        task,
+                        isMobile,
+                      ),
 
                       const SizedBox(height: 20),
 
-                      _buildMainContent(task, width),
+                      _buildMainContent(
+                        task,
+                        width,
+                      ),
                     ],
                   ),
                 ),
@@ -94,19 +119,16 @@ class _TaskDetailsScreenState extends State<TaskDetailsScreen> {
   Widget _buildNotFound() {
     return Scaffold(
       backgroundColor: const Color(0xffF5F7FB),
-
       body: Center(
         child: Container(
           padding: const EdgeInsets.all(32),
-
+          margin: const EdgeInsets.all(24),
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(20),
           ),
-
           child: Column(
             mainAxisSize: MainAxisSize.min,
-
             children: [
               Icon(
                 Icons.search_off_rounded,
@@ -129,7 +151,10 @@ class _TaskDetailsScreenState extends State<TaskDetailsScreen> {
 
               Text(
                 'The requested task could not be found.',
-                style: TextStyle(color: Colors.grey.shade600),
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: Colors.grey.shade600,
+                ),
               ),
 
               const SizedBox(height: 22),
@@ -138,10 +163,12 @@ class _TaskDetailsScreenState extends State<TaskDetailsScreen> {
                 onPressed: () {
                   context.go('/tasks');
                 },
-
-                icon: const Icon(Icons.arrow_back_rounded),
-
-                label: const Text('Back to Tasks'),
+                icon: const Icon(
+                  Icons.arrow_back_rounded,
+                ),
+                label: const Text(
+                  'Back to Tasks',
+                ),
               ),
             ],
           ),
@@ -154,46 +181,52 @@ class _TaskDetailsScreenState extends State<TaskDetailsScreen> {
   // HEADER
   // ================================================================
 
-  Widget _buildHeader(TaskModel task, bool isMobile) {
+  Widget _buildHeader(
+    TaskModel task,
+    bool isMobile,
+  ) {
     if (isMobile) {
       return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-
+        crossAxisAlignment:
+            CrossAxisAlignment.start,
         children: [
           TextButton.icon(
-            onPressed: () {
-              context.pop();
-            },
-
-            icon: const Icon(Icons.arrow_back_rounded),
-
-            label: const Text('Back to Tasks'),
+            onPressed: _goBack,
+            icon: const Icon(
+              Icons.arrow_back_rounded,
+            ),
+            label: const Text(
+              'Back',
+            ),
           ),
 
           const SizedBox(height: 12),
 
           Row(
             children: [
-              _taskIcon(task, 58),
+              _taskIcon(
+                task,
+                58,
+              ),
 
               const SizedBox(width: 14),
 
               Expanded(
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-
+                  crossAxisAlignment:
+                      CrossAxisAlignment.start,
                   children: [
                     Text(
                       task.title,
-
                       maxLines: 2,
-
-                      overflow: TextOverflow.ellipsis,
-
+                      overflow:
+                          TextOverflow.ellipsis,
                       style: const TextStyle(
                         fontSize: 25,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.textDark,
+                        fontWeight:
+                            FontWeight.bold,
+                        color:
+                            AppColors.textDark,
                       ),
                     ),
 
@@ -201,10 +234,10 @@ class _TaskDetailsScreenState extends State<TaskDetailsScreen> {
 
                     Text(
                       task.id,
-
                       style: const TextStyle(
                         fontSize: 13,
-                        color: AppColors.textLight,
+                        color:
+                            AppColors.textLight,
                       ),
                     ),
                   ],
@@ -217,12 +250,52 @@ class _TaskDetailsScreenState extends State<TaskDetailsScreen> {
 
           Row(
             children: [
-              _statusBadge(task.status),
+              _statusBadge(
+                task.status,
+              ),
 
               const SizedBox(width: 8),
 
-              _priorityBadge(task.priority),
+              _priorityBadge(
+                task.priority,
+              ),
             ],
+          ),
+
+          const SizedBox(height: 14),
+
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: () {
+                context.push(
+                  '/tasks/${task.id}/edit',
+                );
+              },
+              icon: const Icon(
+                Icons.edit_rounded,
+                size: 18,
+              ),
+              label: const Text(
+                'Edit Task',
+              ),
+              style: OutlinedButton.styleFrom(
+                foregroundColor:
+                    AppColors.primary,
+                side: const BorderSide(
+                  color: AppColors.primary,
+                ),
+                padding:
+                    const EdgeInsets.symmetric(
+                  vertical: 13,
+                ),
+                shape:
+                    RoundedRectangleBorder(
+                  borderRadius:
+                      BorderRadius.circular(12),
+                ),
+              ),
+            ),
           ),
         ],
       );
@@ -231,37 +304,38 @@ class _TaskDetailsScreenState extends State<TaskDetailsScreen> {
     return Row(
       children: [
         IconButton(
-          onPressed: () {
-            context.pop();
-          },
-
+          onPressed: _goBack,
           tooltip: 'Back',
-
-          icon: const Icon(Icons.arrow_back_rounded),
+          icon: const Icon(
+            Icons.arrow_back_rounded,
+          ),
         ),
 
         const SizedBox(width: 8),
 
-        _taskIcon(task, 58),
+        _taskIcon(
+          task,
+          58,
+        ),
 
         const SizedBox(width: 14),
 
         Expanded(
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-
+            crossAxisAlignment:
+                CrossAxisAlignment.start,
             children: [
               Text(
                 task.title,
-
                 maxLines: 1,
-
-                overflow: TextOverflow.ellipsis,
-
+                overflow:
+                    TextOverflow.ellipsis,
                 style: const TextStyle(
                   fontSize: 30,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.textDark,
+                  fontWeight:
+                      FontWeight.bold,
+                  color:
+                      AppColors.textDark,
                 ),
               ),
 
@@ -269,42 +343,59 @@ class _TaskDetailsScreenState extends State<TaskDetailsScreen> {
 
               Text(
                 '${task.id} • ${task.projectName}',
-
+                maxLines: 1,
+                overflow:
+                    TextOverflow.ellipsis,
                 style: const TextStyle(
                   fontSize: 13,
-                  color: AppColors.textLight,
+                  color:
+                      AppColors.textLight,
                 ),
               ),
             ],
           ),
         ),
 
-        _statusBadge(task.status),
+        _statusBadge(
+          task.status,
+        ),
 
         const SizedBox(width: 10),
 
-        _priorityBadge(task.priority),
+        _priorityBadge(
+          task.priority,
+        ),
 
         const SizedBox(width: 12),
 
         OutlinedButton.icon(
           onPressed: () {
-            context.go('/tasks/${task.id}/edit');
+            context.push(
+              '/tasks/${task.id}/edit',
+            );
           },
-
-          icon: const Icon(Icons.edit_rounded, size: 18),
-
-          label: const Text('Edit'),
-
+          icon: const Icon(
+            Icons.edit_rounded,
+            size: 18,
+          ),
+          label: const Text(
+            'Edit',
+          ),
           style: OutlinedButton.styleFrom(
-            foregroundColor: AppColors.primary,
-
-            side: const BorderSide(color: AppColors.primary),
-
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
-
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
+            foregroundColor:
+                AppColors.primary,
+            side: const BorderSide(
+              color: AppColors.primary,
+            ),
+            padding:
+                const EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: 13,
+            ),
+            shape:
+                RoundedRectangleBorder(
+              borderRadius:
+                  BorderRadius.circular(12),
             ),
           ),
         ),
@@ -316,18 +407,25 @@ class _TaskDetailsScreenState extends State<TaskDetailsScreen> {
   // TASK ICON
   // ================================================================
 
-  Widget _taskIcon(TaskModel task, double size) {
+  Widget _taskIcon(
+    TaskModel task,
+    double size,
+  ) {
     return Container(
       width: size,
       height: size,
-
       decoration: BoxDecoration(
-        color: task.color.withOpacity(.10),
-
-        borderRadius: BorderRadius.circular(16),
+        color: task.color.withValues(
+          alpha: .10,
+        ),
+        borderRadius:
+            BorderRadius.circular(16),
       ),
-
-      child: Icon(Icons.task_alt_rounded, color: task.color, size: size * .48),
+      child: Icon(
+        Icons.task_alt_rounded,
+        color: task.color,
+        size: size * .48,
+      ),
     );
   }
 
@@ -335,33 +433,30 @@ class _TaskDetailsScreenState extends State<TaskDetailsScreen> {
   // OVERVIEW
   // ================================================================
 
-  Widget _buildOverview(TaskModel task, bool isMobile) {
+  Widget _buildOverview(
+    TaskModel task,
+    bool isMobile,
+  ) {
     return _sectionCard(
       title: 'Task Overview',
-
       icon: Icons.info_outline_rounded,
-
       child: LayoutBuilder(
         builder: (context, constraints) {
-          final columns = constraints.maxWidth >= 900
-              ? 4
-              : constraints.maxWidth >= 600
-              ? 2
-              : 1;
+          final columns =
+              constraints.maxWidth >= 900
+                  ? 4
+                  : constraints.maxWidth >= 600
+                      ? 2
+                      : 1;
 
           return GridView.count(
             crossAxisCount: columns,
-
             shrinkWrap: true,
-
-            physics: const NeverScrollableScrollPhysics(),
-
+            physics:
+                const NeverScrollableScrollPhysics(),
             crossAxisSpacing: 16,
-
             mainAxisSpacing: 16,
-
             childAspectRatio: 2.8,
-
             children: [
               _infoCard(
                 Icons.folder_outlined,
@@ -380,7 +475,9 @@ class _TaskDetailsScreenState extends State<TaskDetailsScreen> {
               _infoCard(
                 Icons.calendar_today_outlined,
                 'Due Date',
-                _formatDate(task.dueDate),
+                _formatDate(
+                  task.dueDate,
+                ),
                 Colors.orange,
               ),
 
@@ -388,7 +485,9 @@ class _TaskDetailsScreenState extends State<TaskDetailsScreen> {
                 Icons.flag_outlined,
                 'Priority',
                 task.priority,
-                _priorityColor(task.priority),
+                _priorityColor(
+                  task.priority,
+                ),
               ),
             ],
           );
@@ -397,48 +496,62 @@ class _TaskDetailsScreenState extends State<TaskDetailsScreen> {
     );
   }
 
-  Widget _infoCard(IconData icon, String title, String value, Color color) {
+  Widget _infoCard(
+    IconData icon,
+    String title,
+    String value,
+    Color color,
+  ) {
     return Container(
-      padding: const EdgeInsets.all(14),
-
+      padding:
+          const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: const Color(0xffFAFBFD),
-
-        borderRadius: BorderRadius.circular(14),
-
-        border: Border.all(color: Colors.grey.shade200),
+        color:
+            const Color(0xffFAFBFD),
+        borderRadius:
+            BorderRadius.circular(14),
+        border: Border.all(
+          color: Colors.grey.shade200,
+        ),
       ),
-
       child: Row(
         children: [
           Container(
             width: 42,
             height: 42,
-
-            decoration: BoxDecoration(
-              color: color.withOpacity(.10),
-
-              borderRadius: BorderRadius.circular(12),
+            decoration:
+                BoxDecoration(
+              color:
+                  color.withValues(
+                alpha: .10,
+              ),
+              borderRadius:
+                  BorderRadius.circular(12),
             ),
-
-            child: Icon(icon, color: color, size: 20),
+            child: Icon(
+              icon,
+              color: color,
+              size: 20,
+            ),
           ),
 
           const SizedBox(width: 10),
 
           Expanded(
             child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-
-              crossAxisAlignment: CrossAxisAlignment.start,
-
+              mainAxisAlignment:
+                  MainAxisAlignment.center,
+              crossAxisAlignment:
+                  CrossAxisAlignment.start,
               children: [
                 Text(
                   title,
-
-                  style: const TextStyle(
+                  style:
+                      const TextStyle(
                     fontSize: 11,
-                    color: AppColors.textLight,
+                    color:
+                        AppColors
+                            .textLight,
                   ),
                 ),
 
@@ -446,15 +559,17 @@ class _TaskDetailsScreenState extends State<TaskDetailsScreen> {
 
                 Text(
                   value,
-
                   maxLines: 1,
-
-                  overflow: TextOverflow.ellipsis,
-
-                  style: const TextStyle(
+                  overflow:
+                      TextOverflow.ellipsis,
+                  style:
+                      const TextStyle(
                     fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.textDark,
+                    fontWeight:
+                        FontWeight.w600,
+                    color:
+                        AppColors
+                            .textDark,
                   ),
                 ),
               ],
@@ -469,43 +584,61 @@ class _TaskDetailsScreenState extends State<TaskDetailsScreen> {
   // MAIN CONTENT
   // ================================================================
 
-  Widget _buildMainContent(TaskModel task, double width) {
+  Widget _buildMainContent(
+    TaskModel task,
+    double width,
+  ) {
     if (width < 900) {
       return Column(
         children: [
-          _buildProgressCard(task),
+          _buildProgressCard(
+            task,
+          ),
 
           const SizedBox(height: 20),
 
-          _buildDescriptionCard(task),
+          _buildDescriptionCard(
+            task,
+          ),
 
           const SizedBox(height: 20),
 
-          _buildActionsCard(task),
+          _buildActionsCard(
+            task,
+          ),
         ],
       );
     }
 
     return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-
+      crossAxisAlignment:
+          CrossAxisAlignment.start,
       children: [
         Expanded(
           flex: 2,
           child: Column(
             children: [
-              _buildProgressCard(task),
+              _buildProgressCard(
+                task,
+              ),
 
               const SizedBox(height: 20),
 
-              _buildDescriptionCard(task),
+              _buildDescriptionCard(
+                task,
+              ),
             ],
           ),
         ),
 
         const SizedBox(width: 20),
 
-        Expanded(child: _buildActionsCard(task)),
+        Expanded(
+          child:
+              _buildActionsCard(
+            task,
+          ),
+        ),
       ],
     );
   }
@@ -514,49 +647,58 @@ class _TaskDetailsScreenState extends State<TaskDetailsScreen> {
   // PROGRESS
   // ================================================================
 
-  Widget _buildProgressCard(TaskModel task) {
-    final percentage = (task.progress * 100).round();
+  Widget _buildProgressCard(
+    TaskModel task,
+  ) {
+    final percentage =
+        (task.progress * 100).round();
 
     return _sectionCard(
       title: 'Task Progress',
-
       icon: Icons.trending_up_rounded,
-
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-
+        crossAxisAlignment:
+            CrossAxisAlignment.start,
         children: [
           Row(
             children: [
               Text(
                 '$percentage%',
-
                 style: TextStyle(
                   fontSize: 36,
-                  fontWeight: FontWeight.bold,
+                  fontWeight:
+                      FontWeight.bold,
                   color: task.color,
                 ),
               ),
 
               const Spacer(),
 
-              _statusBadge(task.status),
+              _statusBadge(
+                task.status,
+              ),
             ],
           ),
 
           const SizedBox(height: 16),
 
           ClipRRect(
-            borderRadius: BorderRadius.circular(20),
-
-            child: LinearProgressIndicator(
-              value: task.progress,
-
+            borderRadius:
+                BorderRadius.circular(20),
+            child:
+                LinearProgressIndicator(
+              value:
+                  task.progress,
               minHeight: 12,
-
-              backgroundColor: task.color.withOpacity(.10),
-
-              valueColor: AlwaysStoppedAnimation<Color>(task.color),
+              backgroundColor:
+                  task.color.withValues(
+                alpha: .10,
+              ),
+              valueColor:
+                  AlwaysStoppedAnimation<
+                      Color>(
+                task.color,
+              ),
             ),
           ),
 
@@ -566,18 +708,26 @@ class _TaskDetailsScreenState extends State<TaskDetailsScreen> {
             children: [
               const Text(
                 'Current Status',
-                style: TextStyle(fontSize: 13, color: AppColors.textLight),
+                style: TextStyle(
+                  fontSize: 13,
+                  color:
+                      AppColors
+                          .textLight,
+                ),
               ),
 
               const Spacer(),
 
               Text(
                 task.status,
-
                 style: TextStyle(
                   fontSize: 13,
-                  fontWeight: FontWeight.bold,
-                  color: _statusColor(task.status),
+                  fontWeight:
+                      FontWeight.bold,
+                  color:
+                      _statusColor(
+                    task.status,
+                  ),
                 ),
               ),
             ],
@@ -591,21 +741,21 @@ class _TaskDetailsScreenState extends State<TaskDetailsScreen> {
   // DESCRIPTION
   // ================================================================
 
-  Widget _buildDescriptionCard(TaskModel task) {
+  Widget _buildDescriptionCard(
+    TaskModel task,
+  ) {
     return _sectionCard(
       title: 'Description',
-
       icon: Icons.description_outlined,
-
       child: Text(
         task.description.isEmpty
             ? 'No description has been added for this task.'
             : task.description,
-
         style: const TextStyle(
           fontSize: 14,
           height: 1.6,
-          color: AppColors.textLight,
+          color:
+              AppColors.textLight,
         ),
       ),
     );
@@ -615,47 +765,60 @@ class _TaskDetailsScreenState extends State<TaskDetailsScreen> {
   // ACTIONS
   // ================================================================
 
-  Widget _buildActionsCard(TaskModel task) {
+  Widget _buildActionsCard(
+    TaskModel task,
+  ) {
     return _sectionCard(
       title: 'Task Actions',
-
       icon: Icons.bolt_rounded,
-
       child: Column(
         children: [
           _actionButton(
             icon: Icons.edit_rounded,
             title: 'Edit Task',
-            subtitle: 'Update task information',
-            color: AppColors.primary,
+            subtitle:
+                'Update task information',
+            color:
+                AppColors.primary,
             onTap: () {
-              context.go('/tasks/${task.id}/edit');
+              context.push(
+                '/tasks/${task.id}/edit',
+              );
             },
           ),
 
           const SizedBox(height: 12),
 
           _actionButton(
-            icon: Icons.check_circle_outline_rounded,
+            icon:
+                Icons.check_circle_outline_rounded,
             title: 'Mark as Done',
-            subtitle: 'Complete this task',
+            subtitle:
+                'Complete this task',
             color: Colors.green,
-            onTap: task.status == 'Done'
-                ? null
-                : () {
-                    _markAsDone(task);
-                  },
+            onTap:
+                task.status == 'Done'
+                    ? null
+                    : () {
+                        _markAsDone(
+                          task,
+                        );
+                      },
           ),
 
           const SizedBox(height: 12),
 
           _actionButton(
-            icon: Icons.delete_outline_rounded,
+            icon:
+                Icons.delete_outline_rounded,
             title: 'Delete Task',
-            subtitle: 'Remove this task',
+            subtitle:
+                'Remove this task',
             color: Colors.red,
             onTap: () {
-              _confirmDelete(task);
+              _confirmDelete(
+                task,
+              );
             },
           ),
         ],
@@ -670,45 +833,57 @@ class _TaskDetailsScreenState extends State<TaskDetailsScreen> {
     required Color color,
     required VoidCallback? onTap,
   }) {
-    final disabled = onTap == null;
+    final disabled =
+        onTap == null;
 
     return InkWell(
-      onTap: disabled ? null : onTap,
-
-      borderRadius: BorderRadius.circular(14),
-
+      onTap:
+          disabled ? null : onTap,
+      borderRadius:
+          BorderRadius.circular(14),
       child: Container(
         width: double.infinity,
-
-        padding: const EdgeInsets.all(14),
-
-        decoration: BoxDecoration(
-          color: disabled ? Colors.grey.shade100 : color.withOpacity(.06),
-
-          borderRadius: BorderRadius.circular(14),
-
+        padding:
+            const EdgeInsets.all(14),
+        decoration:
+            BoxDecoration(
+          color: disabled
+              ? Colors.grey.shade100
+              : color.withValues(
+                  alpha: .06,
+                ),
+          borderRadius:
+              BorderRadius.circular(14),
           border: Border.all(
-            color: disabled ? Colors.grey.shade200 : color.withOpacity(.15),
+            color: disabled
+                ? Colors.grey.shade200
+                : color.withValues(
+                    alpha: .15,
+                  ),
           ),
         ),
-
         child: Row(
           children: [
             Container(
               width: 42,
               height: 42,
-
-              decoration: BoxDecoration(
-                color: disabled ? Colors.grey.shade200 : color.withOpacity(.10),
-
-                borderRadius: BorderRadius.circular(12),
+              decoration:
+                  BoxDecoration(
+                color: disabled
+                    ? Colors.grey.shade200
+                    : color.withValues(
+                        alpha: .10,
+                      ),
+                borderRadius:
+                    BorderRadius.circular(
+                  12,
+                ),
               ),
-
               child: Icon(
                 icon,
-
-                color: disabled ? Colors.grey : color,
-
+                color: disabled
+                    ? Colors.grey
+                    : color,
                 size: 20,
               ),
             ),
@@ -717,16 +892,20 @@ class _TaskDetailsScreenState extends State<TaskDetailsScreen> {
 
             Expanded(
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-
+                crossAxisAlignment:
+                    CrossAxisAlignment
+                        .start,
                 children: [
                   Text(
                     title,
-
                     style: TextStyle(
                       fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: disabled ? Colors.grey : AppColors.textDark,
+                      fontWeight:
+                          FontWeight.w600,
+                      color: disabled
+                          ? Colors.grey
+                          : AppColors
+                              .textDark,
                     ),
                   ),
 
@@ -734,10 +913,12 @@ class _TaskDetailsScreenState extends State<TaskDetailsScreen> {
 
                   Text(
                     subtitle,
-
                     style: TextStyle(
                       fontSize: 11,
-                      color: disabled ? Colors.grey : AppColors.textLight,
+                      color: disabled
+                          ? Colors.grey
+                          : AppColors
+                              .textLight,
                     ),
                   ),
                 ],
@@ -746,10 +927,10 @@ class _TaskDetailsScreenState extends State<TaskDetailsScreen> {
 
             Icon(
               Icons.arrow_forward_ios_rounded,
-
               size: 13,
-
-              color: disabled ? Colors.grey : color,
+              color: disabled
+                  ? Colors.grey
+                  : color,
             ),
           ],
         ),
@@ -761,15 +942,28 @@ class _TaskDetailsScreenState extends State<TaskDetailsScreen> {
   // MARK DONE
   // ================================================================
 
-  void _markAsDone(TaskModel task) {
-    final updatedTask = task.copyWith(status: 'Done', progress: 1.0);
+  void _markAsDone(
+    TaskModel task,
+  ) {
+    final updatedTask =
+        task.copyWith(
+      status: 'Done',
+      progress: 1.0,
+    );
 
-    _repository.updateTask(updatedTask);
+    _repository.updateTask(
+      updatedTask,
+    );
 
-    ScaffoldMessenger.of(context).showSnackBar(
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(
       const SnackBar(
-        content: Text('Task marked as completed.'),
-        behavior: SnackBarBehavior.floating,
+        content: Text(
+          'Task marked as completed.',
+        ),
+        behavior:
+            SnackBarBehavior.floating,
       ),
     );
   }
@@ -778,47 +972,66 @@ class _TaskDetailsScreenState extends State<TaskDetailsScreen> {
   // DELETE
   // ================================================================
 
-  void _confirmDelete(TaskModel task) {
+  void _confirmDelete(
+    TaskModel task,
+  ) {
     showDialog(
       context: context,
-
       builder: (dialogContext) {
         return AlertDialog(
-          title: const Text('Delete Task?'),
-
-          content: Text('Are you sure you want to delete "${task.title}"?'),
-
+          title:
+              const Text(
+            'Delete Task?',
+          ),
+          content: Text(
+            'Are you sure you want to delete "${task.title}"?',
+          ),
           actions: [
             TextButton(
               onPressed: () {
-                Navigator.pop(dialogContext);
+                Navigator.pop(
+                  dialogContext,
+                );
               },
-
-              child: const Text('Cancel'),
+              child:
+                  const Text('Cancel'),
             ),
 
             ElevatedButton(
               onPressed: () {
-                _repository.deleteTask(task.id);
+                _repository.deleteTask(
+                  task.id,
+                );
 
-                Navigator.pop(dialogContext);
+                Navigator.pop(
+                  dialogContext,
+                );
 
-                context.go('/tasks');
+                context.go(
+                  '/tasks',
+                );
 
-                ScaffoldMessenger.of(context).showSnackBar(
+                ScaffoldMessenger.of(
+                  context,
+                ).showSnackBar(
                   const SnackBar(
-                    content: Text('Task deleted successfully.'),
-                    behavior: SnackBarBehavior.floating,
+                    content: Text(
+                      'Task deleted successfully.',
+                    ),
+                    behavior:
+                        SnackBarBehavior.floating,
                   ),
                 );
               },
-
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.red,
-                foregroundColor: Colors.white,
+              style:
+                  ElevatedButton.styleFrom(
+                backgroundColor:
+                    Colors.red,
+                foregroundColor:
+                    Colors.white,
               ),
-
-              child: const Text('Delete'),
+              child:
+                  const Text('Delete'),
             ),
           ],
         );
@@ -837,14 +1050,12 @@ class _TaskDetailsScreenState extends State<TaskDetailsScreen> {
   }) {
     return Container(
       width: double.infinity,
-
-      padding: const EdgeInsets.all(22),
-
+      padding:
+          const EdgeInsets.all(22),
       decoration: BoxDecoration(
         color: Colors.white,
-
-        borderRadius: BorderRadius.circular(20),
-
+        borderRadius:
+            BorderRadius.circular(20),
         boxShadow: const [
           BoxShadow(
             color: Colors.black12,
@@ -853,24 +1064,31 @@ class _TaskDetailsScreenState extends State<TaskDetailsScreen> {
           ),
         ],
       ),
-
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-
+        crossAxisAlignment:
+            CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Icon(icon, color: AppColors.primary, size: 22),
+              Icon(
+                icon,
+                color:
+                    AppColors.primary,
+                size: 22,
+              ),
 
               const SizedBox(width: 10),
 
               Text(
                 title,
-
-                style: const TextStyle(
+                style:
+                    const TextStyle(
                   fontSize: 19,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.textDark,
+                  fontWeight:
+                      FontWeight.bold,
+                  color:
+                      AppColors
+                          .textDark,
                 ),
               ),
             ],
@@ -888,27 +1106,34 @@ class _TaskDetailsScreenState extends State<TaskDetailsScreen> {
   // STATUS
   // ================================================================
 
-  Widget _statusBadge(String status) {
-    final color = _statusColor(status);
+  Widget _statusBadge(
+    String status,
+  ) {
+    final color =
+        _statusColor(status);
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-
-      decoration: BoxDecoration(
-        color: color.withOpacity(.10),
-
-        borderRadius: BorderRadius.circular(20),
+      padding:
+          const EdgeInsets.symmetric(
+        horizontal: 10,
+        vertical: 6,
       ),
-
+      decoration:
+          BoxDecoration(
+        color:
+            color.withValues(
+          alpha: .10,
+        ),
+        borderRadius:
+            BorderRadius.circular(20),
+      ),
       child: Text(
         status,
-
         style: TextStyle(
           color: color,
-
           fontSize: 11,
-
-          fontWeight: FontWeight.bold,
+          fontWeight:
+              FontWeight.bold,
         ),
       ),
     );
@@ -918,33 +1143,46 @@ class _TaskDetailsScreenState extends State<TaskDetailsScreen> {
   // PRIORITY
   // ================================================================
 
-  Widget _priorityBadge(String priority) {
-    final color = _priorityColor(priority);
+  Widget _priorityBadge(
+    String priority,
+  ) {
+    final color =
+        _priorityColor(priority);
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-
-      decoration: BoxDecoration(
-        color: color.withOpacity(.10),
-
-        borderRadius: BorderRadius.circular(20),
+      padding:
+          const EdgeInsets.symmetric(
+        horizontal: 10,
+        vertical: 6,
       ),
-
+      decoration:
+          BoxDecoration(
+        color:
+            color.withValues(
+          alpha: .10,
+        ),
+        borderRadius:
+            BorderRadius.circular(20),
+      ),
       child: Text(
         priority,
-
         style: TextStyle(
           color: color,
-
           fontSize: 11,
-
-          fontWeight: FontWeight.bold,
+          fontWeight:
+              FontWeight.bold,
         ),
       ),
     );
   }
 
-  Color _statusColor(String status) {
+  // ================================================================
+  // STATUS COLOR
+  // ================================================================
+
+  Color _statusColor(
+    String status,
+  ) {
     switch (status) {
       case 'To Do':
         return Colors.blue;
@@ -963,7 +1201,13 @@ class _TaskDetailsScreenState extends State<TaskDetailsScreen> {
     }
   }
 
-  Color _priorityColor(String priority) {
+  // ================================================================
+  // PRIORITY COLOR
+  // ================================================================
+
+  Color _priorityColor(
+    String priority,
+  ) {
     switch (priority) {
       case 'Urgent':
         return Colors.red;
@@ -986,12 +1230,21 @@ class _TaskDetailsScreenState extends State<TaskDetailsScreen> {
   // DATE
   // ================================================================
 
-  String _formatDate(DateTime date) {
-    final day = date.day.toString().padLeft(2, '0');
+  String _formatDate(
+    DateTime date,
+  ) {
+    final day =
+        date.day.toString().padLeft(
+              2,
+              '0',
+            );
 
-    final month = date.month.toString().padLeft(2, '0');
+    final month =
+        date.month.toString().padLeft(
+              2,
+              '0',
+            );
 
     return '$day/$month/${date.year}';
   }
-
 }

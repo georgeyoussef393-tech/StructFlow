@@ -126,7 +126,9 @@ class DashboardSidebar extends StatelessWidget {
 
                       Divider(
                         color:
-                            Colors.white.withOpacity(.15),
+                            Colors.white.withValues(
+                          alpha: .15,
+                        ),
                         height: 1,
                       ),
 
@@ -158,7 +160,9 @@ class DashboardSidebar extends StatelessWidget {
                   'StructFlow • v1.0',
                   style: TextStyle(
                     color:
-                        Colors.white.withOpacity(.45),
+                        Colors.white.withValues(
+                      alpha: .45,
+                    ),
                     fontSize: 11,
                   ),
                 ),
@@ -189,9 +193,18 @@ class DashboardSidebar extends StatelessWidget {
         route == '/projects' &&
         currentPath.startsWith('/projects/');
 
+    // ================================================================
+    // TASKS SHOULD STAY SELECTED INSIDE TASK DETAILS / EDIT
+    // ================================================================
+
+    final isTasksRoute =
+        route == '/tasks' &&
+        currentPath.startsWith('/tasks/');
+
     final selected =
         currentPath == route ||
-        isProjectsRoute;
+        isProjectsRoute ||
+        isTasksRoute;
 
     return Container(
       width: double.infinity,
@@ -201,7 +214,9 @@ class DashboardSidebar extends StatelessWidget {
 
       decoration: BoxDecoration(
         color: selected
-            ? Colors.white.withOpacity(.15)
+            ? Colors.white.withValues(
+                alpha: .15,
+              )
             : Colors.transparent,
 
         borderRadius:
@@ -228,7 +243,6 @@ class DashboardSidebar extends StatelessWidget {
           style: TextStyle(
             color: Colors.white,
             fontSize: 15,
-
             fontWeight: selected
                 ? FontWeight.w700
                 : FontWeight.w500,
@@ -237,10 +251,24 @@ class DashboardSidebar extends StatelessWidget {
 
         onTap: () {
           // ==========================================================
-          // NAVIGATION
+          // DASHBOARD
           // ==========================================================
 
-          context.go(route);
+          if (route == '/') {
+            context.go('/');
+          }
+
+          // ==========================================================
+          // OTHER MAIN MODULES
+          //
+          // IMPORTANT:
+          // push() keeps Dashboard in navigation history.
+          // Therefore the Back button can return to Dashboard.
+          // ==========================================================
+
+          else {
+            context.push(route);
+          }
 
           // ==========================================================
           // CLOSE DRAWER ON MOBILE / TABLET
