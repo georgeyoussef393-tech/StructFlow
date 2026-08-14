@@ -132,13 +132,31 @@ class _TasksScreenState extends State<TasksScreen> {
             CrossAxisAlignment.start,
 
         children: [
-          const Text(
-            'Tasks',
-            style: TextStyle(
-              fontSize: 28,
-              fontWeight: FontWeight.bold,
-              color: AppColors.textDark,
-            ),
+          Row(
+            children: [
+              IconButton(
+                onPressed: () {
+                  context.go('/');
+                },
+                tooltip: 'Back to Dashboard',
+                icon: const Icon(
+                  Icons.arrow_back_rounded,
+                ),
+              ),
+
+              const SizedBox(width: 4),
+
+              const Expanded(
+                child: Text(
+                  'Tasks',
+                  style: TextStyle(
+                    fontSize: 28,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.textDark,
+                  ),
+                ),
+              ),
+            ],
           ),
 
           const SizedBox(height: 6),
@@ -163,6 +181,18 @@ class _TasksScreenState extends State<TasksScreen> {
 
     return Row(
       children: [
+        IconButton(
+          onPressed: () {
+            context.go('/');
+          },
+          tooltip: 'Back to Dashboard',
+          icon: const Icon(
+            Icons.arrow_back_rounded,
+          ),
+        ),
+
+        const SizedBox(width: 8),
+
         const Expanded(
           child: Column(
             crossAxisAlignment:
