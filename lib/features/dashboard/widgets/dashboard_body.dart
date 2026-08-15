@@ -19,13 +19,25 @@ class DashboardBody extends StatelessWidget {
       builder: (context, child) {
         final projects = ProjectRepository.instance.projects;
         final tasks = TaskRepository.instance.tasks;
-        final completedTasks = tasks.where((task) => task.status == 'Done').length;
+
+        final completedTasks =
+            tasks.where((task) => task.status == 'Done').length;
+
         final averageProgress = tasks.isEmpty
             ? 0
-            : (tasks.map((task) => task.progress).reduce((total, progress) => total + progress) * 100).round();
+            : (tasks
+                        .map((task) => task.progress)
+                        .reduce(
+                          (total, progress) => total + progress,
+                        ) *
+                    100)
+                .round();
+
         final columns = Responsive.gridColumns(context);
-        final horizontalPadding = Responsive.horizontalPadding(context);
+        final horizontalPadding =
+            Responsive.horizontalPadding(context);
         final spacing = Responsive.spacing(context);
+
         final cards = [
           StatisticsCard(
             title: 'Projects',
@@ -68,19 +80,34 @@ class DashboardBody extends StatelessWidget {
             children: [
               GridView.builder(
                 shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
+                physics:
+                    const NeverScrollableScrollPhysics(),
                 itemCount: cards.length,
-                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                gridDelegate:
+                    SliverGridDelegateWithFixedCrossAxisCount(
                   crossAxisCount: columns,
                   crossAxisSpacing: spacing,
                   mainAxisSpacing: spacing,
                   mainAxisExtent: 225,
                 ),
-                itemBuilder: (context, index) => cards[index],
+                itemBuilder: (context, index) {
+                  return cards[index];
+                },
               ),
-              SizedBox(height: spacing + 10),
-              _buildMainSections(context, projects, tasks),
-              SizedBox(height: spacing),
+
+              SizedBox(
+                height: spacing + 10,
+              ),
+
+              _buildMainSections(
+                context,
+                projects,
+                tasks,
+              ),
+
+              SizedBox(
+                height: spacing,
+              ),
             ],
           ),
         );
@@ -88,72 +115,110 @@ class DashboardBody extends StatelessWidget {
     );
   }
 
-Widget _buildMainSections(
-  BuildContext context,
-  List<ProjectModel> projects,
-  List<TaskModel> tasks,
-) {
-  return LayoutBuilder(
-    builder: (context, constraints) {
-      final availableWidth = constraints.maxWidth;
+  // ============================================================
+  // MAIN SECTIONS
+  // ============================================================
 
-      // عندما تكون المساحة الفعلية صغيرة
-      // نضع الكروت تحت بعضها.
-      if (availableWidth < 950) {
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
+  Widget _buildMainSections(
+    BuildContext context,
+    List<ProjectModel> projects,
+    List<TaskModel> tasks,
+  ) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final availableWidth = constraints.maxWidth;
+
+        // ========================================================
+        // MOBILE / TABLET
+        // ========================================================
+
+        if (availableWidth < 950) {
+          return Column(
+            crossAxisAlignment:
+                CrossAxisAlignment.stretch,
+            children: [
+              _activeProjectsCard(projects),
+
+              const SizedBox(
+                height: 20,
+              ),
+
+              _recentActivityCard(tasks),
+            ],
+          );
+        }
+
+        // ========================================================
+        // DESKTOP
+        // ========================================================
+
+        return Row(
+          crossAxisAlignment:
+              CrossAxisAlignment.start,
           children: [
-            _activeProjectsCard(projects),
+            Expanded(
+              flex: 2,
+              child: _activeProjectsCard(
+                projects,
+              ),
+            ),
 
-            const SizedBox(height: 20),
+            const SizedBox(
+              width: 20,
+            ),
 
-            _recentActivityCard(tasks),
+            Expanded(
+              flex: 1,
+              child: _recentActivityCard(
+                tasks,
+              ),
+            ),
           ],
         );
-      }
+      },
+    );
+  }
 
-      // Desktop
-      return Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Expanded(
-            flex: 2,
-            child: _activeProjectsCard(projects),
-          ),
+  // ============================================================
+  // ACTIVE PROJECTS
+  // ============================================================
 
-          const SizedBox(width: 20),
-
-          Expanded(
-            flex: 1,
-            child: _recentActivityCard(tasks),
-          ),
-        ],
-      );
-    },
-  );
-}
-
-  Widget _activeProjectsCard(List<ProjectModel> projects) {
+  Widget _activeProjectsCard(
+    List<ProjectModel> projects,
+  ) {
     return _sectionCard(
-      title: "Active Projects",
+      title: 'Active Projects',
       icon: Icons.apartment_rounded,
       child: Column(
         children: [
           ...projects.take(4).map(
-            (project) => _projectTile(
-              project.name,
-              project.progress,
-              project.color,
-            ),
+            (project) {
+              return _projectTile(
+                project.name,
+                project.progress,
+                project.color,
+              );
+            },
           ),
         ],
       ),
     );
   }
 
-  Widget _recentActivityCard(List<TaskModel> tasks) {
+  // ============================================================
+  // UPCOMING TASKS
+  // ============================================================
+
+  Widget _recentActivityCard(
+    List<TaskModel> tasks,
+  ) {
     final upcomingTasks = [...tasks]
-      ..sort((first, second) => first.dueDate.compareTo(second.dueDate));
+      ..sort(
+        (first, second) =>
+            first.dueDate.compareTo(
+          second.dueDate,
+        ),
+      );
 
     return _sectionCard(
       title: 'Upcoming Tasks',
@@ -162,25 +227,36 @@ Widget _buildMainSections(
         children: [
           if (upcomingTasks.isEmpty)
             const Padding(
-              padding: EdgeInsets.symmetric(vertical: 20),
+              padding:
+                  EdgeInsets.symmetric(
+                vertical: 20,
+              ),
               child: Text(
                 'No upcoming tasks.',
-                style: TextStyle(color: Color(0xff6B7280)),
+                style: TextStyle(
+                  color: Color(0xff6B7280),
+                ),
               ),
             )
           else
             ...upcomingTasks.take(4).map(
-              (task) => _activityTile(
-                Icons.task_alt_rounded,
-                task.title,
-                'Due ${_formatDate(task.dueDate)} • ${task.status}',
-                task.color,
-              ),
+              (task) {
+                return _activityTile(
+                  Icons.task_alt_rounded,
+                  task.title,
+                  'Due ${_formatDate(task.dueDate)} • ${task.status}',
+                  task.color,
+                );
+              },
             ),
         ],
       ),
     );
   }
+
+  // ============================================================
+  // SECTION CARD
+  // ============================================================
 
   Widget _sectionCard({
     required String title,
@@ -192,7 +268,8 @@ Widget _buildMainSections(
       padding: const EdgeInsets.all(22),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius:
+            BorderRadius.circular(20),
         boxShadow: const [
           BoxShadow(
             color: Colors.black12,
@@ -202,42 +279,63 @@ Widget _buildMainSections(
         ],
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment:
+            CrossAxisAlignment.start,
         children: [
           Row(
             children: [
+              const SizedBox(width: 0),
+
               Icon(
                 icon,
                 color: const Color(0xff0B3D91),
                 size: 22,
               ),
-              const SizedBox(width: 10),
+
+              const SizedBox(
+                width: 10,
+              ),
+
               Text(
                 title,
                 style: const TextStyle(
                   fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xff1F2937),
+                  fontWeight:
+                      FontWeight.bold,
+                  color:
+                      Color(0xff1F2937),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 20),
+
+          const SizedBox(
+            height: 20,
+          ),
+
           child,
         ],
       ),
     );
   }
 
+  // ============================================================
+  // PROJECT TILE
+  // ============================================================
+
   Widget _projectTile(
     String title,
     double progress,
     Color color,
   ) {
-    final percentage = (progress * 100).round();
+    final percentage =
+        (progress * 100).round();
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: 18),
+      padding:
+          const EdgeInsets.only(
+        bottom: 18,
+      ),
       child: Column(
         children: [
           Row(
@@ -245,37 +343,61 @@ Widget _buildMainSections(
               Expanded(
                 child: Text(
                   title,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w600,
-                    color: Color(0xff1F2937),
+                  style:
+                      const TextStyle(
+                    fontWeight:
+                        FontWeight.w600,
+                    color:
+                        Color(0xff1F2937),
                   ),
                 ),
               ),
+
               Text(
-                "$percentage%",
+                '$percentage%',
                 style: TextStyle(
                   color: color,
-                  fontWeight: FontWeight.bold,
+                  fontWeight:
+                      FontWeight.bold,
                 ),
               ),
             ],
           ),
 
-          const SizedBox(height: 9),
+          const SizedBox(
+            height: 9,
+          ),
 
           ClipRRect(
-            borderRadius: BorderRadius.circular(20),
-            child: LinearProgressIndicator(
+            borderRadius:
+                BorderRadius.circular(20),
+            child:
+                LinearProgressIndicator(
               value: progress,
               minHeight: 8,
-              backgroundColor: color.withOpacity(.10),
-              valueColor: AlwaysStoppedAnimation<Color>(color),
+
+              // FIX:
+              // withOpacity -> withValues
+              backgroundColor:
+                  color.withValues(
+                alpha: .10,
+              ),
+
+              valueColor:
+                  AlwaysStoppedAnimation<
+                      Color>(
+                color,
+              ),
             ),
           ),
         ],
       ),
     );
   }
+
+  // ============================================================
+  // ACTIVITY TILE
+  // ============================================================
 
   Widget _activityTile(
     IconData icon,
@@ -284,15 +406,24 @@ Widget _buildMainSections(
     Color color,
   ) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 14),
+      padding:
+          const EdgeInsets.only(
+        bottom: 14,
+      ),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment:
+            CrossAxisAlignment.start,
         children: [
           Container(
             width: 40,
             height: 40,
-            decoration: BoxDecoration(
-              color: color.withOpacity(.10),
+            decoration:
+                BoxDecoration(
+              // FIX:
+              // withOpacity -> withValues
+              color: color.withValues(
+                alpha: .10,
+              ),
               shape: BoxShape.circle,
             ),
             child: Icon(
@@ -302,25 +433,37 @@ Widget _buildMainSections(
             ),
           ),
 
-          const SizedBox(width: 12),
+          const SizedBox(
+            width: 12,
+          ),
 
           Expanded(
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              crossAxisAlignment:
+                  CrossAxisAlignment.start,
               children: [
                 Text(
                   title,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w600,
-                    color: Color(0xff1F2937),
+                  style:
+                      const TextStyle(
+                    fontWeight:
+                        FontWeight.w600,
+                    color:
+                        Color(0xff1F2937),
                   ),
                 ),
-                const SizedBox(height: 3),
+
+                const SizedBox(
+                  height: 3,
+                ),
+
                 Text(
                   time,
-                  style: const TextStyle(
+                  style:
+                      const TextStyle(
                     fontSize: 12,
-                    color: Color(0xff6B7280),
+                    color:
+                        Color(0xff6B7280),
                   ),
                 ),
               ],
@@ -331,9 +474,24 @@ Widget _buildMainSections(
     );
   }
 
-  String _formatDate(DateTime date) {
-    final day = date.day.toString().padLeft(2, '0');
-    final month = date.month.toString().padLeft(2, '0');
+  // ============================================================
+  // DATE
+  // ============================================================
+
+  String _formatDate(
+    DateTime date,
+  ) {
+    final day =
+        date.day.toString().padLeft(
+              2,
+              '0',
+            );
+
+    final month =
+        date.month.toString().padLeft(
+              2,
+              '0',
+            );
 
     return '$day/$month/${date.year}';
   }

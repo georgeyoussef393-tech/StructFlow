@@ -58,45 +58,87 @@ class TeamModel {
     );
   }
 
+  // ==============================================================
+  // TO JSON
+  // ==============================================================
+
   Map<String, dynamic> toJson() {
     return {
       'id': id,
       'name': name,
       'role': role,
-      'specialization': specialization,
+      'specialization':
+          specialization,
       'email': email,
       'phone': phone,
-      'projectCode': projectCode,
-      'projectName': projectName,
+      'projectCode':
+          projectCode,
+      'projectName':
+          projectName,
       'status': status,
-      'color': color.value,
-      'iconCodePoint': icon.codePoint,
+      'color': color.toARGB32(),
+      'iconCodePoint':
+          icon.codePoint,
     };
   }
+
+  // ==============================================================
+  // FROM JSON
+  // ==============================================================
 
   factory TeamModel.fromJson(
     Map<String, dynamic> json,
   ) {
+    final int iconCodePoint =
+        (json['iconCodePoint'] as num?)?.toInt() ??
+        Icons.person.codePoint;
+
+    final int colorValue =
+        (json['color'] as num?)?.toInt() ??
+        Colors.blue.toARGB32();
+
     return TeamModel(
-      id: json['id'] as String,
-      name: json['name'] as String,
-      role: json['role'] as String,
+      id:
+          json['id'] as String? ?? '',
+      name:
+          json['name'] as String? ?? '',
+      role:
+          json['role'] as String? ?? '',
       specialization:
-          json['specialization'] as String,
-      email: json['email'] as String,
-      phone: json['phone'] as String,
+          json['specialization'] as String? ??
+          '',
+      email:
+          json['email'] as String? ?? '',
+      phone:
+          json['phone'] as String? ?? '',
       projectCode:
-          json['projectCode'] as String,
+          json['projectCode'] as String? ??
+          '',
       projectName:
-          json['projectName'] as String,
-      status: json['status'] as String,
-      color: Color(
-        (json['color'] as num).toInt(),
+          json['projectName'] as String? ??
+          '',
+      status:
+          json['status'] as String? ??
+          'Active',
+      color:
+          Color(colorValue),
+      icon:
+          _iconFromCodePoint(
+        iconCodePoint,
       ),
-      icon: IconData(
-        (json['iconCodePoint'] as num).toInt(),
-        fontFamily: 'MaterialIcons',
-      ),
+    );
+  }
+
+  // ==============================================================
+  // ICON PARSER
+  // ==============================================================
+
+  static IconData _iconFromCodePoint(
+    int codePoint,
+  ) {
+    return IconData(
+      codePoint,
+      fontFamily: 'MaterialIcons',
     );
   }
 }

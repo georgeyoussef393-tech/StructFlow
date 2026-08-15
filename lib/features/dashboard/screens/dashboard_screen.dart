@@ -194,7 +194,6 @@ class _MobileDashboardState
   Widget build(BuildContext context) {
     return Scaffold(
       key: _scaffoldKey,
-
       backgroundColor: const Color(0xffF5F7FB),
 
       drawer: const Drawer(
@@ -252,6 +251,7 @@ class _MobileDashboardState
             child: Row(
               children: [
                 // MENU
+
                 IconButton(
                   onPressed: _openDrawer,
                   tooltip: 'Menu',
@@ -275,17 +275,17 @@ class _MobileDashboardState
                 const Spacer(),
 
                 // SEARCH
+
                 IconButton(
                   onPressed: _openSearch,
                   tooltip: 'Search',
-                  icon: Icon(
-                    _showSearch
-                        ? Icons.search_rounded
-                        : Icons.search_rounded,
+                  icon: const Icon(
+                    Icons.search_rounded,
                   ),
                 ),
 
                 // NOTIFICATIONS
+
                 Stack(
                   clipBehavior: Clip.none,
                   children: [
@@ -305,8 +305,7 @@ class _MobileDashboardState
                       child: Container(
                         width: 9,
                         height: 9,
-                        decoration:
-                            const BoxDecoration(
+                        decoration: const BoxDecoration(
                           color: Color(0xffFF6B35),
                           shape: BoxShape.circle,
                         ),
@@ -509,7 +508,9 @@ class _MobileDashboardState
             width: 40,
             height: 40,
             decoration: BoxDecoration(
-              color: color.withOpacity(.10),
+              color: color.withValues(
+                alpha: .10,
+              ),
               shape: BoxShape.circle,
             ),
             child: Icon(

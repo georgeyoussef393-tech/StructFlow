@@ -82,11 +82,8 @@ class DocumentModel {
 
   const DocumentModel({
     required this.id,
-
     this.documentNumber = '',
-
     required this.title,
-
     required this.projectCode,
     required this.projectName,
 
@@ -108,14 +105,11 @@ class DocumentModel {
     // Compatibility
     this.submittedBy = '',
     this.recipient = '',
-
     required this.date,
 
     // Creation
     this.createdBy = '',
-
     required this.createdDate,
-
     this.submittedDate,
     this.dueDate,
     this.responseDate,
@@ -141,123 +135,85 @@ class DocumentModel {
     String? id,
     String? documentNumber,
     String? title,
-
     String? projectCode,
     String? projectName,
-
     String? category,
     String? subCategory,
     String? documentType,
     String? discipline,
-
     String? revision,
     String? status,
-
     String? from,
     String? to,
     String? cc,
-
     String? submittedBy,
     String? recipient,
     DateTime? date,
-
     String? createdBy,
     DateTime? createdDate,
-
     DateTime? submittedDate,
     DateTime? dueDate,
     DateTime? responseDate,
-
     String? priority,
     String? confidentiality,
-
     String? description,
     List<String>? attachments,
-
     Color? color,
     IconData? icon,
   }) {
     return DocumentModel(
       id: id ?? this.id,
-
       documentNumber:
           documentNumber ?? this.documentNumber,
-
-      title:
-          title ?? this.title,
-
+      title: title ?? this.title,
       projectCode:
           projectCode ?? this.projectCode,
-
       projectName:
           projectName ?? this.projectName,
-
       category:
           category ?? this.category,
-
       subCategory:
           subCategory ?? this.subCategory,
-
       documentType:
           documentType ?? this.documentType,
-
       discipline:
           discipline ?? this.discipline,
-
       revision:
           revision ?? this.revision,
-
       status:
           status ?? this.status,
-
       from:
           from ?? this.from,
-
       to:
           to ?? this.to,
-
       cc:
           cc ?? this.cc,
-
       submittedBy:
           submittedBy ?? this.submittedBy,
-
       recipient:
           recipient ?? this.recipient,
-
       date:
           date ?? this.date,
-
       createdBy:
           createdBy ?? this.createdBy,
-
       createdDate:
           createdDate ?? this.createdDate,
-
       submittedDate:
           submittedDate ?? this.submittedDate,
-
       dueDate:
           dueDate ?? this.dueDate,
-
       responseDate:
           responseDate ?? this.responseDate,
-
       priority:
           priority ?? this.priority,
-
       confidentiality:
           confidentiality ?? this.confidentiality,
-
       description:
           description ?? this.description,
-
       attachments:
           attachments ?? this.attachments,
-
       color:
           color ?? this.color,
-
       icon:
           icon ?? this.icon,
     );
@@ -270,95 +226,54 @@ class DocumentModel {
   Map<String, dynamic> toJson() {
     return {
       'id': id,
-
-      'documentNumber':
-          documentNumber,
-
-      'title':
-          title,
-
-      'projectCode':
-          projectCode,
-
-      'projectName':
-          projectName,
+      'documentNumber': documentNumber,
+      'title': title,
+      'projectCode': projectCode,
+      'projectName': projectName,
 
       // Classification
-      'category':
-          category,
+      'category': category,
+      'subCategory': subCategory,
+      'documentType': documentType,
+      'discipline': discipline,
 
-      'subCategory':
-          subCategory,
-
-      'documentType':
-          documentType,
-
-      'discipline':
-          discipline,
-
-      // Revision
-      'revision':
-          revision,
-
-      'status':
-          status,
+      // Revision / status
+      'revision': revision,
+      'status': status,
 
       // Communication
-      'from':
-          from,
-
-      'to':
-          to,
-
-      'cc':
-          cc,
+      'from': from,
+      'to': to,
+      'cc': cc,
 
       // Compatibility
-      'submittedBy':
-          submittedBy,
-
-      'recipient':
-          recipient,
-
-      'date':
-          date.toIso8601String(),
+      'submittedBy': submittedBy,
+      'recipient': recipient,
+      'date': date.toIso8601String(),
 
       // Creation
-      'createdBy':
-          createdBy,
-
+      'createdBy': createdBy,
       'createdDate':
           createdDate.toIso8601String(),
-
       'submittedDate':
           submittedDate?.toIso8601String(),
-
       'dueDate':
           dueDate?.toIso8601String(),
-
       'responseDate':
           responseDate?.toIso8601String(),
 
       // Priority
-      'priority':
-          priority,
-
+      'priority': priority,
       'confidentiality':
           confidentiality,
 
       // Content
-      'description':
-          description,
-
-      'attachments':
-          attachments,
+      'description': description,
+      'attachments': attachments,
 
       // UI
-      'color':
-          color.toARGB32(),
-
-      'iconCodePoint':
-          icon.codePoint,
+      'color': color.toARGB32(),
+      'iconCodePoint': icon.codePoint,
     };
   }
 
@@ -392,24 +307,19 @@ class DocumentModel {
       // ------------------------------------------------------------
 
       id:
-          json['id'] as String? ??
-          '',
+          json['id'] as String? ?? '',
 
       documentNumber:
-          json['documentNumber'] as String? ??
-          '',
+          json['documentNumber'] as String? ?? '',
 
       title:
-          json['title'] as String? ??
-          '',
+          json['title'] as String? ?? '',
 
       projectCode:
-          json['projectCode'] as String? ??
-          '',
+          json['projectCode'] as String? ?? '',
 
       projectName:
-          json['projectName'] as String? ??
-          '',
+          json['projectName'] as String? ?? '',
 
       // ------------------------------------------------------------
       // Classification
@@ -448,16 +358,13 @@ class DocumentModel {
       // ------------------------------------------------------------
 
       from:
-          json['from'] as String? ??
-          '',
+          json['from'] as String? ?? '',
 
       to:
-          json['to'] as String? ??
-          '',
+          json['to'] as String? ?? '',
 
       cc:
-          json['cc'] as String? ??
-          '',
+          json['cc'] as String? ?? '',
 
       // ------------------------------------------------------------
       // Compatibility
@@ -473,8 +380,7 @@ class DocumentModel {
           json['to'] as String? ??
           '',
 
-      date:
-          parsedDate,
+      date: parsedDate,
 
       // ------------------------------------------------------------
       // Creation
@@ -491,18 +397,18 @@ class DocumentModel {
 
       submittedDate:
           _parseDate(
-            json['submittedDate'],
-          ),
+        json['submittedDate'],
+      ),
 
       dueDate:
           _parseDate(
-            json['dueDate'],
-          ),
+        json['dueDate'],
+      ),
 
       responseDate:
           _parseDate(
-            json['responseDate'],
-          ),
+        json['responseDate'],
+      ),
 
       // ------------------------------------------------------------
       // Priority
@@ -526,8 +432,8 @@ class DocumentModel {
 
       attachments:
           _parseAttachments(
-            json['attachments'],
-          ),
+        json['attachments'],
+      ),
 
       // ------------------------------------------------------------
       // UI
@@ -537,10 +443,22 @@ class DocumentModel {
           Color(colorValue),
 
       icon:
-          IconData(
-            iconCodePoint,
-            fontFamily: 'MaterialIcons',
-          ),
+          _iconFromCodePoint(
+        iconCodePoint,
+      ),
+    );
+  }
+
+  // ==============================================================
+  // ICON PARSER
+  // ==============================================================
+
+  static IconData _iconFromCodePoint(
+    int codePoint,
+  ) {
+    return IconData(
+      codePoint,
+      fontFamily: 'MaterialIcons',
     );
   }
 

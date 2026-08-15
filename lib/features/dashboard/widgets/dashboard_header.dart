@@ -14,7 +14,6 @@ class _DashboardHeaderState extends State<DashboardHeader> {
   final TextEditingController _searchController =
       TextEditingController();
 
-  bool _showSearch = false;
   bool _showNotifications = false;
 
   @override
@@ -124,7 +123,7 @@ class _DashboardHeaderState extends State<DashboardHeader> {
           // ==========================================================
 
           const Text(
-            "Dashboard",
+            'Dashboard',
             style: TextStyle(
               fontSize: 28,
               fontWeight: FontWeight.bold,
@@ -146,7 +145,7 @@ class _DashboardHeaderState extends State<DashboardHeader> {
                 onSubmitted: _performSearch,
                 decoration: InputDecoration(
                   hintText:
-                      "Search projects, drawings, BOQ...",
+                      'Search projects, drawings, BOQ...',
 
                   prefixIcon: const Icon(
                     Icons.search_rounded,
@@ -157,6 +156,7 @@ class _DashboardHeaderState extends State<DashboardHeader> {
                           ? IconButton(
                               onPressed: () {
                                 _searchController.clear();
+
                                 setState(() {});
                               },
                               icon: const Icon(
@@ -215,7 +215,7 @@ class _DashboardHeaderState extends State<DashboardHeader> {
               Icons.business,
             ),
             label: const Text(
-              "GE&JO Construction",
+              'GE&JO Construction',
             ),
             style: OutlinedButton.styleFrom(
               foregroundColor: AppColors.primary,
@@ -244,7 +244,7 @@ class _DashboardHeaderState extends State<DashboardHeader> {
             icon: const Icon(
               Icons.language,
             ),
-            tooltip: "Language",
+            tooltip: 'Language',
           ),
 
           // ==========================================================
@@ -256,7 +256,7 @@ class _DashboardHeaderState extends State<DashboardHeader> {
             icon: const Icon(
               Icons.dark_mode_outlined,
             ),
-            tooltip: "Theme",
+            tooltip: 'Theme',
           ),
 
           // ==========================================================
@@ -273,7 +273,7 @@ class _DashboardHeaderState extends State<DashboardHeader> {
                       ? Icons.notifications_rounded
                       : Icons.notifications_none_rounded,
                 ),
-                tooltip: "Notifications",
+                tooltip: 'Notifications',
               ),
 
               Positioned(
@@ -311,10 +311,9 @@ class _DashboardHeaderState extends State<DashboardHeader> {
 
           const CircleAvatar(
             radius: 22,
-            backgroundColor:
-                AppColors.primary,
+            backgroundColor: AppColors.primary,
             child: Text(
-              "G",
+              'G',
               style: TextStyle(
                 color: Colors.white,
                 fontWeight: FontWeight.bold,
@@ -331,23 +330,20 @@ class _DashboardHeaderState extends State<DashboardHeader> {
                 CrossAxisAlignment.start,
             children: [
               Text(
-                "George",
+                'George',
                 style: TextStyle(
-                  fontWeight:
-                      FontWeight.bold,
-                  color:
-                      AppColors.textDark,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.textDark,
                 ),
               ),
 
               SizedBox(height: 2),
 
               Text(
-                "Administrator",
+                'Administrator',
                 style: TextStyle(
                   fontSize: 12,
-                  color:
-                      AppColors.textLight,
+                  color: AppColors.textLight,
                 ),
               ),
             ],
@@ -391,7 +387,7 @@ class _DashboardHeaderState extends State<DashboardHeader> {
               children: [
                 const Expanded(
                   child: Text(
-                    "Notifications",
+                    'Notifications',
                     style: TextStyle(
                       fontSize: 18,
                       fontWeight:
@@ -410,7 +406,7 @@ class _DashboardHeaderState extends State<DashboardHeader> {
                     });
                   },
                   child: const Text(
-                    "Close",
+                    'Close',
                   ),
                 ),
               ],
@@ -420,33 +416,33 @@ class _DashboardHeaderState extends State<DashboardHeader> {
 
             _notificationItem(
               Icons.assignment_turned_in_rounded,
-              "BOQ Approved",
-              "New Capital Tower",
-              "5 min ago",
+              'BOQ Approved',
+              'New Capital Tower',
+              '5 min ago',
               Colors.green,
             ),
 
             _notificationItem(
               Icons.upload_file_rounded,
-              "New Drawing Uploaded",
-              "Cairo Business Park",
-              "18 min ago",
+              'New Drawing Uploaded',
+              'Cairo Business Park',
+              '18 min ago',
               Colors.blue,
             ),
 
             _notificationItem(
               Icons.warning_amber_rounded,
-              "RFI Needs Response",
-              "Smart Village",
-              "40 min ago",
+              'RFI Needs Response',
+              'Smart Village',
+              '40 min ago',
               Colors.orange,
             ),
 
             _notificationItem(
               Icons.person_add_alt_1_rounded,
-              "New Engineer Added",
-              "Tuban Villas",
-              "1 hour ago",
+              'New Engineer Added',
+              'Tuban Villas',
+              '1 hour ago',
               Colors.purple,
             ),
           ],
@@ -454,6 +450,10 @@ class _DashboardHeaderState extends State<DashboardHeader> {
       ),
     );
   }
+
+  // ============================================================
+  // NOTIFICATION ITEM
+  // ============================================================
 
   Widget _notificationItem(
     IconData icon,
@@ -475,8 +475,9 @@ class _DashboardHeaderState extends State<DashboardHeader> {
             width: 40,
             height: 40,
             decoration: BoxDecoration(
-              color:
-                  color.withOpacity(.10),
+              color: color.withValues(
+                alpha: .10,
+              ),
               shape: BoxShape.circle,
             ),
             child: Icon(

@@ -261,20 +261,18 @@ class _CreateProjectScreenState
             borderRadius:
                 BorderRadius.circular(20),
           ),
-
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               Container(
                 width: 70,
                 height: 70,
-
                 decoration: BoxDecoration(
-                  color:
-                      Colors.green.withOpacity(.10),
+                  color: Colors.green.withValues(
+                    alpha: .10,
+                  ),
                   shape: BoxShape.circle,
                 ),
-
                 child: const Icon(
                   Icons.check_rounded,
                   color: Colors.green,
@@ -319,14 +317,12 @@ class _CreateProjectScreenState
 
               SizedBox(
                 width: double.infinity,
-
                 child: ElevatedButton(
                   onPressed: () {
                     Navigator.pop(dialogContext);
 
                     context.go('/projects');
                   },
-
                   style:
                       ElevatedButton.styleFrom(
                     backgroundColor:
@@ -334,19 +330,16 @@ class _CreateProjectScreenState
                     foregroundColor:
                         Colors.white,
                     elevation: 0,
-
                     padding:
                         const EdgeInsets.symmetric(
                       vertical: 14,
                     ),
-
                     shape:
                         RoundedRectangleBorder(
                       borderRadius:
                           BorderRadius.circular(12),
                     ),
                   ),
-
                   child: const Text(
                     'Go to Projects',
                   ),
@@ -382,7 +375,6 @@ class _CreateProjectScreenState
     return Scaffold(
       backgroundColor:
           const Color(0xffF5F7FB),
-
       body: SafeArea(
         child: LayoutBuilder(
           builder: (context, constraints) {
@@ -393,18 +385,15 @@ class _CreateProjectScreenState
               padding: EdgeInsets.all(
                 isMobile ? 16 : 30,
               ),
-
               child: Center(
                 child: ConstrainedBox(
                   constraints:
                       const BoxConstraints(
                     maxWidth: 1100,
                   ),
-
                   child: Column(
                     crossAxisAlignment:
                         CrossAxisAlignment.start,
-
                     children: [
                       _buildHeader(),
 
@@ -430,17 +419,14 @@ class _CreateProjectScreenState
     return Column(
       crossAxisAlignment:
           CrossAxisAlignment.start,
-
       children: [
         TextButton.icon(
           onPressed: () {
             context.go('/projects');
           },
-
           icon: const Icon(
             Icons.arrow_back_rounded,
           ),
-
           label: const Text(
             'Back to Projects',
           ),
@@ -479,16 +465,13 @@ class _CreateProjectScreenState
   ) {
     return Container(
       width: double.infinity,
-
       padding: EdgeInsets.all(
         isMobile ? 18 : 28,
       ),
-
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius:
             BorderRadius.circular(20),
-
         boxShadow: const [
           BoxShadow(
             color: Colors.black12,
@@ -497,14 +480,11 @@ class _CreateProjectScreenState
           ),
         ],
       ),
-
       child: Form(
         key: _formKey,
-
         child: Column(
           crossAxisAlignment:
               CrossAxisAlignment.start,
-
           children: [
             _sectionTitle(
               Icons.info_outline_rounded,
@@ -636,7 +616,7 @@ class _CreateProjectScreenState
 
   Widget _projectTypeDropdown() {
     return DropdownButtonFormField<String>(
-      value: _projectType,
+      initialValue: _projectType,
 
       decoration: _inputDecoration(
         label: 'Project Type',
@@ -742,26 +722,21 @@ class _CreateProjectScreenState
   }) {
     return InkWell(
       onTap: onTap,
-
       borderRadius:
           BorderRadius.circular(12),
-
       child: InputDecorator(
         decoration: _inputDecoration(
           label: label,
           icon: icon,
         ),
-
         child: Text(
           date == null
               ? 'Select date'
               : _formatDate(date),
-
           style: TextStyle(
             color: date == null
                 ? AppColors.textLight
                 : AppColors.textDark,
-
             fontSize: 14,
           ),
         ),
@@ -932,14 +907,14 @@ class _CreateProjectScreenState
         Container(
           width: 40,
           height: 40,
-
           decoration: BoxDecoration(
             color:
-                AppColors.primary.withOpacity(.10),
+                AppColors.primary.withValues(
+              alpha: .10,
+            ),
             borderRadius:
                 BorderRadius.circular(12),
           ),
-
           child: Icon(
             icon,
             color: AppColors.primary,
@@ -1017,7 +992,6 @@ class _CreateProjectScreenState
     return Row(
       mainAxisAlignment:
           MainAxisAlignment.end,
-
       children: [
         cancelButton,
 

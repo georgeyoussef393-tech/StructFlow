@@ -51,6 +51,10 @@ class ProjectModel {
     );
   }
 
+  // ==============================================================
+  // TO JSON
+  // ==============================================================
+
   Map<String, dynamic> toJson() {
     return {
       'name': name,
@@ -61,26 +65,63 @@ class ProjectModel {
       'progress': progress,
       'budget': budget,
       'team': team,
-      'color': color.value,
+      'color': color.toARGB32(),
       'iconCodePoint': icon.codePoint,
     };
   }
 
-  factory ProjectModel.fromJson(Map<String, dynamic> json) {
+  // ==============================================================
+  // FROM JSON
+  // ==============================================================
+
+  factory ProjectModel.fromJson(
+    Map<String, dynamic> json,
+  ) {
+    final int iconCodePoint =
+        (json['iconCodePoint'] as num?)?.toInt() ??
+        Icons.apartment.codePoint;
+
+    final int colorValue =
+        (json['color'] as num?)?.toInt() ??
+        Colors.blue.toARGB32();
+
     return ProjectModel(
-      name: json['name'] as String,
-      code: json['code'] as String,
-      client: json['client'] as String,
-      location: json['location'] as String,
-      status: json['status'] as String,
-      progress: (json['progress'] as num).toDouble(),
-      budget: json['budget'] as String,
-      team: (json['team'] as num).toInt(),
-      color: Color((json['color'] as num).toInt()),
-      icon: IconData(
-        (json['iconCodePoint'] as num).toInt(),
-        fontFamily: 'MaterialIcons',
+      name:
+          json['name'] as String? ?? '',
+      code:
+          json['code'] as String? ?? '',
+      client:
+          json['client'] as String? ?? '',
+      location:
+          json['location'] as String? ?? '',
+      status:
+          json['status'] as String? ?? 'Planning',
+      progress:
+          (json['progress'] as num?)?.toDouble() ??
+          0.0,
+      budget:
+          json['budget'] as String? ?? '',
+      team:
+          (json['team'] as num?)?.toInt() ?? 0,
+      color:
+          Color(colorValue),
+      icon:
+          _iconFromCodePoint(
+        iconCodePoint,
       ),
+    );
+  }
+
+  // ==============================================================
+  // ICON PARSER
+  // ==============================================================
+
+  static IconData _iconFromCodePoint(
+    int codePoint,
+  ) {
+    return IconData(
+      codePoint,
+      fontFamily: 'MaterialIcons',
     );
   }
 }

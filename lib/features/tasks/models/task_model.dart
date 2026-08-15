@@ -33,6 +33,10 @@ class TaskModel {
     required this.color,
   });
 
+  // ================================================================
+  // COPY WITH
+  // ================================================================
+
   TaskModel copyWith({
     String? id,
     String? title,
@@ -61,6 +65,10 @@ class TaskModel {
     );
   }
 
+  // ================================================================
+  // TO JSON
+  // ================================================================
+
   Map<String, dynamic> toJson() {
     return {
       'id': id,
@@ -73,11 +81,19 @@ class TaskModel {
       'priority': priority,
       'dueDate': dueDate.toIso8601String(),
       'progress': progress,
-      'color': color.value,
+
+      // Flutter current API.
+      'color': color.toARGB32(),
     };
   }
 
-  factory TaskModel.fromJson(Map<String, dynamic> json) {
+  // ================================================================
+  // FROM JSON
+  // ================================================================
+
+  factory TaskModel.fromJson(
+    Map<String, dynamic> json,
+  ) {
     return TaskModel(
       id: json['id'] as String,
       title: json['title'] as String,
@@ -87,9 +103,16 @@ class TaskModel {
       assignee: json['assignee'] as String,
       status: json['status'] as String,
       priority: json['priority'] as String,
-      dueDate: DateTime.parse(json['dueDate'] as String),
+
+      dueDate: DateTime.parse(
+        json['dueDate'] as String,
+      ),
+
       progress: (json['progress'] as num).toDouble(),
-      color: Color((json['color'] as num).toInt()),
+
+      color: Color(
+        (json['color'] as num).toInt(),
+      ),
     );
   }
 }

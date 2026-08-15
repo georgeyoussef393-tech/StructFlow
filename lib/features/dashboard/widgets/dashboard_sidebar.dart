@@ -13,11 +13,9 @@ class DashboardSidebar extends StatelessWidget {
 
     return Material(
       color: AppColors.primary,
-
       child: SizedBox(
         width: 260,
         height: double.infinity,
-
         child: SafeArea(
           child: Column(
             children: [
@@ -47,7 +45,6 @@ class DashboardSidebar extends StatelessWidget {
                 child: SingleChildScrollView(
                   physics:
                       const BouncingScrollPhysics(),
-
                   padding:
                       const EdgeInsets.fromLTRB(
                     12,
@@ -55,7 +52,6 @@ class DashboardSidebar extends StatelessWidget {
                     12,
                     24,
                   ),
-
                   child: Column(
                     children: [
                       _item(
@@ -155,7 +151,6 @@ class DashboardSidebar extends StatelessWidget {
                     const EdgeInsets.only(
                   bottom: 16,
                 ),
-
                 child: Text(
                   'StructFlow • v1.0',
                   style: TextStyle(
@@ -208,81 +203,79 @@ class DashboardSidebar extends StatelessWidget {
 
     return Container(
       width: double.infinity,
-
       margin:
           const EdgeInsets.only(bottom: 6),
-
       decoration: BoxDecoration(
         color: selected
             ? Colors.white.withValues(
                 alpha: .15,
               )
             : Colors.transparent,
-
         borderRadius:
             BorderRadius.circular(12),
       ),
+      child: Material(
+        color: Colors.transparent,
+        borderRadius:
+            BorderRadius.circular(12),
+        clipBehavior: Clip.antiAlias,
+        child: ListTile(
+          dense: true,
 
-      child: ListTile(
-        dense: true,
-
-        contentPadding:
-            const EdgeInsets.symmetric(
-          horizontal: 14,
-          vertical: 2,
-        ),
-
-        leading: Icon(
-          icon,
-          color: Colors.white,
-          size: 22,
-        ),
-
-        title: Text(
-          title,
-          style: TextStyle(
-            color: Colors.white,
-            fontSize: 15,
-            fontWeight: selected
-                ? FontWeight.w700
-                : FontWeight.w500,
+          contentPadding:
+              const EdgeInsets.symmetric(
+            horizontal: 14,
+            vertical: 2,
           ),
-        ),
 
-        onTap: () {
-          // ==========================================================
-          // DASHBOARD
-          // ==========================================================
+          leading: Icon(
+            icon,
+            color: Colors.white,
+            size: 22,
+          ),
 
-          if (route == '/') {
-            context.go('/');
-          }
+          title: Text(
+            title,
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 15,
+              fontWeight: selected
+                  ? FontWeight.w700
+                  : FontWeight.w500,
+            ),
+          ),
 
-          // ==========================================================
-          // OTHER MAIN MODULES
-          //
-          // IMPORTANT:
-          // push() keeps Dashboard in navigation history.
-          // Therefore the Back button can return to Dashboard.
-          // ==========================================================
+          onTap: () {
+            // ========================================================
+            // DASHBOARD
+            // ========================================================
 
-          else {
-            context.push(route);
-          }
+            if (route == '/') {
+              context.go('/');
+            }
 
-          // ==========================================================
-          // CLOSE DRAWER ON MOBILE / TABLET
-          // ==========================================================
+            // ========================================================
+            // OTHER MAIN MODULES
+            // ========================================================
 
-          if (Navigator.of(context).canPop()) {
-            Navigator.of(context).pop();
-          }
-        },
+            else {
+              context.push(route);
+            }
 
-        shape:
-            RoundedRectangleBorder(
-          borderRadius:
-              BorderRadius.circular(12),
+            // ========================================================
+            // CLOSE DRAWER ON MOBILE / TABLET
+            // ========================================================
+
+            if (Navigator.of(context).canPop()) {
+              Navigator.of(context).pop();
+            }
+          },
+
+          shape:
+              RoundedRectangleBorder(
+            borderRadius:
+                BorderRadius.circular(12),
+          ),
         ),
       ),
     );
