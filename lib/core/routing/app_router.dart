@@ -16,6 +16,7 @@ import 'package:structflow/features/team/screens/team_screen.dart';
 import 'package:structflow/features/calendar/screens/calendar_screen.dart';
 
 import 'package:structflow/features/documents/screens/documents_screen.dart';
+import 'package:structflow/features/documents/screens/create_document_screen.dart';
 
 final GoRouter appRouter = GoRouter(
   initialLocation: '/',
@@ -47,7 +48,7 @@ final GoRouter appRouter = GoRouter(
           builder: (context, state) {
             final projectId =
                 state.pathParameters['projectId'] ??
-                    'PRJ-001';
+                'PRJ-001';
 
             return ProjectDetailsScreen(
               projectId: projectId,
@@ -82,7 +83,8 @@ final GoRouter appRouter = GoRouter(
           path: ':taskId',
           builder: (context, state) {
             final taskId =
-                state.pathParameters['taskId'] ?? '';
+                state.pathParameters['taskId'] ??
+                '';
 
             return TaskDetailsScreen(
               taskId: taskId,
@@ -93,7 +95,8 @@ final GoRouter appRouter = GoRouter(
               path: 'edit',
               builder: (context, state) {
                 final taskId =
-                    state.pathParameters['taskId'] ?? '';
+                    state.pathParameters['taskId'] ??
+                    '';
 
                 return CreateTaskScreen(
                   taskId: taskId,
@@ -149,6 +152,20 @@ final GoRouter appRouter = GoRouter(
       path: '/documents',
       builder: (context, state) {
         return const DocumentsScreen();
+      },
+    ),
+
+    // ============================================================
+    // CREATE / EDIT DOCUMENT
+    // ============================================================
+
+    GoRoute(
+      path: '/create-document',
+      builder: (context, state) {
+        return CreateDocumentScreen(
+          documentId:
+              state.uri.queryParameters['documentId'],
+        );
       },
     ),
 

@@ -68,6 +68,18 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
           document.projectCode
               .toLowerCase()
               .contains(query) ||
+          document.category
+              .toLowerCase()
+              .contains(query) ||
+          document.subCategory
+              .toLowerCase()
+              .contains(query) ||
+          document.documentType
+              .toLowerCase()
+              .contains(query) ||
+          document.discipline
+              .toLowerCase()
+              .contains(query) ||
           document.submittedBy
               .toLowerCase()
               .contains(query) ||
@@ -240,9 +252,15 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
     );
   }
 
+  // ==============================================================
+  // NEW DOCUMENT
+  // ==============================================================
+
   Widget _buildAddDocumentButton() {
     return ElevatedButton.icon(
-      onPressed: _showAddDocumentDialog,
+      onPressed: () {
+        context.go('/create-document');
+      },
       icon: const Icon(
         Icons.upload_file_rounded,
         size: 20,
@@ -513,10 +531,13 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
       value: _selectedStatus,
       items: const [
         'All',
+        'Draft',
         'Pending',
         'Submitted',
         'Under Review',
         'Approved',
+        'Rejected',
+        'Closed',
       ],
       icon: Icons.filter_alt_outlined,
       onChanged: (value) {
@@ -536,6 +557,11 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
         'BOQ',
         'Report',
         'RFI',
+        'Submittal',
+        'Letter',
+        'Contract',
+        'Minutes',
+        'Other',
       ],
       icon: Icons.description_outlined,
       onChanged: (value) {
@@ -757,6 +783,9 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
                     children: [
                       Text(
                         document.documentNumber,
+                        maxLines: 1,
+                        overflow:
+                            TextOverflow.ellipsis,
                         style:
                             const TextStyle(
                           fontSize: 11,
@@ -781,6 +810,8 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
                     ],
                   ),
                 ),
+
+                const SizedBox(width: 6),
 
                 _statusBadge(
                   document.status,
@@ -896,6 +927,8 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
       ),
       child: Text(
         status,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
         style: TextStyle(
           color: color,
           fontSize: 10,
@@ -922,6 +955,15 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
       case 'Approved':
         return Colors.green;
 
+      case 'Draft':
+        return Colors.grey;
+
+      case 'Rejected':
+        return Colors.red;
+
+      case 'Closed':
+        return Colors.black54;
+
       default:
         return Colors.grey;
     }
@@ -945,7 +987,7 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
         const SizedBox(width: 7),
         Expanded(
           child: Text(
-            text,
+            text.isEmpty ? '-' : text,
             maxLines: 1,
             overflow:
                 TextOverflow.ellipsis,
@@ -966,6 +1008,11 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
   // ==============================================================
 
   Widget _buildEmptyState() {
+    final hasFilters =
+        _searchController.text.trim().isNotEmpty ||
+        _selectedStatus != 'All' ||
+        _selectedType != 'All';
+
     return Padding(
       padding:
           const EdgeInsets.symmetric(
@@ -975,14 +1022,20 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
         child: Column(
           children: [
             Icon(
-              Icons.folder_off_rounded,
+              hasFilters
+                  ? Icons.search_off_rounded
+                  : Icons.folder_off_rounded,
               size: 52,
               color: Colors.grey.shade400,
             ),
+
             const SizedBox(height: 14),
-            const Text(
-              'No documents found',
-              style: TextStyle(
+
+            Text(
+              hasFilters
+                  ? 'No matching documents'
+                  : 'No documents found',
+              style: const TextStyle(
                 fontSize: 18,
                 fontWeight:
                     FontWeight.bold,
@@ -990,18 +1043,43 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
                     AppColors.textDark,
               ),
             ),
+
             const SizedBox(height: 6),
-            const Text(
-              'Try changing your search or filters.',
-              style: TextStyle(
+
+            Text(
+              hasFilters
+                  ? 'Try changing your search or filters.'
+                  : 'Create your first project document.',
+              style: const TextStyle(
                 color:
                     AppColors.textLight,
               ),
             ),
+
+            if (hasFilters) ...[
+              const SizedBox(height: 18),
+              OutlinedButton.icon(
+                onPressed: _clearFilters,
+                icon: const Icon(
+                  Icons.clear_all_rounded,
+                ),
+                label: const Text(
+                  'Clear Filters',
+                ),
+              ),
+            ],
           ],
         ),
       ),
     );
+  }
+
+  void _clearFilters() {
+    setState(() {
+      _searchController.clear();
+      _selectedStatus = 'All';
+      _selectedType = 'All';
+    });
   }
 
   // ==============================================================
@@ -1020,112 +1098,261 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
             borderRadius:
                 BorderRadius.circular(20),
           ),
+
           title: Row(
             children: [
-              Icon(
-                document.icon,
-                color: document.color,
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color:
+                      document.color.withValues(
+                    alpha: .10,
+                  ),
+                  borderRadius:
+                      BorderRadius.circular(12),
+                ),
+                child: Icon(
+                  document.icon,
+                  color: document.color,
+                ),
               ),
+
               const SizedBox(width: 10),
+
               Expanded(
-                child: Text(
-                  document.title,
-                  overflow:
-                      TextOverflow.ellipsis,
+                child: Column(
+                  crossAxisAlignment:
+                      CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      document.title,
+                      maxLines: 2,
+                      overflow:
+                          TextOverflow.ellipsis,
+                      style:
+                          const TextStyle(
+                        fontSize: 18,
+                        fontWeight:
+                            FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      document.documentNumber,
+                      style:
+                          const TextStyle(
+                        fontSize: 11,
+                        color:
+                            AppColors.textLight,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],
           ),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize:
-                  MainAxisSize.min,
-              crossAxisAlignment:
-                  CrossAxisAlignment.start,
-              children: [
-                _detailRow(
-                  'Document ID',
-                  document.id,
-                ),
-                _detailRow(
-                  'Document Number',
-                  document.documentNumber,
-                ),
-                _detailRow(
-                  'Category',
-                  document.category,
-                ),
-                _detailRow(
-                  'Sub Category',
-                  document.subCategory,
-                ),
-                _detailRow(
-                  'Revision',
-                  document.revision,
-                ),
-                _detailRow(
-                  'Type',
-                  document.documentType,
-                ),
-                _detailRow(
-                  'Discipline',
-                  document.discipline,
-                ),
-                _detailRow(
-                  'Project',
-                  '${document.projectCode} • ${document.projectName}',
-                ),
-                _detailRow(
-                  'From',
-                  document.from,
-                ),
-                _detailRow(
-                  'To',
-                  document.to,
-                ),
-                _detailRow(
-                  'Submitted By',
-                  document.submittedBy,
-                ),
-                _detailRow(
-                  'Recipient',
-                  document.recipient,
-                ),
-                _detailRow(
-                  'Status',
-                  document.status,
-                ),
-                _detailRow(
-                  'Priority',
-                  document.priority,
-                ),
-                _detailRow(
-                  'Confidentiality',
-                  document.confidentiality,
-                ),
-                _detailRow(
-                  'Created By',
-                  document.createdBy,
-                ),
-                _detailRow(
-                  'Created Date',
-                  _formatDate(
-                    document.createdDate,
+
+          content: SizedBox(
+            width: 520,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize:
+                    MainAxisSize.min,
+                crossAxisAlignment:
+                    CrossAxisAlignment.start,
+                children: [
+                  _buildDetailsStatusHeader(
+                    document,
                   ),
-                ),
-                _detailRow(
-                  'Date',
-                  _formatDate(
-                    document.date,
+
+                  const SizedBox(height: 18),
+
+                  _detailSectionTitle(
+                    Icons.folder_rounded,
+                    'Project & Classification',
                   ),
-                ),
-                _detailRow(
-                  'Description',
-                  document.description,
-                ),
-              ],
+
+                  const SizedBox(height: 10),
+
+                  _detailRow(
+                    'Document ID',
+                    document.id,
+                  ),
+
+                  _detailRow(
+                    'Document Number',
+                    document.documentNumber,
+                  ),
+
+                  _detailRow(
+                    'Project',
+                    '${document.projectCode} • ${document.projectName}',
+                  ),
+
+                  _detailRow(
+                    'Category',
+                    document.category,
+                  ),
+
+                  _detailRow(
+                    'Sub Category',
+                    document.subCategory,
+                  ),
+
+                  _detailRow(
+                    'Type',
+                    document.documentType,
+                  ),
+
+                  _detailRow(
+                    'Discipline',
+                    document.discipline,
+                  ),
+
+                  const SizedBox(height: 8),
+
+                  _detailSectionTitle(
+                    Icons.sync_rounded,
+                    'Revision & Status',
+                  ),
+
+                  const SizedBox(height: 10),
+
+                  _detailRow(
+                    'Revision',
+                    document.revision,
+                  ),
+
+                  _detailRow(
+                    'Status',
+                    document.status,
+                  ),
+
+                  _detailRow(
+                    'Priority',
+                    document.priority,
+                  ),
+
+                  _detailRow(
+                    'Confidentiality',
+                    document.confidentiality,
+                  ),
+
+                  const SizedBox(height: 8),
+
+                  _detailSectionTitle(
+                    Icons.people_alt_outlined,
+                    'Communication',
+                  ),
+
+                  const SizedBox(height: 10),
+
+                  _detailRow(
+                    'From',
+                    document.from,
+                  ),
+
+                  _detailRow(
+                    'To',
+                    document.to,
+                  ),
+
+                  _detailRow(
+                    'CC',
+                    document.cc,
+                  ),
+
+                  _detailRow(
+                    'Submitted By',
+                    document.submittedBy,
+                  ),
+
+                  _detailRow(
+                    'Recipient',
+                    document.recipient,
+                  ),
+
+                  const SizedBox(height: 8),
+
+                  _detailSectionTitle(
+                    Icons.calendar_month_rounded,
+                    'Dates',
+                  ),
+
+                  const SizedBox(height: 10),
+
+                  _detailRow(
+                    'Document Date',
+                    _formatDate(
+                      document.date,
+                    ),
+                  ),
+
+                  _detailRow(
+                    'Created Date',
+                    _formatDate(
+                      document.createdDate,
+                    ),
+                  ),
+
+                  _detailRow(
+                    'Due Date',
+                    document.dueDate == null
+                        ? '-'
+                        : _formatDate(
+                            document.dueDate!,
+                          ),
+                  ),
+
+                  _detailRow(
+                    'Submitted Date',
+                    document.submittedDate == null
+                        ? '-'
+                        : _formatDate(
+                            document.submittedDate!,
+                          ),
+                  ),
+
+                  _detailRow(
+                    'Response Date',
+                    document.responseDate == null
+                        ? '-'
+                        : _formatDate(
+                            document.responseDate!,
+                          ),
+                  ),
+
+                  const SizedBox(height: 8),
+
+                  _detailSectionTitle(
+                    Icons.notes_rounded,
+                    'Description',
+                  ),
+
+                  const SizedBox(height: 10),
+
+                  _descriptionBox(
+                    document.description,
+                  ),
+
+                  const SizedBox(height: 16),
+
+                  _detailSectionTitle(
+                    Icons.attach_file_rounded,
+                    'Attachments',
+                  ),
+
+                  const SizedBox(height: 10),
+
+                  _attachmentsSection(
+                    document,
+                  ),
+                ],
+              ),
             ),
           ),
+
           actions: [
             TextButton(
               onPressed: () {
@@ -1134,6 +1361,23 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
               child:
                   const Text('Close'),
             ),
+
+            OutlinedButton.icon(
+              onPressed: () {
+                Navigator.pop(dialogContext);
+
+                context.go(
+                  '/create-document?documentId=${Uri.encodeComponent(document.id)}',
+                );
+              },
+              icon: const Icon(
+                Icons.edit_rounded,
+                size: 17,
+              ),
+              label:
+                  const Text('Edit'),
+            ),
+
             ElevatedButton.icon(
               onPressed: () {
                 Navigator.pop(dialogContext);
@@ -1155,6 +1399,93 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
     );
   }
 
+  Widget _buildDetailsStatusHeader(
+    DocumentModel document,
+  ) {
+    final statusColor =
+        _statusColor(document.status);
+
+    return Container(
+      width: double.infinity,
+      padding:
+          const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color:
+            document.color.withValues(
+          alpha: .05,
+        ),
+        borderRadius:
+            BorderRadius.circular(14),
+        border: Border.all(
+          color:
+              document.color.withValues(
+            alpha: .12,
+          ),
+        ),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment:
+                  CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Current Status',
+                  style: TextStyle(
+                    fontSize: 11,
+                    color:
+                        AppColors.textLight,
+                  ),
+                ),
+                const SizedBox(height: 5),
+                Text(
+                  document.status,
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight:
+                        FontWeight.bold,
+                    color: statusColor,
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          _statusBadge(
+            document.status,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _detailSectionTitle(
+    IconData icon,
+    String title,
+  ) {
+    return Row(
+      children: [
+        Icon(
+          icon,
+          size: 18,
+          color: AppColors.primary,
+        ),
+        const SizedBox(width: 7),
+        Text(
+          title,
+          style: const TextStyle(
+            fontSize: 14,
+            fontWeight:
+                FontWeight.bold,
+            color:
+                AppColors.textDark,
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _detailRow(
     String title,
     String value,
@@ -1164,29 +1495,36 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
           const EdgeInsets.only(
         bottom: 10,
       ),
-      child: Column(
+      child: Row(
         crossAxisAlignment:
             CrossAxisAlignment.start,
         children: [
-          Text(
-            title,
-            style:
-                const TextStyle(
-              fontSize: 11,
-              color:
-                  AppColors.textLight,
+          SizedBox(
+            width: 125,
+            child: Text(
+              title,
+              style:
+                  const TextStyle(
+                fontSize: 11,
+                color:
+                    AppColors.textLight,
+              ),
             ),
           ),
-          const SizedBox(height: 2),
-          Text(
-            value.isEmpty ? '-' : value,
-            style:
-                const TextStyle(
-              fontSize: 13,
-              fontWeight:
-                  FontWeight.w600,
-              color:
-                  AppColors.textDark,
+
+          const SizedBox(width: 10),
+
+          Expanded(
+            child: Text(
+              value.isEmpty ? '-' : value,
+              style:
+                  const TextStyle(
+                fontSize: 13,
+                fontWeight:
+                    FontWeight.w600,
+                color:
+                    AppColors.textDark,
+              ),
             ),
           ),
         ],
@@ -1194,448 +1532,154 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
     );
   }
 
-  // ==============================================================
-  // ADD DOCUMENT
-  // ==============================================================
+  Widget _descriptionBox(
+    String description,
+  ) {
+    return Container(
+      width: double.infinity,
+      padding:
+          const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color:
+            const Color(0xffF8FAFC),
+        borderRadius:
+            BorderRadius.circular(12),
+        border: Border.all(
+          color:
+              Colors.grey.shade200,
+        ),
+      ),
+      child: Text(
+        description.isEmpty
+            ? 'No description provided.'
+            : description,
+        style: TextStyle(
+          fontSize: 13,
+          height: 1.5,
+          color: description.isEmpty
+              ? AppColors.textLight
+              : AppColors.textDark,
+        ),
+      ),
+    );
+  }
 
-  void _showAddDocumentDialog() {
-    final titleController =
-        TextEditingController();
-
-    final descriptionController =
-        TextEditingController();
-
-    final submittedByController =
-        TextEditingController();
-
-    final recipientController =
-        TextEditingController();
-
-    String type = 'Drawing';
-    String discipline = 'Civil';
-    String status = 'Pending';
-
-    showDialog(
-      context: context,
-      builder: (dialogContext) {
-        return StatefulBuilder(
-          builder:
-              (context, setDialogState) {
-            return AlertDialog(
-              shape:
-                  RoundedRectangleBorder(
-                borderRadius:
-                    BorderRadius.circular(20),
-              ),
-              title: const Text(
-                'New Document',
-              ),
-              content:
-                  SingleChildScrollView(
-                child: SizedBox(
-                  width: 450,
-                  child: Column(
-                    mainAxisSize:
-                        MainAxisSize.min,
-                    children: [
-                      _dialogField(
-                        controller:
-                            titleController,
-                        label:
-                            'Document Title',
-                        icon:
-                            Icons.title_rounded,
-                      ),
-
-                      const SizedBox(height: 12),
-
-                      _dialogField(
-                        controller:
-                            descriptionController,
-                        label:
-                            'Description',
-                        icon:
-                            Icons.notes_rounded,
-                        maxLines: 3,
-                      ),
-
-                      const SizedBox(height: 12),
-
-                      _dialogField(
-                        controller:
-                            submittedByController,
-                        label:
-                            'Submitted By',
-                        icon:
-                            Icons.person_outline_rounded,
-                      ),
-
-                      const SizedBox(height: 12),
-
-                      _dialogField(
-                        controller:
-                            recipientController,
-                        label:
-                            'Recipient',
-                        icon:
-                            Icons.person_search_rounded,
-                      ),
-
-                      const SizedBox(height: 12),
-
-                      _dialogDropdown(
-                        value: type,
-                        label:
-                            'Document Type',
-                        items: const [
-                          'Drawing',
-                          'BOQ',
-                          'Report',
-                          'RFI',
-                        ],
-                        icon:
-                            Icons.description_outlined,
-                        onChanged:
-                            (value) {
-                          setDialogState(() {
-                            type = value;
-                          });
-                        },
-                      ),
-
-                      const SizedBox(height: 12),
-
-                      _dialogDropdown(
-                        value: discipline,
-                        label:
-                            'Discipline',
-                        items: const [
-                          'Civil',
-                          'Architecture',
-                          'Electrical',
-                          'Mechanical',
-                          'Construction',
-                          'Commercial',
-                          'Technical',
-                        ],
-                        icon:
-                            Icons.engineering_rounded,
-                        onChanged:
-                            (value) {
-                          setDialogState(() {
-                            discipline =
-                                value;
-                          });
-                        },
-                      ),
-
-                      const SizedBox(height: 12),
-
-                      _dialogDropdown(
-                        value: status,
-                        label: 'Status',
-                        items: const [
-                          'Pending',
-                          'Submitted',
-                          'Under Review',
-                          'Approved',
-                        ],
-                        icon:
-                            Icons.flag_outlined,
-                        onChanged:
-                            (value) {
-                          setDialogState(() {
-                            status =
-                                value;
-                          });
-                        },
-                      ),
-                    ],
-                  ),
+  Widget _attachmentsSection(
+    DocumentModel document,
+  ) {
+    if (document.attachments.isEmpty) {
+      return Container(
+        width: double.infinity,
+        padding:
+            const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color:
+              const Color(0xffF8FAFC),
+          borderRadius:
+              BorderRadius.circular(12),
+          border: Border.all(
+            color:
+                Colors.grey.shade200,
+          ),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              Icons.attach_file_rounded,
+              size: 20,
+              color:
+                  Colors.grey.shade500,
+            ),
+            const SizedBox(width: 8),
+            const Expanded(
+              child: Text(
+                'No attachments added.',
+                style: TextStyle(
+                  fontSize: 12,
+                  color:
+                      AppColors.textLight,
                 ),
               ),
-              actions: [
-                TextButton(
-                  onPressed: () {
-                    Navigator.pop(
-                      dialogContext,
-                    );
-                  },
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Column(
+      children:
+          document.attachments.map(
+        (attachment) {
+          return Container(
+            width: double.infinity,
+            margin:
+                const EdgeInsets.only(
+              bottom: 8,
+            ),
+            padding:
+                const EdgeInsets.all(12),
+            decoration:
+                BoxDecoration(
+              color:
+                  const Color(0xffF8FAFC),
+              borderRadius:
+                  BorderRadius.circular(12),
+              border:
+                  Border.all(
+                color:
+                    Colors.grey.shade200,
+              ),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 38,
+                  height: 38,
+                  decoration:
+                      BoxDecoration(
+                    color:
+                        AppColors.primary
+                            .withValues(
+                      alpha: .08,
+                    ),
+                    borderRadius:
+                        BorderRadius.circular(
+                      10,
+                    ),
+                  ),
                   child:
-                      const Text('Cancel'),
-                ),
-                ElevatedButton.icon(
-                  onPressed: () {
-                    if (titleController
-                        .text
-                        .trim()
-                        .isEmpty) {
-                      _showMessage(
-                        'Document title is required.',
-                      );
-                      return;
-                    }
-
-                    final now =
-                        DateTime.now();
-
-                    final document =
-                        DocumentModel(
-                      id:
-                          _repository.nextDocumentId,
-
-                      documentNumber:
-                          _repository.nextDocumentId,
-
-                      title:
-                          titleController
-                              .text
-                              .trim(),
-
-                      description:
-                          descriptionController
-                              .text
-                              .trim(),
-
-                      projectCode:
-                          'PRJ-001',
-
-                      projectName:
-                          'New Capital Tower',
-
-                      category:
-                          'Technical',
-
-                      subCategory:
-                          type,
-
-                      documentType:
-                          type,
-
-                      discipline:
-                          discipline,
-
-                      revision:
-                          'Rev. 00',
-
-                      status:
-                          status,
-
-                      from:
-                          submittedByController
-                              .text
-                              .trim(),
-
-                      to:
-                          recipientController
-                              .text
-                              .trim(),
-
-                      cc:
-                          '',
-
-                      submittedBy:
-                          submittedByController
-                              .text
-                              .trim(),
-
-                      recipient:
-                          recipientController
-                              .text
-                              .trim(),
-
-                      date:
-                          now,
-
-                      createdBy:
-                          submittedByController
-                              .text
-                              .trim(),
-
-                      createdDate:
-                          now,
-
-                      submittedDate:
-                          now,
-
-                      dueDate:
-                          null,
-
-                      responseDate:
-                          null,
-
-                      priority:
-                          'Normal',
-
-                      confidentiality:
-                          'Internal',
-
-                      attachments:
-                          const [],
-
-                      color:
-                          _documentColor(
-                        type,
-                      ),
-
-                      icon:
-                          _documentIcon(
-                        type,
-                      ),
-                    );
-
-                    _repository.addDocument(
-                      document,
-                    );
-
-                    Navigator.pop(
-                      dialogContext,
-                    );
-
-                    titleController.dispose();
-                    descriptionController.dispose();
-                    submittedByController.dispose();
-                    recipientController.dispose();
-
-                    _showMessage(
-                      'Document added successfully.',
-                    );
-                  },
-                  icon:
                       const Icon(
-                    Icons.add_rounded,
+                    Icons.insert_drive_file_outlined,
+                    size: 19,
+                    color:
+                        AppColors.primary,
                   ),
-                  label:
-                      const Text(
-                    'Create Document',
+                ),
+
+                const SizedBox(width: 10),
+
+                Expanded(
+                  child: Text(
+                    attachment.toString(),
+                    maxLines: 2,
+                    overflow:
+                        TextOverflow.ellipsis,
+                    style:
+                        const TextStyle(
+                      fontSize: 12,
+                      fontWeight:
+                          FontWeight.w600,
+                      color:
+                          AppColors.textDark,
+                    ),
                   ),
                 ),
               ],
-            );
-          },
-        );
-      },
+            ),
+          );
+        },
+      ).toList(),
     );
-  }
-
-  // ==============================================================
-  // DIALOG FIELD
-  // ==============================================================
-
-  Widget _dialogField({
-    required TextEditingController
-        controller,
-    required String label,
-    required IconData icon,
-    int maxLines = 1,
-  }) {
-    return TextField(
-      controller: controller,
-      maxLines: maxLines,
-      decoration:
-          InputDecoration(
-        labelText: label,
-        prefixIcon:
-            Icon(icon),
-        border:
-            OutlineInputBorder(
-          borderRadius:
-              BorderRadius.circular(12),
-        ),
-      ),
-    );
-  }
-
-  // ==============================================================
-  // DIALOG DROPDOWN
-  // ==============================================================
-
-  Widget _dialogDropdown({
-    required String value,
-    required String label,
-    required List<String> items,
-    required IconData icon,
-    required ValueChanged<String>
-        onChanged,
-  }) {
-    return DropdownButtonFormField<
-        String>(
-      initialValue: value,
-      decoration:
-          InputDecoration(
-        labelText: label,
-        prefixIcon:
-            Icon(icon),
-        border:
-            OutlineInputBorder(
-          borderRadius:
-              BorderRadius.circular(12),
-        ),
-      ),
-      items:
-          items.map((item) {
-        return DropdownMenuItem<String>(
-          value: item,
-          child:
-              Text(item),
-        );
-      }).toList(),
-      onChanged: (value) {
-        if (value != null) {
-          onChanged(value);
-        }
-      },
-    );
-  }
-
-  // ==============================================================
-  // DOCUMENT COLOR
-  // ==============================================================
-
-  Color _documentColor(
-    String type,
-  ) {
-    switch (type) {
-      case 'Drawing':
-        return Colors.blue;
-
-      case 'BOQ':
-        return Colors.green;
-
-      case 'Report':
-        return Colors.purple;
-
-      case 'RFI':
-        return Colors.orange;
-
-      default:
-        return AppColors.primary;
-    }
-  }
-
-  // ==============================================================
-  // DOCUMENT ICON
-  // ==============================================================
-
-  IconData _documentIcon(
-    String type,
-  ) {
-    switch (type) {
-      case 'Drawing':
-        return Icons.architecture_rounded;
-
-      case 'BOQ':
-        return Icons.request_quote_rounded;
-
-      case 'Report':
-        return Icons.assignment_rounded;
-
-      case 'RFI':
-        return Icons.question_answer_rounded;
-
-      default:
-        return Icons.description_rounded;
-    }
   }
 
   // ==============================================================
@@ -1667,10 +1711,15 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
   void _showMessage(
     String message,
   ) {
+    if (!mounted) {
+      return;
+    }
+
     ScaffoldMessenger.of(context)
         .showSnackBar(
       SnackBar(
-        content: Text(message),
+        content:
+            Text(message),
         behavior:
             SnackBarBehavior.floating,
       ),
