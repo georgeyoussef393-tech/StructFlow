@@ -262,7 +262,7 @@ class EngineeringDocumentCatalog {
     ),
 
     // ============================================================
-    // STRUCTURAL / CIVIL STRUCTURES
+    // STRUCTURAL
     // ============================================================
 
     EngineeringDocumentType(
@@ -533,7 +533,7 @@ class EngineeringDocumentCatalog {
     ),
 
     // ============================================================
-    // DRAINAGE / STORM WATER
+    // DRAINAGE
     // ============================================================
 
     EngineeringDocumentType(

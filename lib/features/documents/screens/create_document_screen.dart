@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:structflow/core/theme/app_colors.dart';
+import 'package:structflow/features/documents/data/engineering_document_catalog.dart';
 import 'package:structflow/features/documents/models/document_model.dart';
 import 'package:structflow/features/documents/repositories/document_repository.dart';
 import 'package:structflow/features/projects/models/project_model.dart';
@@ -39,10 +40,16 @@ class _CreateDocumentScreenState
 
   ProjectModel? _selectedProject;
 
-  String _category = 'Technical';
+  // ==============================================================
+  // ENGINEERING DOCUMENT TYPE
+  // ==============================================================
+
+  EngineeringDocumentType? _selectedDocumentType;
+
+  String _category = 'Drawings';
   String _subCategory = 'General';
-  String _documentType = 'Drawing';
-  String _discipline = 'Civil';
+  String _documentType = 'General Arrangement';
+  String _discipline = 'General';
   String _revision = 'Rev. 00';
   String _status = 'Draft';
   String _priority = 'Normal';
@@ -56,6 +63,10 @@ class _CreateDocumentScreenState
 
   bool get _isEditing => widget.documentId != null;
 
+  // ==============================================================
+  // INIT
+  // ==============================================================
+
   @override
   void initState() {
     super.initState();
@@ -68,7 +79,20 @@ class _CreateDocumentScreenState
             _projectRepository.projects.first;
       }
 
+      _selectedDocumentType =
+          EngineeringDocumentCatalog.all.first;
+
+      _documentType =
+          _selectedDocumentType!.name;
+
+      _category =
+          _selectedDocumentType!.category;
+
+      _discipline =
+          _selectedDocumentType!.discipline;
+
       _generateDocumentNumber();
+
       _documentLoaded = true;
     }
   }
@@ -88,7 +112,9 @@ class _CreateDocumentScreenState
       return;
     }
 
-    _titleController.text = document.title;
+    _titleController.text =
+        document.title;
+
     _documentNumberController.text =
         document.documentNumber;
 
@@ -101,27 +127,109 @@ class _CreateDocumentScreenState
     _recipientController.text =
         document.recipient;
 
-    _ccController.text = document.cc;
+    _ccController.text =
+        document.cc;
 
-    _category = document.category;
-    _subCategory = document.subCategory;
-    _documentType = document.documentType;
-    _discipline = document.discipline;
-    _revision = document.revision;
-    _status = document.status;
-    _priority = document.priority;
+    _category =
+        document.category;
+
+    _subCategory =
+        document.subCategory;
+
+    _documentType =
+        document.documentType;
+
+    _discipline =
+        document.discipline;
+
+    _revision =
+        document.revision;
+
+    _status =
+        document.status;
+
+    _priority =
+        document.priority;
+
     _confidentiality =
         document.confidentiality;
 
-    _documentDate = document.date;
-    _dueDate = document.dueDate;
+    _documentDate =
+        document.date;
+
+    _dueDate =
+        document.dueDate;
 
     _selectedProject =
         _projectRepository.getProjectByCode(
       document.projectCode,
     );
 
+    // ------------------------------------------------------------
+    // Try to find the document inside the engineering catalog.
+    // ------------------------------------------------------------
+
+    _selectedDocumentType =
+        _findDocumentType(
+      document.documentType,
+    );
+
+    // ------------------------------------------------------------
+    // If the document is an old/legacy type that does not exist
+    // in the catalog, keep the existing saved values.
+    // ------------------------------------------------------------
+
+    if (_selectedDocumentType != null) {
+      _documentType =
+          _selectedDocumentType!.name;
+
+      _category =
+          _selectedDocumentType!.category;
+
+      _discipline =
+          _selectedDocumentType!.discipline;
+    }
+
     _documentLoaded = true;
+  }
+
+  // ==============================================================
+  // FIND DOCUMENT TYPE
+  // ==============================================================
+
+  EngineeringDocumentType? _findDocumentType(
+    String value,
+  ) {
+    final query =
+        value.trim().toLowerCase();
+
+    if (query.isEmpty) {
+      return null;
+    }
+
+    for (final document
+        in EngineeringDocumentCatalog.all) {
+      if (document.name.toLowerCase() ==
+          query) {
+        return document;
+      }
+
+      if (document.abbreviation
+              .toLowerCase() ==
+          query) {
+        return document;
+      }
+
+      if (document.aliases.any(
+        (alias) =>
+            alias.toLowerCase() ==
+            query,
+      )) {
+        return document;
+      }
+    }
+
+    return null;
   }
 
   // ==============================================================
@@ -154,13 +262,56 @@ class _CreateDocumentScreenState
 
     final number =
         _documentRepository.nextDocumentId
-            .replaceFirst('DOC-', '');
+            .replaceFirst(
+      'DOC-',
+      '',
+    );
 
     final disciplineCode =
-        _discipline.toUpperCase();
+        _selectedDocumentType
+                ?.abbreviation
+                .toUpperCase() ??
+            _discipline.toUpperCase();
 
     _documentNumberController.text =
         'DOC-$projectCode-$disciplineCode-$number';
+  }
+
+  // ==============================================================
+  // SELECT ENGINEERING DOCUMENT TYPE
+  // ==============================================================
+
+  void _selectDocumentType(
+    EngineeringDocumentType? value,
+  ) {
+    if (value == null) {
+      return;
+    }
+
+    setState(() {
+      _selectedDocumentType =
+          value;
+
+      _documentType =
+          value.name;
+
+      _discipline =
+          value.discipline;
+
+      _category =
+          value.category;
+
+      // Keep the old Sub Category field available.
+      // It is intentionally not overwritten by the catalog.
+      if (_subCategory.isEmpty) {
+        _subCategory =
+            'General';
+      }
+
+      if (!_isEditing) {
+        _generateDocumentNumber();
+      }
+    });
   }
 
   // ==============================================================
@@ -188,20 +339,31 @@ class _CreateDocumentScreenState
       return;
     }
 
+    if (_selectedDocumentType == null) {
+      _showMessage(
+        'Please select a document type.',
+      );
+      return;
+    }
+
     setState(() {
       _saving = true;
     });
 
     try {
-      final now = DateTime.now();
+      final now =
+          DateTime.now();
 
-      final existingDocument = _isEditing
-          ? _documentRepository.getDocumentById(
-              widget.documentId!,
-            )
-          : null;
+      final existingDocument =
+          _isEditing
+              ? _documentRepository
+                  .getDocumentById(
+                  widget.documentId!,
+                )
+              : null;
 
-      if (_isEditing && existingDocument == null) {
+      if (_isEditing &&
+          existingDocument == null) {
         if (!mounted) {
           return;
         }
@@ -213,14 +375,17 @@ class _CreateDocumentScreenState
         _showMessage(
           'The document no longer exists.',
         );
+
         return;
       }
 
       final documentId =
           existingDocument?.id ??
-          _documentRepository.nextDocumentId;
+              _documentRepository
+                  .nextDocumentId;
 
-      final document = DocumentModel(
+      final document =
+          DocumentModel(
         id: documentId,
 
         // ----------------------------------------------------------
@@ -228,10 +393,14 @@ class _CreateDocumentScreenState
         // ----------------------------------------------------------
 
         documentNumber:
-            _documentNumberController.text.trim(),
+            _documentNumberController
+                .text
+                .trim(),
 
         title:
-            _titleController.text.trim(),
+            _titleController
+                .text
+                .trim(),
 
         projectCode:
             _selectedProject!.code,
@@ -243,73 +412,98 @@ class _CreateDocumentScreenState
         // CLASSIFICATION
         // ----------------------------------------------------------
 
-        category: _category,
+        category:
+            _category,
 
-        subCategory: _subCategory,
+        subCategory:
+            _subCategory,
 
-        documentType: _documentType,
+        documentType:
+            _documentType,
 
-        discipline: _discipline,
+        discipline:
+            _discipline,
 
         // ----------------------------------------------------------
         // REVISION / STATUS
         // ----------------------------------------------------------
 
-        revision: _revision,
+        revision:
+            _revision,
 
-        status: _status,
+        status:
+            _status,
 
         // ----------------------------------------------------------
         // COMMUNICATION
         // ----------------------------------------------------------
 
         from:
-            _submittedByController.text.trim(),
+            _submittedByController
+                .text
+                .trim(),
 
         to:
-            _recipientController.text.trim(),
+            _recipientController
+                .text
+                .trim(),
 
         cc:
-            _ccController.text.trim(),
+            _ccController
+                .text
+                .trim(),
 
         submittedBy:
-            _submittedByController.text.trim(),
+            _submittedByController
+                .text
+                .trim(),
 
         recipient:
-            _recipientController.text.trim(),
+            _recipientController
+                .text
+                .trim(),
 
         // ----------------------------------------------------------
         // DATES
         // ----------------------------------------------------------
 
-        date: _documentDate,
+        date:
+            _documentDate,
 
         createdBy:
-            existingDocument?.createdBy ??
-            _submittedByController.text.trim(),
+            existingDocument
+                    ?.createdBy ??
+                _submittedByController
+                    .text
+                    .trim(),
 
         createdDate:
-            existingDocument?.createdDate ??
-            now,
+            existingDocument
+                    ?.createdDate ??
+                now,
 
         submittedDate:
             _status == 'Draft'
                 ? null
                 : (
-                    existingDocument?.submittedDate ??
-                    now
+                    existingDocument
+                            ?.submittedDate ??
+                        now
                   ),
 
-        dueDate: _dueDate,
+        dueDate:
+            _dueDate,
 
         responseDate:
-            existingDocument?.responseDate,
+            existingDocument
+                ?.responseDate,
 
         // ----------------------------------------------------------
         // PRIORITY / SECURITY
         // ----------------------------------------------------------
 
-        priority: _priority,
+        priority:
+            _priority,
 
         confidentiality:
             _confidentiality,
@@ -319,33 +513,42 @@ class _CreateDocumentScreenState
         // ----------------------------------------------------------
 
         description:
-            _descriptionController.text.trim(),
+            _descriptionController
+                .text
+                .trim(),
 
         // ----------------------------------------------------------
         // ATTACHMENTS
         // ----------------------------------------------------------
 
         attachments:
-            existingDocument?.attachments ??
-            const [],
+            existingDocument
+                    ?.attachments ??
+                const [],
 
         // ----------------------------------------------------------
         // UI
         // ----------------------------------------------------------
 
         color:
-            _documentColor(_documentType),
+            _documentColor(
+          _selectedDocumentType!,
+        ),
 
         icon:
-            _documentIcon(_documentType),
+            _documentIcon(
+          _selectedDocumentType!,
+        ),
       );
 
       if (_isEditing) {
-        _documentRepository.updateDocument(
+        _documentRepository
+            .updateDocument(
           document,
         );
       } else {
-        _documentRepository.addDocument(
+        _documentRepository
+            .addDocument(
           document,
         );
       }
@@ -358,7 +561,9 @@ class _CreateDocumentScreenState
         _saving = false;
       });
 
-      _showSuccessDialog(document);
+      _showSuccessDialog(
+        document,
+      );
     } catch (error) {
       if (!mounted) {
         return;
@@ -383,39 +588,52 @@ class _CreateDocumentScreenState
   }) async {
     final initialDate =
         dueDate
-            ? (_dueDate ?? _documentDate)
+            ? (_dueDate ??
+                _documentDate)
             : _documentDate;
 
     final selected =
         await showDatePicker(
       context: context,
-      initialDate: initialDate,
-      firstDate: DateTime(2020),
-      lastDate: DateTime(2100),
+      initialDate:
+          initialDate,
+      firstDate:
+          DateTime(2020),
+      lastDate:
+          DateTime(2100),
     );
 
-    if (selected == null || !mounted) {
+    if (selected == null ||
+        !mounted) {
       return;
     }
 
     if (dueDate) {
-      if (selected.isBefore(_documentDate)) {
+      if (selected.isBefore(
+        _documentDate,
+      )) {
         _showMessage(
           'Due date cannot be before document date.',
         );
+
         return;
       }
 
       setState(() {
-        _dueDate = selected;
+        _dueDate =
+            selected;
       });
     } else {
       setState(() {
-        _documentDate = selected;
+        _documentDate =
+            selected;
 
         if (_dueDate != null &&
-            _dueDate!.isBefore(selected)) {
-          _dueDate = null;
+            _dueDate!.isBefore(
+              selected,
+            )) {
+          _dueDate =
+              null;
         }
       });
     }
@@ -430,15 +648,20 @@ class _CreateDocumentScreenState
   ) {
     showDialog(
       context: context,
-      barrierDismissible: false,
-      builder: (dialogContext) {
+      barrierDismissible:
+          false,
+      builder:
+          (dialogContext) {
         return AlertDialog(
           shape:
               RoundedRectangleBorder(
             borderRadius:
-                BorderRadius.circular(20),
+                BorderRadius.circular(
+              20,
+            ),
           ),
-          content: Column(
+          content:
+              Column(
             mainAxisSize:
                 MainAxisSize.min,
             children: [
@@ -448,7 +671,8 @@ class _CreateDocumentScreenState
                 decoration:
                     BoxDecoration(
                   color:
-                      Colors.green.withValues(
+                      Colors.green
+                          .withValues(
                     alpha: .10,
                   ),
                   shape:
@@ -456,13 +680,17 @@ class _CreateDocumentScreenState
                 ),
                 child:
                     const Icon(
-                  Icons.check_rounded,
-                  color: Colors.green,
+                  Icons
+                      .check_rounded,
+                  color:
+                      Colors.green,
                   size: 40,
                 ),
               ),
 
-              const SizedBox(height: 20),
+              const SizedBox(
+                height: 20,
+              ),
 
               Text(
                 _isEditing
@@ -474,11 +702,14 @@ class _CreateDocumentScreenState
                   fontWeight:
                       FontWeight.bold,
                   color:
-                      AppColors.textDark,
+                      AppColors
+                          .textDark,
                 ),
               ),
 
-              const SizedBox(height: 10),
+              const SizedBox(
+                height: 10,
+              ),
 
               Text(
                 document.title,
@@ -490,25 +721,32 @@ class _CreateDocumentScreenState
                   fontWeight:
                       FontWeight.w600,
                   color:
-                      AppColors.textDark,
+                      AppColors
+                          .textDark,
                 ),
               ),
 
-              const SizedBox(height: 6),
+              const SizedBox(
+                height: 6,
+              ),
 
               Text(
-                document.documentNumber,
+                document
+                    .documentNumber,
                 textAlign:
                     TextAlign.center,
                 style:
                     const TextStyle(
                   fontSize: 13,
                   color:
-                      AppColors.textLight,
+                      AppColors
+                          .textLight,
                 ),
               ),
 
-              const SizedBox(height: 6),
+              const SizedBox(
+                height: 6,
+              ),
 
               Text(
                 '${document.projectCode} • ${document.projectName}',
@@ -518,18 +756,22 @@ class _CreateDocumentScreenState
                     const TextStyle(
                   fontSize: 12,
                   color:
-                      AppColors.textLight,
+                      AppColors
+                          .textLight,
                 ),
               ),
 
-              const SizedBox(height: 24),
+              const SizedBox(
+                height: 24,
+              ),
 
               SizedBox(
                 width:
                     double.infinity,
                 child:
                     ElevatedButton(
-                  onPressed: () {
+                  onPressed:
+                      () {
                     Navigator.pop(
                       dialogContext,
                     );
@@ -539,20 +781,24 @@ class _CreateDocumentScreenState
                     );
                   },
                   style:
-                      ElevatedButton.styleFrom(
+                      ElevatedButton
+                          .styleFrom(
                     backgroundColor:
-                        AppColors.primary,
+                        AppColors
+                            .primary,
                     foregroundColor:
                         Colors.white,
                     elevation: 0,
                     padding:
-                        const EdgeInsets.symmetric(
+                        const EdgeInsets
+                            .symmetric(
                       vertical: 14,
                     ),
                     shape:
                         RoundedRectangleBorder(
                       borderRadius:
-                          BorderRadius.circular(
+                          BorderRadius
+                              .circular(
                         12,
                       ),
                     ),
@@ -578,33 +824,54 @@ class _CreateDocumentScreenState
   Widget build(
     BuildContext context,
   ) {
-    if (_isEditing && !_documentLoaded) {
+    if (_isEditing &&
+        !_documentLoaded) {
       return Scaffold(
         backgroundColor:
-            const Color(0xffF5F7FB),
-        body: Center(
-          child: Container(
+            const Color(
+          0xffF5F7FB,
+        ),
+        body:
+            Center(
+          child:
+              Container(
             padding:
-                const EdgeInsets.all(32),
+                const EdgeInsets
+                    .all(
+              32,
+            ),
             margin:
-                const EdgeInsets.all(24),
+                const EdgeInsets
+                    .all(
+              24,
+            ),
             decoration:
                 BoxDecoration(
-              color: Colors.white,
+              color:
+                  Colors.white,
               borderRadius:
-                  BorderRadius.circular(20),
+                  BorderRadius
+                      .circular(
+                20,
+              ),
             ),
-            child: Column(
+            child:
+                Column(
               mainAxisSize:
-                  MainAxisSize.min,
+                  MainAxisSize
+                      .min,
               children: [
                 const Icon(
-                  Icons.description_outlined,
+                  Icons
+                      .description_outlined,
                   size: 60,
-                  color: Colors.grey,
+                  color:
+                      Colors.grey,
                 ),
 
-                const SizedBox(height: 20),
+                const SizedBox(
+                  height: 20,
+                ),
 
                 const Text(
                   'Document Not Found',
@@ -612,13 +879,17 @@ class _CreateDocumentScreenState
                       TextStyle(
                     fontSize: 24,
                     fontWeight:
-                        FontWeight.bold,
+                        FontWeight
+                            .bold,
                     color:
-                        AppColors.textDark,
+                        AppColors
+                            .textDark,
                   ),
                 ),
 
-                const SizedBox(height: 10),
+                const SizedBox(
+                  height: 10,
+                ),
 
                 const Text(
                   'The requested document could not be found.',
@@ -627,21 +898,27 @@ class _CreateDocumentScreenState
                   style:
                       TextStyle(
                     color:
-                        AppColors.textLight,
+                        AppColors
+                            .textLight,
                   ),
                 ),
 
-                const SizedBox(height: 24),
+                const SizedBox(
+                  height: 24,
+                ),
 
-                ElevatedButton.icon(
-                  onPressed: () {
+                ElevatedButton
+                    .icon(
+                  onPressed:
+                      () {
                     context.go(
                       '/documents',
                     );
                   },
                   icon:
                       const Icon(
-                    Icons.arrow_back_rounded,
+                    Icons
+                        .arrow_back_rounded,
                   ),
                   label:
                       const Text(
@@ -657,31 +934,44 @@ class _CreateDocumentScreenState
 
     return Scaffold(
       backgroundColor:
-          const Color(0xffF5F7FB),
-      body: SafeArea(
+          const Color(
+        0xffF5F7FB,
+      ),
+      body:
+          SafeArea(
         child:
             LayoutBuilder(
           builder:
-              (context, constraints) {
+              (
+            context,
+            constraints,
+          ) {
             final isMobile =
-                constraints.maxWidth < 700;
+                constraints
+                        .maxWidth <
+                    700;
 
             return SingleChildScrollView(
               padding:
                   EdgeInsets.all(
-                isMobile ? 16 : 30,
+                isMobile
+                    ? 16
+                    : 30,
               ),
-              child: Center(
+              child:
+                  Center(
                 child:
                     ConstrainedBox(
                   constraints:
                       const BoxConstraints(
-                    maxWidth: 1100,
+                    maxWidth:
+                        1100,
                   ),
                   child:
                       Column(
                     crossAxisAlignment:
-                        CrossAxisAlignment.start,
+                        CrossAxisAlignment
+                            .start,
                     children: [
                       _buildHeader(),
 
@@ -710,19 +1000,22 @@ class _CreateDocumentScreenState
   Widget _buildHeader() {
     return Column(
       crossAxisAlignment:
-          CrossAxisAlignment.start,
+          CrossAxisAlignment
+              .start,
       children: [
         TextButton.icon(
-          onPressed: _saving
-              ? null
-              : () {
-                  context.go(
-                    '/documents',
-                  );
-                },
+          onPressed:
+              _saving
+                  ? null
+                  : () {
+                      context.go(
+                        '/documents',
+                      );
+                    },
           icon:
               const Icon(
-            Icons.arrow_back_rounded,
+            Icons
+                .arrow_back_rounded,
           ),
           label:
               const Text(
@@ -731,11 +1024,14 @@ class _CreateDocumentScreenState
           style:
               TextButton.styleFrom(
             foregroundColor:
-                AppColors.primary,
+                AppColors
+                    .primary,
           ),
         ),
 
-        const SizedBox(height: 10),
+        const SizedBox(
+          height: 10,
+        ),
 
         Text(
           _isEditing
@@ -747,11 +1043,14 @@ class _CreateDocumentScreenState
             fontWeight:
                 FontWeight.bold,
             color:
-                AppColors.textDark,
+                AppColors
+                    .textDark,
           ),
         ),
 
-        const SizedBox(height: 6),
+        const SizedBox(
+          height: 6,
+        ),
 
         Text(
           _isEditing
@@ -761,7 +1060,8 @@ class _CreateDocumentScreenState
               const TextStyle(
             fontSize: 14,
             color:
-                AppColors.textLight,
+                AppColors
+                    .textLight,
           ),
         ),
       ],
@@ -780,119 +1080,164 @@ class _CreateDocumentScreenState
           double.infinity,
       padding:
           EdgeInsets.all(
-        isMobile ? 18 : 28,
+        isMobile
+            ? 18
+            : 28,
       ),
       decoration:
           BoxDecoration(
-        color: Colors.white,
+        color:
+            Colors.white,
         borderRadius:
-            BorderRadius.circular(20),
+            BorderRadius
+                .circular(
+          20,
+        ),
         boxShadow:
             const [
           BoxShadow(
-            color: Colors.black12,
-            blurRadius: 14,
-            offset: Offset(0, 5),
+            color:
+                Colors.black12,
+            blurRadius:
+                14,
+            offset:
+                Offset(
+              0,
+              5,
+            ),
           ),
         ],
       ),
       child:
           Form(
-        key: _formKey,
+        key:
+            _formKey,
         child:
             Column(
           crossAxisAlignment:
-              CrossAxisAlignment.start,
+              CrossAxisAlignment
+                  .start,
           children: [
             _sectionTitle(
               Icons.folder_rounded,
               'Project & Document Information',
             ),
 
-            const SizedBox(height: 20),
+            const SizedBox(
+              height: 20,
+            ),
 
             _buildProjectFields(
               isMobile,
             ),
 
-            const SizedBox(height: 30),
+            const SizedBox(
+              height: 30,
+            ),
 
             _sectionTitle(
-              Icons.category_rounded,
+              Icons
+                  .category_rounded,
               'Classification',
             ),
 
-            const SizedBox(height: 20),
+            const SizedBox(
+              height: 20,
+            ),
 
             _buildClassificationFields(
               isMobile,
             ),
 
-            const SizedBox(height: 30),
+            const SizedBox(
+              height: 30,
+            ),
 
             _sectionTitle(
               Icons.sync_rounded,
               'Revision & Status',
             ),
 
-            const SizedBox(height: 20),
+            const SizedBox(
+              height: 20,
+            ),
 
             _buildRevisionFields(
               isMobile,
             ),
 
-            const SizedBox(height: 30),
+            const SizedBox(
+              height: 30,
+            ),
 
             _sectionTitle(
-              Icons.people_alt_outlined,
+              Icons
+                  .people_alt_outlined,
               'Communication',
             ),
 
-            const SizedBox(height: 20),
+            const SizedBox(
+              height: 20,
+            ),
 
             _buildCommunicationFields(
               isMobile,
             ),
 
-            const SizedBox(height: 30),
+            const SizedBox(
+              height: 30,
+            ),
 
             _sectionTitle(
-              Icons.calendar_month_rounded,
+              Icons
+                  .calendar_month_rounded,
               'Dates',
             ),
 
-            const SizedBox(height: 20),
+            const SizedBox(
+              height: 20,
+            ),
 
             _buildDateFields(
               isMobile,
             ),
 
-            const SizedBox(height: 30),
+            const SizedBox(
+              height: 30,
+            ),
 
             _sectionTitle(
-              Icons.shield_outlined,
+              Icons
+                  .shield_outlined,
               'Priority & Confidentiality',
             ),
 
-            const SizedBox(height: 20),
+            const SizedBox(
+              height: 20,
+            ),
 
             _buildPriorityFields(
               isMobile,
             ),
 
-            const SizedBox(height: 30),
+            const SizedBox(
+              height: 30,
+            ),
 
             _sectionTitle(
               Icons.notes_rounded,
               'Description',
             ),
 
-            const SizedBox(height: 20),
+            const SizedBox(
+              height: 20,
+            ),
 
             TextFormField(
               controller:
                   _descriptionController,
-              maxLines: 5,
+              maxLines:
+                  5,
               decoration:
                   _inputDecoration(
                 label:
@@ -900,15 +1245,20 @@ class _CreateDocumentScreenState
                 hint:
                     'Enter document description...',
                 icon:
-                    Icons.notes_rounded,
+                    Icons
+                        .notes_rounded,
               ),
             ),
 
-            const SizedBox(height: 35),
+            const SizedBox(
+              height: 35,
+            ),
 
             const Divider(),
 
-            const SizedBox(height: 24),
+            const SizedBox(
+              height: 24,
+            ),
 
             _buildActions(
               isMobile,
@@ -930,41 +1280,51 @@ class _CreateDocumentScreenState
         DropdownButtonFormField<ProjectModel>(
       initialValue:
           _selectedProject,
-      isExpanded: true,
+      isExpanded:
+          true,
       decoration:
           _inputDecoration(
-        label: 'Project',
+        label:
+            'Project',
         icon:
             Icons.folder_rounded,
       ),
       items:
-          _projectRepository.projects
+          _projectRepository
+              .projects
               .map(
-                (project) {
-                  return DropdownMenuItem<
-                      ProjectModel>(
-                    value:
-                        project,
-                    child:
-                        Text(
-                      '${project.code} • ${project.name}',
-                      overflow:
-                          TextOverflow.ellipsis,
-                    ),
-                  );
-                },
-              )
-              .toList(),
+        (
+          project,
+        ) {
+          return DropdownMenuItem<
+              ProjectModel>(
+            value:
+                project,
+            child:
+                Text(
+              '${project.code} • ${project.name}',
+              overflow:
+                  TextOverflow
+                      .ellipsis,
+            ),
+          );
+        },
+      ).toList(),
       validator:
-          (value) {
-        if (value == null) {
+          (
+        value,
+      ) {
+        if (value ==
+            null) {
           return 'Required';
         }
 
         return null;
       },
       onChanged:
-          (value) {
+          (
+        value,
+      ) {
         setState(() {
           _selectedProject =
               value;
@@ -980,7 +1340,8 @@ class _CreateDocumentScreenState
         TextFormField(
       controller:
           _documentNumberController,
-      readOnly: true,
+      readOnly:
+          true,
       decoration:
           _inputDecoration(
         label:
@@ -994,7 +1355,9 @@ class _CreateDocumentScreenState
       return Column(
         children: [
           projectField,
-          const SizedBox(height: 16),
+          const SizedBox(
+            height: 16,
+          ),
           numberField,
         ],
       );
@@ -1006,7 +1369,9 @@ class _CreateDocumentScreenState
           child:
               projectField,
         ),
-        const SizedBox(width: 18),
+        const SizedBox(
+          width: 18,
+        ),
         Expanded(
           child:
               numberField,
@@ -1022,119 +1387,134 @@ class _CreateDocumentScreenState
   Widget _buildClassificationFields(
     bool isMobile,
   ) {
-    final fields = [
-      _dropdownField(
-        value: _category,
-        label: 'Category',
-        icon:
-            Icons.category_outlined,
-        items:
-            const [
-          'Technical',
-          'Commercial',
-          'Reports',
-          'Correspondence',
-          'Contractual',
-          'General',
-        ],
-        onChanged:
-            (value) {
-          setState(() {
-            _category = value;
-          });
-        },
-      ),
+    final documentTypeField =
+        _buildEngineeringDocumentTypeField();
 
-      _dropdownField(
-        value: _subCategory,
-        label: 'Sub Category',
-        icon:
-            Icons.account_tree_outlined,
-        items:
-            const [
-          'General',
-          'Drawings',
-          'Coordination',
-          'Cost Control',
-          'Site Inspection',
-          'RFI',
-          'Submittals',
-          'Correspondence',
-        ],
-        onChanged:
-            (value) {
-          setState(() {
-            _subCategory = value;
-          });
-        },
-      ),
+    final categoryField =
+        _dropdownField(
+      value:
+          _category,
+      label:
+          'Category',
+      icon:
+          Icons
+              .category_outlined,
+      items:
+          const [
+        'Drawings',
+        'Details',
+        'Schedules',
+        'Sections',
+        'Profiles',
+        'Design',
+        'Diagrams',
+        'Survey',
+        'Correspondence',
+        'Submittals',
+        'Inspection',
+        'Quality',
+        'Reports',
+        'Methodology',
+        'Commercial',
+        'Contracts',
+        'Meetings',
+        'HSE',
+        'Issue Status',
+        'Isometrics',
+        'Other',
+        'General',
+      ],
+      onChanged:
+          (
+        value,
+      ) {
+        setState(() {
+          _category =
+              value;
+        });
+      },
+    );
 
-      _dropdownField(
-        value: _documentType,
-        label: 'Document Type',
-        icon:
-            Icons.description_outlined,
-        items:
-            const [
-          'Drawing',
-          'BOQ',
-          'Report',
-          'RFI',
-          'Submittal',
-          'Letter',
-          'Contract',
-          'Minutes',
-          'Other',
-        ],
-        onChanged:
-            (value) {
-          setState(() {
-            _documentType = value;
-          });
-        },
-      ),
+    final subCategoryField =
+        _dropdownField(
+      value:
+          _subCategory,
+      label:
+          'Sub Category',
+      icon:
+          Icons
+              .account_tree_outlined,
+      items:
+          const [
+        'General',
+        'Drawings',
+        'Coordination',
+        'Cost Control',
+        'Site Inspection',
+        'RFI',
+        'Submittals',
+        'Correspondence',
+        'Details',
+        'Schedules',
+        'Reports',
+        'Quality',
+        'Commercial',
+        'Contracts',
+        'HSE',
+      ],
+      onChanged:
+          (
+        value,
+      ) {
+        setState(() {
+          _subCategory =
+              value;
+        });
+      },
+    );
 
-      _dropdownField(
-        value: _discipline,
-        label: 'Discipline',
-        icon:
-            Icons.engineering_rounded,
-        items:
-            const [
-          'Civil',
-          'Architecture',
-          'Structural',
-          'Electrical',
-          'Mechanical',
-          'Fire Fighting',
-          'Construction',
-          'Commercial',
-          'Technical',
-          'General',
-        ],
-        onChanged:
-            (value) {
-          setState(() {
-            _discipline = value;
+    final disciplineField =
+        _dropdownField(
+      value:
+          _discipline,
+      label:
+          'Discipline',
+      icon:
+          Icons
+              .engineering_rounded,
+      items:
+          _disciplineOptions(),
+      onChanged:
+          (
+        value,
+      ) {
+        setState(() {
+          _discipline =
+              value;
 
-            if (!_isEditing) {
-              _generateDocumentNumber();
-            }
-          });
-        },
-      ),
-    ];
+          if (!_isEditing) {
+            _generateDocumentNumber();
+          }
+        });
+      },
+    );
 
     if (isMobile) {
       return Column(
         children: [
-          fields[0],
-          const SizedBox(height: 16),
-          fields[1],
-          const SizedBox(height: 16),
-          fields[2],
-          const SizedBox(height: 16),
-          fields[3],
+          documentTypeField,
+          const SizedBox(
+            height: 16,
+          ),
+          categoryField,
+          const SizedBox(
+            height: 16,
+          ),
+          subCategoryField,
+          const SizedBox(
+            height: 16,
+          ),
+          disciplineField,
         ],
       );
     }
@@ -1145,31 +1525,184 @@ class _CreateDocumentScreenState
           children: [
             Expanded(
               child:
-                  fields[0],
+                  documentTypeField,
             ),
-            const SizedBox(width: 18),
+            const SizedBox(
+              width: 18,
+            ),
             Expanded(
               child:
-                  fields[1],
+                  categoryField,
             ),
           ],
         ),
-        const SizedBox(height: 18),
+
+        const SizedBox(
+          height: 18,
+        ),
+
         Row(
           children: [
             Expanded(
               child:
-                  fields[2],
+                  subCategoryField,
             ),
-            const SizedBox(width: 18),
+            const SizedBox(
+              width: 18,
+            ),
             Expanded(
               child:
-                  fields[3],
+                  disciplineField,
             ),
           ],
         ),
       ],
     );
+  }
+
+  // ==============================================================
+  // ENGINEERING DOCUMENT TYPE FIELD
+  // ==============================================================
+
+  Widget _buildEngineeringDocumentTypeField() {
+    final catalog =
+        EngineeringDocumentCatalog
+            .all;
+
+    final currentValue =
+        _selectedDocumentType !=
+                null &&
+            catalog.contains(
+              _selectedDocumentType,
+            )
+            ? _selectedDocumentType
+            : null;
+
+    return DropdownButtonFormField<
+        EngineeringDocumentType>(
+      initialValue:
+          currentValue,
+      isExpanded:
+          true,
+      decoration:
+          _inputDecoration(
+        label:
+            'Document Type',
+        hint:
+            'Select engineering document type',
+        icon:
+            Icons
+                .description_outlined,
+      ),
+      items:
+          catalog.map(
+        (
+          document,
+        ) {
+          return DropdownMenuItem<
+              EngineeringDocumentType>(
+            value:
+                document,
+            child:
+                Row(
+              children: [
+                Container(
+                  padding:
+                      const EdgeInsets
+                          .symmetric(
+                    horizontal:
+                        8,
+                    vertical:
+                        5,
+                  ),
+                  decoration:
+                      BoxDecoration(
+                    color:
+                        AppColors
+                            .primary
+                            .withValues(
+                      alpha:
+                          .08,
+                    ),
+                    borderRadius:
+                        BorderRadius
+                            .circular(
+                      6,
+                    ),
+                  ),
+                  child:
+                      Text(
+                    document
+                        .abbreviation,
+                    style:
+                        const TextStyle(
+                      fontSize:
+                          11,
+                      fontWeight:
+                          FontWeight
+                              .bold,
+                      color:
+                          AppColors
+                              .primary,
+                    ),
+                  ),
+                ),
+
+                const SizedBox(
+                  width: 10,
+                ),
+
+                Expanded(
+                  child:
+                      Text(
+                    document
+                        .name,
+                    overflow:
+                        TextOverflow
+                            .ellipsis,
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      ).toList(),
+      validator:
+          (
+        value,
+      ) {
+        if (value ==
+            null) {
+          return 'Required';
+        }
+
+        return null;
+      },
+      onChanged:
+          _selectDocumentType,
+    );
+  }
+
+  // ==============================================================
+  // DISCIPLINE OPTIONS
+  // ==============================================================
+
+  List<String> _disciplineOptions() {
+    final values =
+        EngineeringDocumentCatalog
+            .all
+            .map(
+              (
+                document,
+              ) =>
+                  document.discipline,
+            )
+            .toSet()
+            .toList();
+
+    values.sort();
+
+    return values;
   }
 
   // ==============================================================
@@ -1181,10 +1714,13 @@ class _CreateDocumentScreenState
   ) {
     final fields = [
       _dropdownField(
-        value: _revision,
-        label: 'Revision',
+        value:
+            _revision,
+        label:
+            'Revision',
         icon:
-            Icons.history_rounded,
+            Icons
+                .history_rounded,
         items:
             const [
           'Rev. 00',
@@ -1195,18 +1731,24 @@ class _CreateDocumentScreenState
           'Rev. 05',
         ],
         onChanged:
-            (value) {
+            (
+          value,
+        ) {
           setState(() {
-            _revision = value;
+            _revision =
+                value;
           });
         },
       ),
 
       _dropdownField(
-        value: _status,
-        label: 'Status',
+        value:
+            _status,
+        label:
+            'Status',
         icon:
-            Icons.flag_outlined,
+            Icons
+                .flag_outlined,
         items:
             const [
           'Draft',
@@ -1218,9 +1760,12 @@ class _CreateDocumentScreenState
           'Closed',
         ],
         onChanged:
-            (value) {
+            (
+          value,
+        ) {
           setState(() {
-            _status = value;
+            _status =
+                value;
           });
         },
       ),
@@ -1230,7 +1775,9 @@ class _CreateDocumentScreenState
       return Column(
         children: [
           fields[0],
-          const SizedBox(height: 16),
+          const SizedBox(
+            height: 16,
+          ),
           fields[1],
         ],
       );
@@ -1242,7 +1789,9 @@ class _CreateDocumentScreenState
           child:
               fields[0],
         ),
-        const SizedBox(width: 18),
+        const SizedBox(
+          width: 18,
+        ),
         Expanded(
           child:
               fields[1],
@@ -1267,7 +1816,8 @@ class _CreateDocumentScreenState
         hint:
             'Person or company',
         icon:
-            Icons.person_outline_rounded,
+            Icons
+                .person_outline_rounded,
       ),
 
       _textField(
@@ -1278,7 +1828,8 @@ class _CreateDocumentScreenState
         hint:
             'Recipient',
         icon:
-            Icons.person_search_rounded,
+            Icons
+                .person_search_rounded,
       ),
 
       _textField(
@@ -1289,7 +1840,8 @@ class _CreateDocumentScreenState
         hint:
             'Optional',
         icon:
-            Icons.people_outline_rounded,
+            Icons
+                .people_outline_rounded,
         requiredField:
             false,
       ),
@@ -1299,9 +1851,13 @@ class _CreateDocumentScreenState
       return Column(
         children: [
           fields[0],
-          const SizedBox(height: 16),
+          const SizedBox(
+            height: 16,
+          ),
           fields[1],
-          const SizedBox(height: 16),
+          const SizedBox(
+            height: 16,
+          ),
           fields[2],
         ],
       );
@@ -1313,12 +1869,16 @@ class _CreateDocumentScreenState
           child:
               fields[0],
         ),
-        const SizedBox(width: 18),
+        const SizedBox(
+          width: 18,
+        ),
         Expanded(
           child:
               fields[1],
         ),
-        const SizedBox(width: 18),
+        const SizedBox(
+          width: 18,
+        ),
         Expanded(
           child:
               fields[2],
@@ -1341,10 +1901,13 @@ class _CreateDocumentScreenState
       date:
           _documentDate,
       icon:
-          Icons.calendar_today_outlined,
-      onTap: () {
+          Icons
+              .calendar_today_outlined,
+      onTap:
+          () {
         _selectDate(
-          dueDate: false,
+          dueDate:
+              false,
         );
       },
     );
@@ -1356,10 +1919,13 @@ class _CreateDocumentScreenState
       date:
           _dueDate,
       icon:
-          Icons.event_available_outlined,
-      onTap: () {
+          Icons
+              .event_available_outlined,
+      onTap:
+          () {
         _selectDate(
-          dueDate: true,
+          dueDate:
+              true,
         );
       },
     );
@@ -1368,7 +1934,9 @@ class _CreateDocumentScreenState
       return Column(
         children: [
           dateField,
-          const SizedBox(height: 16),
+          const SizedBox(
+            height: 16,
+          ),
           dueDateField,
         ],
       );
@@ -1380,7 +1948,9 @@ class _CreateDocumentScreenState
           child:
               dateField,
         ),
-        const SizedBox(width: 18),
+        const SizedBox(
+          width: 18,
+        ),
         Expanded(
           child:
               dueDateField,
@@ -1396,28 +1966,38 @@ class _CreateDocumentScreenState
     required VoidCallback onTap,
   }) {
     return InkWell(
-      onTap: onTap,
+      onTap:
+          onTap,
       borderRadius:
-          BorderRadius.circular(12),
+          BorderRadius.circular(
+        12,
+      ),
       child:
           InputDecorator(
         decoration:
             _inputDecoration(
-          label: label,
-          icon: icon,
+          label:
+              label,
+          icon:
+              icon,
         ),
         child:
             Text(
           date == null
               ? 'Select date'
-              : _formatDate(date),
+              : _formatDate(
+                  date,
+                ),
           style:
               TextStyle(
             color:
                 date == null
-                    ? AppColors.textLight
-                    : AppColors.textDark,
-            fontSize: 14,
+                    ? AppColors
+                        .textLight
+                    : AppColors
+                        .textDark,
+            fontSize:
+                14,
           ),
         ),
       ),
@@ -1438,7 +2018,8 @@ class _CreateDocumentScreenState
       label:
           'Priority',
       icon:
-          Icons.priority_high_rounded,
+          Icons
+              .priority_high_rounded,
       items:
           const [
         'Low',
@@ -1447,9 +2028,12 @@ class _CreateDocumentScreenState
         'Urgent',
       ],
       onChanged:
-          (value) {
+          (
+        value,
+      ) {
         setState(() {
-          _priority = value;
+          _priority =
+              value;
         });
       },
     );
@@ -1461,7 +2045,8 @@ class _CreateDocumentScreenState
       label:
           'Confidentiality',
       icon:
-          Icons.lock_outline_rounded,
+          Icons
+              .lock_outline_rounded,
       items:
           const [
         'Public',
@@ -1470,9 +2055,12 @@ class _CreateDocumentScreenState
         'Restricted',
       ],
       onChanged:
-          (value) {
+          (
+        value,
+      ) {
         setState(() {
-          _confidentiality = value;
+          _confidentiality =
+              value;
         });
       },
     );
@@ -1481,7 +2069,9 @@ class _CreateDocumentScreenState
       return Column(
         children: [
           priorityField,
-          const SizedBox(height: 16),
+          const SizedBox(
+            height: 16,
+          ),
           confidentialityField,
         ],
       );
@@ -1493,7 +2083,9 @@ class _CreateDocumentScreenState
           child:
               priorityField,
         ),
-        const SizedBox(width: 18),
+        const SizedBox(
+          width: 18,
+        ),
         Expanded(
           child:
               confidentialityField,
@@ -1518,18 +2110,26 @@ class _CreateDocumentScreenState
           controller,
       decoration:
           _inputDecoration(
-        label: label,
-        hint: hint,
-        icon: icon,
+        label:
+            label,
+        hint:
+            hint,
+        icon:
+            icon,
       ),
       validator:
-          (value) {
+          (
+        value,
+      ) {
         if (!requiredField) {
           return null;
         }
 
-        if (value == null ||
-            value.trim().isEmpty) {
+        if (value ==
+                null ||
+            value
+                .trim()
+                .isEmpty) {
           return 'Required';
         }
 
@@ -1551,33 +2151,48 @@ class _CreateDocumentScreenState
   }) {
     return DropdownButtonFormField<String>(
       initialValue:
-          items.contains(value)
+          items.contains(
+            value,
+          )
               ? value
               : null,
-      isExpanded: true,
+      isExpanded:
+          true,
       decoration:
           _inputDecoration(
-        label: label,
-        icon: icon,
+        label:
+            label,
+        icon:
+            icon,
       ),
       items:
           items.map(
-        (item) {
-          return DropdownMenuItem<String>(
-            value: item,
+        (
+          item,
+        ) {
+          return DropdownMenuItem<
+              String>(
+            value:
+                item,
             child:
                 Text(
               item,
               overflow:
-                  TextOverflow.ellipsis,
+                  TextOverflow
+                      .ellipsis,
             ),
           );
         },
       ).toList(),
       onChanged:
-          (value) {
-        if (value != null) {
-          onChanged(value);
+          (
+        value,
+      ) {
+        if (value !=
+            null) {
+          onChanged(
+            value,
+          );
         }
       },
     );
@@ -1598,58 +2213,85 @@ class _CreateDocumentScreenState
       hintText:
           hint,
       prefixIcon:
-          Icon(icon),
-      filled: true,
+          Icon(
+        icon,
+      ),
+      filled:
+          true,
       fillColor:
-          const Color(0xffF8FAFC),
+          const Color(
+        0xffF8FAFC,
+      ),
       border:
           OutlineInputBorder(
         borderRadius:
-            BorderRadius.circular(12),
+            BorderRadius
+                .circular(
+          12,
+        ),
         borderSide:
             BorderSide(
           color:
-              Colors.grey.shade200,
+              Colors.grey
+                  .shade200,
         ),
       ),
       enabledBorder:
           OutlineInputBorder(
         borderRadius:
-            BorderRadius.circular(12),
+            BorderRadius
+                .circular(
+          12,
+        ),
         borderSide:
             BorderSide(
           color:
-              Colors.grey.shade200,
+              Colors.grey
+                  .shade200,
         ),
       ),
       focusedBorder:
           OutlineInputBorder(
         borderRadius:
-            BorderRadius.circular(12),
+            BorderRadius
+                .circular(
+          12,
+        ),
         borderSide:
             const BorderSide(
           color:
-              AppColors.primary,
-          width: 1.5,
+              AppColors
+                  .primary,
+          width:
+              1.5,
         ),
       ),
       errorBorder:
           OutlineInputBorder(
         borderRadius:
-            BorderRadius.circular(12),
+            BorderRadius
+                .circular(
+          12,
+        ),
         borderSide:
             const BorderSide(
-          color: Colors.red,
+          color:
+              Colors.red,
         ),
       ),
       focusedErrorBorder:
           OutlineInputBorder(
         borderRadius:
-            BorderRadius.circular(12),
+            BorderRadius
+                .circular(
+          12,
+        ),
         borderSide:
             const BorderSide(
-          color: Colors.red,
-          width: 1.5,
+          color:
+              Colors.red,
+          width:
+              1.5,
         ),
       ),
     );
@@ -1666,27 +2308,39 @@ class _CreateDocumentScreenState
     return Row(
       children: [
         Container(
-          width: 40,
-          height: 40,
+          width:
+              40,
+          height:
+              40,
           decoration:
               BoxDecoration(
             color:
-                AppColors.primary.withValues(
-              alpha: .10,
+                AppColors
+                    .primary
+                    .withValues(
+              alpha:
+                  .10,
             ),
             borderRadius:
-                BorderRadius.circular(12),
+                BorderRadius
+                    .circular(
+              12,
+            ),
           ),
           child:
               Icon(
             icon,
             color:
-                AppColors.primary,
-            size: 21,
+                AppColors
+                    .primary,
+            size:
+                21,
           ),
         ),
 
-        const SizedBox(width: 12),
+        const SizedBox(
+          width: 12,
+        ),
 
         Expanded(
           child:
@@ -1694,11 +2348,14 @@ class _CreateDocumentScreenState
             title,
             style:
                 const TextStyle(
-              fontSize: 18,
+              fontSize:
+                  18,
               fontWeight:
-                  FontWeight.bold,
+                  FontWeight
+                      .bold,
               color:
-                  AppColors.textDark,
+                  AppColors
+                      .textDark,
             ),
           ),
         ),
@@ -1740,19 +2397,24 @@ class _CreateDocumentScreenState
       icon:
           _saving
               ? const SizedBox(
-                  width: 18,
-                  height: 18,
+                  width:
+                      18,
+                  height:
+                      18,
                   child:
                       CircularProgressIndicator(
-                    strokeWidth: 2,
+                    strokeWidth:
+                        2,
                     color:
                         Colors.white,
                   ),
                 )
               : Icon(
                   _isEditing
-                      ? Icons.save_rounded
-                      : Icons.add_rounded,
+                      ? Icons
+                          .save_rounded
+                      : Icons
+                          .add_rounded,
                 ),
       label:
           Text(
@@ -1775,7 +2437,9 @@ class _CreateDocumentScreenState
             child:
                 saveButton,
           ),
-          const SizedBox(height: 10),
+          const SizedBox(
+            height: 10,
+          ),
           SizedBox(
             width:
                 double.infinity,
@@ -1788,10 +2452,13 @@ class _CreateDocumentScreenState
 
     return Row(
       mainAxisAlignment:
-          MainAxisAlignment.end,
+          MainAxisAlignment
+              .end,
       children: [
         cancelButton,
-        const SizedBox(width: 12),
+        const SizedBox(
+          width: 12,
+        ),
         saveButton,
       ],
     );
@@ -1802,43 +2469,61 @@ class _CreateDocumentScreenState
   // ==============================================================
 
   ButtonStyle _primaryButtonStyle() {
-    return ElevatedButton.styleFrom(
+    return ElevatedButton
+        .styleFrom(
       backgroundColor:
-          AppColors.primary,
+          AppColors
+              .primary,
       foregroundColor:
           Colors.white,
-      elevation: 0,
+      elevation:
+          0,
       padding:
-          const EdgeInsets.symmetric(
-        horizontal: 24,
-        vertical: 15,
+          const EdgeInsets
+              .symmetric(
+        horizontal:
+            24,
+        vertical:
+            15,
       ),
       shape:
           RoundedRectangleBorder(
         borderRadius:
-            BorderRadius.circular(12),
+            BorderRadius
+                .circular(
+          12,
+        ),
       ),
     );
   }
 
   ButtonStyle _secondaryButtonStyle() {
-    return OutlinedButton.styleFrom(
+    return OutlinedButton
+        .styleFrom(
       foregroundColor:
-          AppColors.textDark,
+          AppColors
+              .textDark,
       padding:
-          const EdgeInsets.symmetric(
-        horizontal: 24,
-        vertical: 15,
+          const EdgeInsets
+              .symmetric(
+        horizontal:
+            24,
+        vertical:
+            15,
       ),
       side:
           BorderSide(
         color:
-            Colors.grey.shade300,
+            Colors.grey
+                .shade300,
       ),
       shape:
           RoundedRectangleBorder(
         borderRadius:
-            BorderRadius.circular(12),
+            BorderRadius
+                .circular(
+          12,
+        ),
       ),
     );
   }
@@ -1848,35 +2533,72 @@ class _CreateDocumentScreenState
   // ==============================================================
 
   Color _documentColor(
-    String type,
+    EngineeringDocumentType type,
   ) {
-    switch (type) {
-      case 'Drawing':
+    switch (type.category) {
+      case 'Drawings':
         return Colors.blue;
 
-      case 'BOQ':
-        return Colors.green;
-
-      case 'Report':
-        return Colors.purple;
-
-      case 'RFI':
-        return Colors.orange;
-
-      case 'Submittal':
-        return Colors.teal;
-
-      case 'Contract':
-        return Colors.red;
-
-      case 'Minutes':
+      case 'Details':
         return Colors.indigo;
 
-      case 'Letter':
+      case 'Schedules':
+        return Colors.teal;
+
+      case 'Sections':
+        return Colors.cyan;
+
+      case 'Profiles':
+        return Colors.deepPurple;
+
+      case 'Design':
+        return Colors.purple;
+
+      case 'Diagrams':
+        return Colors.orange;
+
+      case 'Survey':
         return Colors.brown;
 
+      case 'Correspondence':
+        return Colors.blueGrey;
+
+      case 'Submittals':
+        return Colors.teal;
+
+      case 'Inspection':
+        return Colors.amber;
+
+      case 'Quality':
+        return Colors.red;
+
+      case 'Reports':
+        return Colors.purple;
+
+      case 'Methodology':
+        return Colors.deepOrange;
+
+      case 'Commercial':
+        return Colors.green;
+
+      case 'Contracts':
+        return Colors.red;
+
+      case 'Meetings':
+        return Colors.indigo;
+
+      case 'HSE':
+        return Colors.orange;
+
+      case 'Issue Status':
+        return Colors.blue;
+
+      case 'Isometrics':
+        return Colors.deepPurple;
+
       default:
-        return AppColors.primary;
+        return AppColors
+            .primary;
     }
   }
 
@@ -1885,36 +2607,232 @@ class _CreateDocumentScreenState
   // ==============================================================
 
   IconData _documentIcon(
-    String type,
+    EngineeringDocumentType type,
   ) {
-    switch (type) {
-      case 'Drawing':
-        return Icons.architecture_rounded;
+    final category =
+        type.category
+            .toLowerCase();
 
-      case 'BOQ':
-        return Icons.request_quote_rounded;
+    final discipline =
+        type.discipline
+            .toLowerCase();
 
-      case 'Report':
-        return Icons.assignment_rounded;
+    final abbreviation =
+        type.abbreviation
+            .toUpperCase();
 
-      case 'RFI':
-        return Icons.question_answer_rounded;
-
-      case 'Submittal':
-        return Icons.upload_file_rounded;
-
-      case 'Contract':
-        return Icons.gavel_rounded;
-
-      case 'Minutes':
-        return Icons.groups_rounded;
-
-      case 'Letter':
-        return Icons.mail_outline_rounded;
-
-      default:
-        return Icons.description_rounded;
+    if (abbreviation ==
+        'RFI') {
+      return Icons
+          .question_answer_rounded;
     }
+
+    if (abbreviation ==
+        'BOQ') {
+      return Icons
+          .request_quote_rounded;
+    }
+
+    if (abbreviation ==
+        'MOM') {
+      return Icons
+          .groups_rounded;
+    }
+
+    if (abbreviation ==
+        'NCR') {
+      return Icons
+          .report_problem_rounded;
+    }
+
+    if (abbreviation ==
+        'ITP') {
+      return Icons
+          .fact_check_rounded;
+    }
+
+    if (abbreviation ==
+        'WIR') {
+      return Icons
+          .engineering_rounded;
+    }
+
+    if (abbreviation ==
+        'MIR') {
+      return Icons
+          .inventory_2_rounded;
+    }
+
+    if (abbreviation ==
+        'P&ID') {
+      return Icons
+          .schema_rounded;
+    }
+
+    if (abbreviation ==
+        'PFD') {
+      return Icons
+          .account_tree_rounded;
+    }
+
+    if (abbreviation ==
+        'HVAC') {
+      return Icons
+          .air_rounded;
+    }
+
+    if (abbreviation ==
+        'CCTV') {
+      return Icons
+          .videocam_rounded;
+    }
+
+    if (abbreviation ==
+        'FA') {
+      return Icons
+          .notifications_active_rounded;
+    }
+
+    if (abbreviation ==
+        'FF') {
+      return Icons
+          .local_fire_department_rounded;
+    }
+
+    if (abbreviation ==
+        'SD') {
+      return Icons
+          .architecture_rounded;
+    }
+
+    if (discipline ==
+        'architecture') {
+      return Icons
+          .architecture_rounded;
+    }
+
+    if (discipline ==
+        'structural') {
+      return Icons
+          .account_balance_rounded;
+    }
+
+    if (discipline ==
+        'electrical') {
+      return Icons
+          .bolt_rounded;
+    }
+
+    if (discipline ==
+        'mechanical') {
+      return Icons
+          .settings_rounded;
+    }
+
+    if (discipline ==
+        'plumbing') {
+      return Icons
+          .water_drop_rounded;
+    }
+
+    if (discipline ==
+        'roads') {
+      return Icons
+          .alt_route_rounded;
+    }
+
+    if (discipline ==
+        'bridges') {
+      return Icons
+          .directions_rounded;
+    }
+
+    if (discipline ==
+        'drainage') {
+      return Icons
+          .water_rounded;
+    }
+
+    if (discipline ==
+        'survey') {
+      return Icons
+          .straighten_rounded;
+    }
+
+    if (discipline ==
+        'geotechnical') {
+      return Icons
+          .terrain_rounded;
+    }
+
+    if (discipline ==
+        'landscape') {
+      return Icons
+          .park_rounded;
+    }
+
+    if (discipline ==
+        'hse') {
+      return Icons
+          .health_and_safety_rounded;
+    }
+
+    if (discipline ==
+        'commercial') {
+      return Icons
+          .request_quote_rounded;
+    }
+
+    if (discipline ==
+        'contractual') {
+      return Icons
+          .gavel_rounded;
+    }
+
+    if (category ==
+        'drawings') {
+      return Icons
+          .description_rounded;
+    }
+
+    if (category ==
+        'schedules') {
+      return Icons
+          .table_chart_rounded;
+    }
+
+    if (category ==
+        'diagrams') {
+      return Icons
+          .schema_rounded;
+    }
+
+    if (category ==
+        'reports') {
+      return Icons
+          .assignment_rounded;
+    }
+
+    if (category ==
+        'correspondence') {
+      return Icons
+          .mail_outline_rounded;
+    }
+
+    if (category ==
+        'contracts') {
+      return Icons
+          .gavel_rounded;
+    }
+
+    if (category ==
+        'hse') {
+      return Icons
+          .health_and_safety_rounded;
+    }
+
+    return Icons
+        .description_rounded;
   }
 
   // ==============================================================
@@ -1950,13 +2868,17 @@ class _CreateDocumentScreenState
       return;
     }
 
-    ScaffoldMessenger.of(context)
-        .showSnackBar(
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(
       SnackBar(
         content:
-            Text(message),
+            Text(
+          message,
+        ),
         behavior:
-            SnackBarBehavior.floating,
+            SnackBarBehavior
+                .floating,
       ),
     );
   }

@@ -38,6 +38,10 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
     super.dispose();
   }
 
+  // ==============================================================
+  // REPOSITORY LISTENER
+  // ==============================================================
+
   void _onDocumentsChanged() {
     if (!mounted) {
       return;
@@ -58,34 +62,16 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
       final matchesSearch =
           query.isEmpty ||
           document.id.toLowerCase().contains(query) ||
-          document.documentNumber
-              .toLowerCase()
-              .contains(query) ||
+          document.documentNumber.toLowerCase().contains(query) ||
           document.title.toLowerCase().contains(query) ||
-          document.projectName
-              .toLowerCase()
-              .contains(query) ||
-          document.projectCode
-              .toLowerCase()
-              .contains(query) ||
-          document.category
-              .toLowerCase()
-              .contains(query) ||
-          document.subCategory
-              .toLowerCase()
-              .contains(query) ||
-          document.documentType
-              .toLowerCase()
-              .contains(query) ||
-          document.discipline
-              .toLowerCase()
-              .contains(query) ||
-          document.submittedBy
-              .toLowerCase()
-              .contains(query) ||
-          document.recipient
-              .toLowerCase()
-              .contains(query);
+          document.projectName.toLowerCase().contains(query) ||
+          document.projectCode.toLowerCase().contains(query) ||
+          document.category.toLowerCase().contains(query) ||
+          document.subCategory.toLowerCase().contains(query) ||
+          document.documentType.toLowerCase().contains(query) ||
+          document.discipline.toLowerCase().contains(query) ||
+          document.submittedBy.toLowerCase().contains(query) ||
+          document.recipient.toLowerCase().contains(query);
 
       final matchesStatus =
           _selectedStatus == 'All' ||
@@ -271,7 +257,8 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
       style: ElevatedButton.styleFrom(
         backgroundColor:
             AppColors.primary,
-        foregroundColor: Colors.white,
+        foregroundColor:
+            Colors.white,
         elevation: 0,
         padding:
             const EdgeInsets.symmetric(
@@ -288,15 +275,16 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
   }
 
   // ==============================================================
-  // SUMMARY
+  // SUMMARY CARDS
   // ==============================================================
 
   Widget _buildSummaryCards(double width) {
-    final columns = width >= 1000
-        ? 4
-        : width >= 650
-            ? 2
-            : 1;
+    final columns =
+        width >= 1000
+            ? 4
+            : width >= 650
+                ? 2
+                : 1;
 
     final cards = [
       _SummaryData(
@@ -407,7 +395,9 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
                         AppColors.textLight,
                   ),
                 ),
+
                 const SizedBox(height: 5),
+
                 Text(
                   data.value,
                   style:
@@ -419,7 +409,9 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
                         AppColors.textDark,
                   ),
                 ),
+
                 const SizedBox(height: 3),
+
                 Text(
                   data.subtitle,
                   style:
@@ -454,11 +446,13 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
           Row(
             children: [
               Expanded(
-                child: _buildStatusFilter(),
+                child:
+                    _buildStatusFilter(),
               ),
               const SizedBox(width: 10),
               Expanded(
-                child: _buildTypeFilter(),
+                child:
+                    _buildTypeFilter(),
               ),
             ],
           ),
@@ -471,25 +465,37 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
         Expanded(
           child: _buildSearch(),
         ),
+
         const SizedBox(width: 14),
+
         _buildStatusFilter(),
+
         const SizedBox(width: 10),
+
         _buildTypeFilter(),
       ],
     );
   }
 
+  // ==============================================================
+  // SEARCH
+  // ==============================================================
+
   Widget _buildSearch() {
     return TextField(
-      controller: _searchController,
+      controller:
+          _searchController,
       onChanged: (_) {
         setState(() {});
       },
-      decoration: InputDecoration(
+      decoration:
+          InputDecoration(
         hintText:
             'Search documents, projects, IDs...',
         prefixIcon:
-            const Icon(Icons.search_rounded),
+            const Icon(
+          Icons.search_rounded,
+        ),
         suffixIcon:
             _searchController.text.isNotEmpty
                 ? IconButton(
@@ -497,34 +503,45 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
                       _searchController.clear();
                       setState(() {});
                     },
-                    icon: const Icon(
+                    icon:
+                        const Icon(
                       Icons.close_rounded,
                     ),
                   )
                 : null,
         filled: true,
         fillColor: Colors.white,
-        border: OutlineInputBorder(
+        border:
+            OutlineInputBorder(
           borderRadius:
               BorderRadius.circular(14),
-          borderSide: BorderSide.none,
+          borderSide:
+              BorderSide.none,
         ),
-        enabledBorder: OutlineInputBorder(
+        enabledBorder:
+            OutlineInputBorder(
           borderRadius:
               BorderRadius.circular(14),
-          borderSide: BorderSide.none,
+          borderSide:
+              BorderSide.none,
         ),
-        focusedBorder: OutlineInputBorder(
+        focusedBorder:
+            OutlineInputBorder(
           borderRadius:
               BorderRadius.circular(14),
           borderSide:
               const BorderSide(
-            color: AppColors.primary,
+            color:
+                AppColors.primary,
           ),
         ),
       ),
     );
   }
+
+  // ==============================================================
+  // STATUS FILTER
+  // ==============================================================
 
   Widget _buildStatusFilter() {
     return _filterDropdown(
@@ -539,7 +556,8 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
         'Rejected',
         'Closed',
       ],
-      icon: Icons.filter_alt_outlined,
+      icon:
+          Icons.filter_alt_outlined,
       onChanged: (value) {
         setState(() {
           _selectedStatus = value;
@@ -547,6 +565,10 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
       },
     );
   }
+
+  // ==============================================================
+  // TYPE FILTER
+  // ==============================================================
 
   Widget _buildTypeFilter() {
     return _filterDropdown(
@@ -563,7 +585,8 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
         'Minutes',
         'Other',
       ],
-      icon: Icons.description_outlined,
+      icon:
+          Icons.description_outlined,
       onChanged: (value) {
         setState(() {
           _selectedType = value;
@@ -576,45 +599,54 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
     required String value,
     required List<String> items,
     required IconData icon,
-    required ValueChanged<String> onChanged,
+    required ValueChanged<String>
+        onChanged,
   }) {
     return Container(
       padding:
           const EdgeInsets.symmetric(
         horizontal: 12,
       ),
-      decoration: BoxDecoration(
-        color: Colors.white,
+      decoration:
+          BoxDecoration(
+        color:
+            Colors.white,
         borderRadius:
             BorderRadius.circular(14),
       ),
-      child: DropdownButtonHideUnderline(
-        child: DropdownButton<String>(
+      child:
+          DropdownButtonHideUnderline(
+        child:
+            DropdownButton<String>(
           value: value,
-          icon: const Icon(
+          icon:
+              const Icon(
             Icons.keyboard_arrow_down_rounded,
           ),
           borderRadius:
               BorderRadius.circular(14),
-          items: items.map((item) {
-            return DropdownMenuItem<String>(
-              value: item,
-              child: Row(
-                mainAxisSize:
-                    MainAxisSize.min,
-                children: [
-                  Icon(
-                    icon,
-                    size: 17,
-                    color:
-                        Colors.grey.shade600,
-                  ),
-                  const SizedBox(width: 7),
-                  Text(item),
-                ],
-              ),
-            );
-          }).toList(),
+          items: items.map(
+            (item) {
+              return DropdownMenuItem<String>(
+                value: item,
+                child:
+                    Row(
+                  mainAxisSize:
+                      MainAxisSize.min,
+                  children: [
+                    Icon(
+                      icon,
+                      size: 17,
+                      color:
+                          Colors.grey.shade600,
+                    ),
+                    const SizedBox(width: 7),
+                    Text(item),
+                  ],
+                ),
+              );
+            },
+          ).toList(),
           onChanged: (value) {
             if (value != null) {
               onChanged(value);
@@ -632,14 +664,17 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
   Widget _buildDocumentsSection(
     double width,
   ) {
-    final documents = _filteredDocuments;
+    final documents =
+        _filteredDocuments;
 
     return Container(
       width: double.infinity,
-      padding: EdgeInsets.all(
+      padding:
+          EdgeInsets.all(
         width < 600 ? 16 : 22,
       ),
-      decoration: BoxDecoration(
+      decoration:
+          BoxDecoration(
         color: Colors.white,
         borderRadius:
             BorderRadius.circular(20),
@@ -660,7 +695,8 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
               const Expanded(
                 child: Text(
                   'Project Documents',
-                  style: TextStyle(
+                  style:
+                      TextStyle(
                     fontSize: 20,
                     fontWeight:
                         FontWeight.bold,
@@ -669,6 +705,7 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
                   ),
                 ),
               ),
+
               Text(
                 '${documents.length} documents',
                 style:
@@ -695,29 +732,40 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
     );
   }
 
+  // ==============================================================
+  // DOCUMENT GRID
+  // ==============================================================
+
   Widget _buildDocumentGrid(
     List<DocumentModel> documents,
     double width,
   ) {
-    final columns = width >= 1250
-        ? 3
-        : width >= 750
-            ? 2
-            : 1;
+    final columns =
+        width >= 1250
+            ? 3
+            : width >= 750
+                ? 2
+                : 1;
 
     return GridView.builder(
       shrinkWrap: true,
       physics:
           const NeverScrollableScrollPhysics(),
-      itemCount: documents.length,
+      itemCount:
+          documents.length,
       gridDelegate:
           SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: columns,
-        crossAxisSpacing: 18,
-        mainAxisSpacing: 18,
-        mainAxisExtent: 300,
+        crossAxisCount:
+            columns,
+        crossAxisSpacing:
+            18,
+        mainAxisSpacing:
+            18,
+        mainAxisExtent:
+            300,
       ),
-      itemBuilder: (context, index) {
+      itemBuilder:
+          (context, index) {
         return _buildDocumentCard(
           documents[index],
         );
@@ -734,18 +782,25 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
   ) {
     return InkWell(
       onTap: () {
-        _showDocumentDetails(document);
+        context.go(
+          '/documents/${Uri.encodeComponent(document.id)}',
+        );
       },
       borderRadius:
           BorderRadius.circular(18),
       child: Container(
-        padding: const EdgeInsets.all(18),
-        decoration: BoxDecoration(
-          color: const Color(0xffFBFCFE),
+        padding:
+            const EdgeInsets.all(18),
+        decoration:
+            BoxDecoration(
+          color:
+              const Color(0xffFBFCFE),
           borderRadius:
               BorderRadius.circular(18),
-          border: Border.all(
-            color: Colors.grey.shade200,
+          border:
+              Border.all(
+            color:
+                Colors.grey.shade200,
           ),
         ),
         child: Column(
@@ -757,19 +812,19 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
                 Container(
                   width: 50,
                   height: 50,
-                  decoration: BoxDecoration(
+                  decoration:
+                      BoxDecoration(
                     color:
                         document.color.withValues(
                       alpha: .10,
                     ),
                     borderRadius:
-                        BorderRadius.circular(
-                      14,
-                    ),
+                        BorderRadius.circular(14),
                   ),
                   child: Icon(
                     document.icon,
-                    color: document.color,
+                    color:
+                        document.color,
                     size: 26,
                   ),
                 ),
@@ -795,7 +850,9 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
                               FontWeight.w600,
                         ),
                       ),
+
                       const SizedBox(height: 4),
+
                       Text(
                         document.revision,
                         style:
@@ -840,11 +897,13 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
 
             Text(
               document.documentType,
-              style: TextStyle(
+              style:
+                  TextStyle(
                 fontSize: 12,
                 fontWeight:
                     FontWeight.w600,
-                color: document.color,
+                color:
+                    document.color,
               ),
             ),
 
@@ -873,7 +932,9 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
 
             _infoRow(
               Icons.calendar_today_outlined,
-              _formatDate(document.date),
+              _formatDate(
+                document.date,
+              ),
             ),
 
             const Spacer(),
@@ -882,18 +943,23 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
               children: [
                 Text(
                   'View Document',
-                  style: TextStyle(
+                  style:
+                      TextStyle(
                     fontSize: 12,
                     fontWeight:
                         FontWeight.w600,
-                    color: document.color,
+                    color:
+                        document.color,
                   ),
                 ),
+
                 const Spacer(),
+
                 Icon(
                   Icons.arrow_forward_ios_rounded,
                   size: 13,
-                  color: document.color,
+                  color:
+                      document.color,
                 ),
               ],
             ),
@@ -904,13 +970,14 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
   }
 
   // ==============================================================
-  // STATUS
+  // STATUS BADGE
   // ==============================================================
 
   Widget _statusBadge(
     String status,
   ) {
-    final color = _statusColor(status);
+    final color =
+        _statusColor(status);
 
     return Container(
       padding:
@@ -918,18 +985,23 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
         horizontal: 8,
         vertical: 5,
       ),
-      decoration: BoxDecoration(
-        color: color.withValues(
+      decoration:
+          BoxDecoration(
+        color:
+            color.withValues(
           alpha: .10,
         ),
         borderRadius:
             BorderRadius.circular(20),
       ),
-      child: Text(
+      child:
+          Text(
         status,
         maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: TextStyle(
+        overflow:
+            TextOverflow.ellipsis,
+        style:
+            TextStyle(
           color: color,
           fontSize: 10,
           fontWeight:
@@ -982,12 +1054,18 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
         Icon(
           icon,
           size: 15,
-          color: Colors.grey.shade500,
+          color:
+              Colors.grey.shade500,
         ),
+
         const SizedBox(width: 7),
+
         Expanded(
-          child: Text(
-            text.isEmpty ? '-' : text,
+          child:
+              Text(
+            text.isEmpty
+                ? '-'
+                : text,
             maxLines: 1,
             overflow:
                 TextOverflow.ellipsis,
@@ -1009,7 +1087,9 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
 
   Widget _buildEmptyState() {
     final hasFilters =
-        _searchController.text.trim().isNotEmpty ||
+        _searchController.text
+                .trim()
+                .isNotEmpty ||
         _selectedStatus != 'All' ||
         _selectedType != 'All';
 
@@ -1026,7 +1106,8 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
                   ? Icons.search_off_rounded
                   : Icons.folder_off_rounded,
               size: 52,
-              color: Colors.grey.shade400,
+              color:
+                  Colors.grey.shade400,
             ),
 
             const SizedBox(height: 14),
@@ -1035,7 +1116,8 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
               hasFilters
                   ? 'No matching documents'
                   : 'No documents found',
-              style: const TextStyle(
+              style:
+                  const TextStyle(
                 fontSize: 18,
                 fontWeight:
                     FontWeight.bold,
@@ -1050,7 +1132,8 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
               hasFilters
                   ? 'Try changing your search or filters.'
                   : 'Create your first project document.',
-              style: const TextStyle(
+              style:
+                  const TextStyle(
                 color:
                     AppColors.textLight,
               ),
@@ -1058,12 +1141,16 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
 
             if (hasFilters) ...[
               const SizedBox(height: 18),
+
               OutlinedButton.icon(
-                onPressed: _clearFilters,
-                icon: const Icon(
+                onPressed:
+                    _clearFilters,
+                icon:
+                    const Icon(
                   Icons.clear_all_rounded,
                 ),
-                label: const Text(
+                label:
+                    const Text(
                   'Clear Filters',
                 ),
               ),
@@ -1074,612 +1161,16 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
     );
   }
 
+  // ==============================================================
+  // CLEAR FILTERS
+  // ==============================================================
+
   void _clearFilters() {
     setState(() {
       _searchController.clear();
       _selectedStatus = 'All';
       _selectedType = 'All';
     });
-  }
-
-  // ==============================================================
-  // DOCUMENT DETAILS
-  // ==============================================================
-
-  void _showDocumentDetails(
-    DocumentModel document,
-  ) {
-    showDialog(
-      context: context,
-      builder: (dialogContext) {
-        return AlertDialog(
-          shape:
-              RoundedRectangleBorder(
-            borderRadius:
-                BorderRadius.circular(20),
-          ),
-
-          title: Row(
-            children: [
-              Container(
-                width: 42,
-                height: 42,
-                decoration: BoxDecoration(
-                  color:
-                      document.color.withValues(
-                    alpha: .10,
-                  ),
-                  borderRadius:
-                      BorderRadius.circular(12),
-                ),
-                child: Icon(
-                  document.icon,
-                  color: document.color,
-                ),
-              ),
-
-              const SizedBox(width: 10),
-
-              Expanded(
-                child: Column(
-                  crossAxisAlignment:
-                      CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      document.title,
-                      maxLines: 2,
-                      overflow:
-                          TextOverflow.ellipsis,
-                      style:
-                          const TextStyle(
-                        fontSize: 18,
-                        fontWeight:
-                            FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 3),
-                    Text(
-                      document.documentNumber,
-                      style:
-                          const TextStyle(
-                        fontSize: 11,
-                        color:
-                            AppColors.textLight,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-
-          content: SizedBox(
-            width: 520,
-            child: SingleChildScrollView(
-              child: Column(
-                mainAxisSize:
-                    MainAxisSize.min,
-                crossAxisAlignment:
-                    CrossAxisAlignment.start,
-                children: [
-                  _buildDetailsStatusHeader(
-                    document,
-                  ),
-
-                  const SizedBox(height: 18),
-
-                  _detailSectionTitle(
-                    Icons.folder_rounded,
-                    'Project & Classification',
-                  ),
-
-                  const SizedBox(height: 10),
-
-                  _detailRow(
-                    'Document ID',
-                    document.id,
-                  ),
-
-                  _detailRow(
-                    'Document Number',
-                    document.documentNumber,
-                  ),
-
-                  _detailRow(
-                    'Project',
-                    '${document.projectCode} • ${document.projectName}',
-                  ),
-
-                  _detailRow(
-                    'Category',
-                    document.category,
-                  ),
-
-                  _detailRow(
-                    'Sub Category',
-                    document.subCategory,
-                  ),
-
-                  _detailRow(
-                    'Type',
-                    document.documentType,
-                  ),
-
-                  _detailRow(
-                    'Discipline',
-                    document.discipline,
-                  ),
-
-                  const SizedBox(height: 8),
-
-                  _detailSectionTitle(
-                    Icons.sync_rounded,
-                    'Revision & Status',
-                  ),
-
-                  const SizedBox(height: 10),
-
-                  _detailRow(
-                    'Revision',
-                    document.revision,
-                  ),
-
-                  _detailRow(
-                    'Status',
-                    document.status,
-                  ),
-
-                  _detailRow(
-                    'Priority',
-                    document.priority,
-                  ),
-
-                  _detailRow(
-                    'Confidentiality',
-                    document.confidentiality,
-                  ),
-
-                  const SizedBox(height: 8),
-
-                  _detailSectionTitle(
-                    Icons.people_alt_outlined,
-                    'Communication',
-                  ),
-
-                  const SizedBox(height: 10),
-
-                  _detailRow(
-                    'From',
-                    document.from,
-                  ),
-
-                  _detailRow(
-                    'To',
-                    document.to,
-                  ),
-
-                  _detailRow(
-                    'CC',
-                    document.cc,
-                  ),
-
-                  _detailRow(
-                    'Submitted By',
-                    document.submittedBy,
-                  ),
-
-                  _detailRow(
-                    'Recipient',
-                    document.recipient,
-                  ),
-
-                  const SizedBox(height: 8),
-
-                  _detailSectionTitle(
-                    Icons.calendar_month_rounded,
-                    'Dates',
-                  ),
-
-                  const SizedBox(height: 10),
-
-                  _detailRow(
-                    'Document Date',
-                    _formatDate(
-                      document.date,
-                    ),
-                  ),
-
-                  _detailRow(
-                    'Created Date',
-                    _formatDate(
-                      document.createdDate,
-                    ),
-                  ),
-
-                  _detailRow(
-                    'Due Date',
-                    document.dueDate == null
-                        ? '-'
-                        : _formatDate(
-                            document.dueDate!,
-                          ),
-                  ),
-
-                  _detailRow(
-                    'Submitted Date',
-                    document.submittedDate == null
-                        ? '-'
-                        : _formatDate(
-                            document.submittedDate!,
-                          ),
-                  ),
-
-                  _detailRow(
-                    'Response Date',
-                    document.responseDate == null
-                        ? '-'
-                        : _formatDate(
-                            document.responseDate!,
-                          ),
-                  ),
-
-                  const SizedBox(height: 8),
-
-                  _detailSectionTitle(
-                    Icons.notes_rounded,
-                    'Description',
-                  ),
-
-                  const SizedBox(height: 10),
-
-                  _descriptionBox(
-                    document.description,
-                  ),
-
-                  const SizedBox(height: 16),
-
-                  _detailSectionTitle(
-                    Icons.attach_file_rounded,
-                    'Attachments',
-                  ),
-
-                  const SizedBox(height: 10),
-
-                  _attachmentsSection(
-                    document,
-                  ),
-                ],
-              ),
-            ),
-          ),
-
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.pop(dialogContext);
-              },
-              child:
-                  const Text('Close'),
-            ),
-
-            OutlinedButton.icon(
-              onPressed: () {
-                Navigator.pop(dialogContext);
-
-                context.go(
-                  '/create-document?documentId=${Uri.encodeComponent(document.id)}',
-                );
-              },
-              icon: const Icon(
-                Icons.edit_rounded,
-                size: 17,
-              ),
-              label:
-                  const Text('Edit'),
-            ),
-
-            ElevatedButton.icon(
-              onPressed: () {
-                Navigator.pop(dialogContext);
-
-                _showMessage(
-                  'Document viewer will be connected next.',
-                );
-              },
-              icon: const Icon(
-                Icons.visibility_rounded,
-                size: 17,
-              ),
-              label:
-                  const Text('Open'),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  Widget _buildDetailsStatusHeader(
-    DocumentModel document,
-  ) {
-    final statusColor =
-        _statusColor(document.status);
-
-    return Container(
-      width: double.infinity,
-      padding:
-          const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color:
-            document.color.withValues(
-          alpha: .05,
-        ),
-        borderRadius:
-            BorderRadius.circular(14),
-        border: Border.all(
-          color:
-              document.color.withValues(
-            alpha: .12,
-          ),
-        ),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment:
-                  CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Current Status',
-                  style: TextStyle(
-                    fontSize: 11,
-                    color:
-                        AppColors.textLight,
-                  ),
-                ),
-                const SizedBox(height: 5),
-                Text(
-                  document.status,
-                  style: TextStyle(
-                    fontSize: 15,
-                    fontWeight:
-                        FontWeight.bold,
-                    color: statusColor,
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          _statusBadge(
-            document.status,
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _detailSectionTitle(
-    IconData icon,
-    String title,
-  ) {
-    return Row(
-      children: [
-        Icon(
-          icon,
-          size: 18,
-          color: AppColors.primary,
-        ),
-        const SizedBox(width: 7),
-        Text(
-          title,
-          style: const TextStyle(
-            fontSize: 14,
-            fontWeight:
-                FontWeight.bold,
-            color:
-                AppColors.textDark,
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _detailRow(
-    String title,
-    String value,
-  ) {
-    return Padding(
-      padding:
-          const EdgeInsets.only(
-        bottom: 10,
-      ),
-      child: Row(
-        crossAxisAlignment:
-            CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 125,
-            child: Text(
-              title,
-              style:
-                  const TextStyle(
-                fontSize: 11,
-                color:
-                    AppColors.textLight,
-              ),
-            ),
-          ),
-
-          const SizedBox(width: 10),
-
-          Expanded(
-            child: Text(
-              value.isEmpty ? '-' : value,
-              style:
-                  const TextStyle(
-                fontSize: 13,
-                fontWeight:
-                    FontWeight.w600,
-                color:
-                    AppColors.textDark,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _descriptionBox(
-    String description,
-  ) {
-    return Container(
-      width: double.infinity,
-      padding:
-          const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color:
-            const Color(0xffF8FAFC),
-        borderRadius:
-            BorderRadius.circular(12),
-        border: Border.all(
-          color:
-              Colors.grey.shade200,
-        ),
-      ),
-      child: Text(
-        description.isEmpty
-            ? 'No description provided.'
-            : description,
-        style: TextStyle(
-          fontSize: 13,
-          height: 1.5,
-          color: description.isEmpty
-              ? AppColors.textLight
-              : AppColors.textDark,
-        ),
-      ),
-    );
-  }
-
-  Widget _attachmentsSection(
-    DocumentModel document,
-  ) {
-    if (document.attachments.isEmpty) {
-      return Container(
-        width: double.infinity,
-        padding:
-            const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color:
-              const Color(0xffF8FAFC),
-          borderRadius:
-              BorderRadius.circular(12),
-          border: Border.all(
-            color:
-                Colors.grey.shade200,
-          ),
-        ),
-        child: Row(
-          children: [
-            Icon(
-              Icons.attach_file_rounded,
-              size: 20,
-              color:
-                  Colors.grey.shade500,
-            ),
-            const SizedBox(width: 8),
-            const Expanded(
-              child: Text(
-                'No attachments added.',
-                style: TextStyle(
-                  fontSize: 12,
-                  color:
-                      AppColors.textLight,
-                ),
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
-    return Column(
-      children:
-          document.attachments.map(
-        (attachment) {
-          return Container(
-            width: double.infinity,
-            margin:
-                const EdgeInsets.only(
-              bottom: 8,
-            ),
-            padding:
-                const EdgeInsets.all(12),
-            decoration:
-                BoxDecoration(
-              color:
-                  const Color(0xffF8FAFC),
-              borderRadius:
-                  BorderRadius.circular(12),
-              border:
-                  Border.all(
-                color:
-                    Colors.grey.shade200,
-              ),
-            ),
-            child: Row(
-              children: [
-                Container(
-                  width: 38,
-                  height: 38,
-                  decoration:
-                      BoxDecoration(
-                    color:
-                        AppColors.primary
-                            .withValues(
-                      alpha: .08,
-                    ),
-                    borderRadius:
-                        BorderRadius.circular(
-                      10,
-                    ),
-                  ),
-                  child:
-                      const Icon(
-                    Icons.insert_drive_file_outlined,
-                    size: 19,
-                    color:
-                        AppColors.primary,
-                  ),
-                ),
-
-                const SizedBox(width: 10),
-
-                Expanded(
-                  child: Text(
-                    attachment.toString(),
-                    maxLines: 2,
-                    overflow:
-                        TextOverflow.ellipsis,
-                    style:
-                        const TextStyle(
-                      fontSize: 12,
-                      fontWeight:
-                          FontWeight.w600,
-                      color:
-                          AppColors.textDark,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          );
-        },
-      ).toList(),
-    );
   }
 
   // ==============================================================
@@ -1690,40 +1181,16 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
     DateTime date,
   ) {
     final day =
-        date.day.toString().padLeft(
-              2,
-              '0',
-            );
+        date.day
+            .toString()
+            .padLeft(2, '0');
 
     final month =
-        date.month.toString().padLeft(
-              2,
-              '0',
-            );
+        date.month
+            .toString()
+            .padLeft(2, '0');
 
     return '$day/$month/${date.year}';
-  }
-
-  // ==============================================================
-  // MESSAGE
-  // ==============================================================
-
-  void _showMessage(
-    String message,
-  ) {
-    if (!mounted) {
-      return;
-    }
-
-    ScaffoldMessenger.of(context)
-        .showSnackBar(
-      SnackBar(
-        content:
-            Text(message),
-        behavior:
-            SnackBarBehavior.floating,
-      ),
-    );
   }
 }
 

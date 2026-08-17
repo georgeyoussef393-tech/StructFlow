@@ -457,6 +457,9 @@ class DocumentModel {
     int codePoint,
   ) {
     return IconData(
+      // The icon code point comes from persisted JSON data,
+      // so it cannot be a compile-time constant.
+      // ignore: non_const_argument_for_const_parameter
       codePoint,
       fontFamily: 'MaterialIcons',
     );

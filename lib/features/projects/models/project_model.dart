@@ -120,6 +120,8 @@ class ProjectModel {
     int codePoint,
   ) {
     return IconData(
+      // Icon code point is loaded dynamically from JSON.
+      // ignore: non_const_argument_for_const_parameter
       codePoint,
       fontFamily: 'MaterialIcons',
     );
