@@ -1,20 +1,50 @@
 import 'package:flutter/material.dart';
 
 class ProjectModel {
+  // ==============================================================
+  // IDENTITY
+  // ==============================================================
+
+  final String id;
   final String name;
   final String code;
+
+  // ==============================================================
+  // ORGANIZATION
+  // ==============================================================
+
+  final String organizationId;
+
+  // ==============================================================
+  // PROJECT CONFIGURATION
+  // ==============================================================
+
+  final String projectType;
+
+  // ==============================================================
+  // PROJECT INFORMATION
+  // ==============================================================
+
   final String client;
   final String location;
   final String status;
   final double progress;
   final String budget;
   final int team;
+
+  // ==============================================================
+  // UI
+  // ==============================================================
+
   final Color color;
   final IconData icon;
 
   const ProjectModel({
+    this.id = '',
     required this.name,
     required this.code,
+    this.organizationId = '',
+    this.projectType = 'Internal',
     required this.client,
     required this.location,
     required this.status,
@@ -25,9 +55,16 @@ class ProjectModel {
     required this.icon,
   });
 
+  // ==============================================================
+  // COPY WITH
+  // ==============================================================
+
   ProjectModel copyWith({
+    String? id,
     String? name,
     String? code,
+    String? organizationId,
+    String? projectType,
     String? client,
     String? location,
     String? status,
@@ -38,8 +75,13 @@ class ProjectModel {
     IconData? icon,
   }) {
     return ProjectModel(
+      id: id ?? this.id,
       name: name ?? this.name,
       code: code ?? this.code,
+      organizationId:
+          organizationId ?? this.organizationId,
+      projectType:
+          projectType ?? this.projectType,
       client: client ?? this.client,
       location: location ?? this.location,
       status: status ?? this.status,
@@ -57,8 +99,11 @@ class ProjectModel {
 
   Map<String, dynamic> toJson() {
     return {
+      'id': id,
       'name': name,
       'code': code,
+      'organizationId': organizationId,
+      'projectType': projectType,
       'client': client,
       'location': location,
       'status': status,
@@ -86,23 +131,32 @@ class ProjectModel {
         Colors.blue.toARGB32();
 
     return ProjectModel(
+      id:
+          json['id'] as String? ?? '',
       name:
           json['name'] as String? ?? '',
       code:
           json['code'] as String? ?? '',
+      organizationId:
+          json['organizationId'] as String? ?? '',
+      projectType:
+          json['projectType'] as String? ??
+          'Internal',
       client:
           json['client'] as String? ?? '',
       location:
           json['location'] as String? ?? '',
       status:
-          json['status'] as String? ?? 'Planning',
+          json['status'] as String? ??
+          'Planning',
       progress:
           (json['progress'] as num?)?.toDouble() ??
           0.0,
       budget:
           json['budget'] as String? ?? '',
       team:
-          (json['team'] as num?)?.toInt() ?? 0,
+          (json['team'] as num?)?.toInt() ??
+          0,
       color:
           Color(colorValue),
       icon:
