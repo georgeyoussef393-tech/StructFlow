@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:structflow/core/theme/app_colors.dart';
+import 'package:structflow/features/attendance/models/attendance_context_model.dart';
 import 'package:structflow/features/attendance/models/attendance_record_model.dart';
+import 'package:structflow/features/attendance/repositories/attendance_context_repository.dart';
 import 'package:structflow/features/attendance/repositories/attendance_repository.dart';
 
 class AttendanceScreen extends StatefulWidget {
@@ -20,11 +22,22 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
   final _latitudeController = TextEditingController();
   final _longitudeController = TextEditingController();
   bool _isSaving = false;
+  String _recordFilter = 'All';
 
   @override
   void initState() {
     super.initState();
     _repository.addListener(_onChanged);
+    _loadContext();
+  }
+
+  void _loadContext() {
+    final context = AttendanceContextRepository.instance.context;
+    _organizationController.text = context.organizationId;
+    _projectController.text = context.projectId;
+    _userController.text = context.userId;
+    _latitudeController.text = context.latitude?.toString() ?? '';
+    _longitudeController.text = context.longitude?.toString() ?? '';
   }
 
   @override
@@ -55,6 +68,15 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
     }
 
     setState(() => _isSaving = true);
+    await AttendanceContextRepository.instance.save(
+      AttendanceContextModel(
+        organizationId: _organizationController.text.trim(),
+        projectId: _projectController.text.trim(),
+        userId: _userController.text.trim(),
+        latitude: latitude,
+        longitude: longitude,
+      ),
+    );
     final record = checkIn
         ? await _repository.checkIn(
             organizationId: _organizationController.text.trim(),
@@ -87,7 +109,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final records = _repository.records.reversed.toList();
+    final records = _visibleRecords();
     return Scaffold(
       backgroundColor: const Color(0xffF5F7FB),
       appBar: AppBar(
@@ -130,6 +152,18 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                       style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.textDark),
                     ),
                     const SizedBox(height: 12),
+                    _buildSummary(records),
+                    const SizedBox(height: 12),
+                    SegmentedButton<String>(
+                      segments: const [
+                        ButtonSegment(value: 'All', label: Text('All')),
+                        ButtonSegment(value: 'Mine', label: Text('Mine')),
+                        ButtonSegment(value: 'Open', label: Text('Open')),
+                      ],
+                      selected: {_recordFilter},
+                      onSelectionChanged: (selection) => setState(() => _recordFilter = selection.first),
+                    ),
+                    const SizedBox(height: 12),
                     if (records.isEmpty)
                       _buildEmptyState()
                     else
@@ -163,6 +197,14 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
               ],
             ),
             const SizedBox(height: 20),
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton.icon(
+                onPressed: _saveContext,
+                icon: const Icon(Icons.bookmark_add_outlined),
+                label: const Text('Save attendance profile'),
+              ),
+            ),
             Row(
               children: [
                 Expanded(
@@ -189,6 +231,29 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
           ],
         ),
       );
+
+  Future<void> _saveContext() async {
+    final latitude = double.tryParse(_latitudeController.text.trim());
+    final longitude = double.tryParse(_longitudeController.text.trim());
+    if (_organizationController.text.trim().isEmpty ||
+        _projectController.text.trim().isEmpty ||
+        _userController.text.trim().isEmpty ||
+        latitude == null ||
+        longitude == null) {
+      _showMessage('Complete the profile fields before saving.');
+      return;
+    }
+    await AttendanceContextRepository.instance.save(
+      AttendanceContextModel(
+        organizationId: _organizationController.text.trim(),
+        projectId: _projectController.text.trim(),
+        userId: _userController.text.trim(),
+        latitude: latitude,
+        longitude: longitude,
+      ),
+    );
+    _showMessage('Attendance profile saved.');
+  }
 
   Widget _field(TextEditingController controller, String label, IconData icon, {bool number = false}) => TextField(
         controller: controller,
@@ -219,6 +284,41 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
           title: Text('${record.userId} · ${record.projectId}'),
           subtitle: Text('In: ${_formatDate(record.checkInAt)}${record.isOpen ? '' : '  •  Out: ${_formatDate(record.checkOutAt!)}'}'),
           trailing: Text(record.isOpen ? 'Checked in' : 'Completed', style: TextStyle(color: record.isOpen ? Colors.green : Colors.blue, fontWeight: FontWeight.w600)),
+        ),
+      );
+
+  List<AttendanceRecordModel> _visibleRecords() {
+    final userId = _userController.text.trim();
+    final records = _repository.records.reversed.where((record) {
+      if (_recordFilter == 'Mine' && record.userId != userId) return false;
+      if (_recordFilter == 'Open' && !record.isOpen) return false;
+      return true;
+    }).toList();
+    return records;
+  }
+
+  Widget _buildSummary(List<AttendanceRecordModel> records) {
+    final open = records.where((record) => record.isOpen).length;
+    final completed = records.length - open;
+    return Row(
+      children: [
+        Expanded(child: _metric('Total', records.length, AppColors.primary)),
+        const SizedBox(width: 10),
+        Expanded(child: _metric('Open', open, Colors.green)),
+        const SizedBox(width: 10),
+        Expanded(child: _metric('Completed', completed, Colors.blue)),
+      ],
+    );
+  }
+
+  Widget _metric(String label, int value, Color color) => Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)),
+        child: Column(
+          children: [
+            Text('$value', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: color)),
+            Text(label, style: const TextStyle(fontSize: 11, color: AppColors.textLight)),
+          ],
         ),
       );
 
