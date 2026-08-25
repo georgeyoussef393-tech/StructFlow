@@ -104,6 +104,22 @@ class DashboardSidebar extends StatelessWidget {
 
                       _item(
                         context,
+                        Icons.how_to_reg_rounded,
+                        'Attendance',
+                        '/attendance',
+                        currentPath,
+                      ),
+
+                      _item(
+                        context,
+                        Icons.admin_panel_settings_rounded,
+                        'Attendance Management',
+                        '/attendance-management',
+                        currentPath,
+                      ),
+
+                      _item(
+                        context,
                         Icons.bar_chart_rounded,
                         'Reports',
                         '/reports',

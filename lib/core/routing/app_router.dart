@@ -17,6 +17,8 @@ import 'package:structflow/features/calendar/screens/calendar_screen.dart';
 
 import 'package:structflow/features/documents/screens/documents_screen.dart';
 import 'package:structflow/features/documents/screens/create_document_screen.dart';
+import 'package:structflow/features/attendance/screens/attendance_screen.dart';
+import 'package:structflow/features/attendance/screens/attendance_management_screen.dart';
 
 final GoRouter appRouter = GoRouter(
   initialLocation: '/',
@@ -167,6 +169,20 @@ final GoRouter appRouter = GoRouter(
               state.uri.queryParameters['documentId'],
         );
       },
+    ),
+
+    // ============================================================
+    // ATTENDANCE
+    // ============================================================
+
+    GoRoute(
+      path: '/attendance',
+      builder: (context, state) => const AttendanceScreen(),
+    ),
+
+    GoRoute(
+      path: '/attendance-management',
+      builder: (context, state) => const AttendanceManagementScreen(),
     ),
 
     // ============================================================

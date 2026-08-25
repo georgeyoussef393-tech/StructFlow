@@ -802,6 +802,17 @@ class _ProjectDetailsScreenState
               context.go('/calendar');
             },
           ),
+
+          const SizedBox(height: 10),
+
+          _actionButton(
+            icon: Icons.how_to_reg_rounded,
+            title: 'Project Attendance',
+            subtitle: 'Check in and view attendance records',
+            onPressed: () {
+              context.go('/attendance');
+            },
+          ),
         ],
       ),
     );
