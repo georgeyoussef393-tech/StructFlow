@@ -6,7 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:structflow/features/team/models/team_model.dart';
 
 class TeamRepository extends ChangeNotifier {
-  static const _storageKey = 'structflow_team';
+  static const String _storageKey = 'structflow_team';
 
   TeamRepository._internal();
 
@@ -27,7 +27,6 @@ class TeamRepository extends ChangeNotifier {
       color: Colors.blue,
       icon: Icons.engineering_rounded,
     ),
-
     const TeamModel(
       id: 'TEAM-002',
       name: 'Michael George',
@@ -41,7 +40,6 @@ class TeamRepository extends ChangeNotifier {
       color: Colors.purple,
       icon: Icons.manage_accounts_rounded,
     ),
-
     const TeamModel(
       id: 'TEAM-003',
       name: 'Daniel Sameh',
@@ -55,7 +53,6 @@ class TeamRepository extends ChangeNotifier {
       color: Colors.orange,
       icon: Icons.electrical_services_rounded,
     ),
-
     const TeamModel(
       id: 'TEAM-004',
       name: 'George Youssef',
@@ -69,7 +66,6 @@ class TeamRepository extends ChangeNotifier {
       color: Colors.green,
       icon: Icons.construction_rounded,
     ),
-
     const TeamModel(
       id: 'TEAM-005',
       name: 'John Mark',
@@ -152,7 +148,8 @@ class TeamRepository extends ChangeNotifier {
 
       notifyListeners();
     } catch (_) {
-      // Keep bundled sample members.
+      // Keep bundled sample members
+      // if stored data is invalid.
     }
   }
 
@@ -194,8 +191,7 @@ class TeamRepository extends ChangeNotifier {
         match?.group(1) ?? '',
       );
 
-      if (number != null &&
-          number > highestNumber) {
+      if (number != null && number > highestNumber) {
         highestNumber = number;
       }
     }
@@ -221,10 +217,11 @@ class TeamRepository extends ChangeNotifier {
   // ADD
   // ================================================================
 
-  void addMember(TeamModel member) {
+  Future<void> addMember(TeamModel member) async {
     _members.add(member);
 
-    _saveMembers();
+    await _saveMembers();
+
     notifyListeners();
   }
 
@@ -232,7 +229,9 @@ class TeamRepository extends ChangeNotifier {
   // UPDATE
   // ================================================================
 
-  void updateMember(TeamModel updatedMember) {
+  Future<void> updateMember(
+    TeamModel updatedMember,
+  ) async {
     final index = _members.indexWhere(
       (member) => member.id == updatedMember.id,
     );
@@ -243,7 +242,8 @@ class TeamRepository extends ChangeNotifier {
 
     _members[index] = updatedMember;
 
-    _saveMembers();
+    await _saveMembers();
+
     notifyListeners();
   }
 
@@ -251,13 +251,17 @@ class TeamRepository extends ChangeNotifier {
   // DELETE
   // ================================================================
 
-  void deleteMember(String id) {
+  Future<void> deleteMember(String id) async {
+    final originalLength = _members.length;
+
     _members.removeWhere(
       (member) => member.id == id,
     );
 
-    _saveMembers();
-    notifyListeners();
+    if (_members.length != originalLength) {
+      await _saveMembers();
+      notifyListeners();
+    }
   }
 
   // ================================================================
@@ -299,8 +303,7 @@ class TeamRepository extends ChangeNotifier {
     return _members
         .where(
           (member) =>
-              member.specialization ==
-              specialization,
+              member.specialization == specialization,
         )
         .toList();
   }

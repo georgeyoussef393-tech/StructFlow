@@ -1,5 +1,3 @@
-// ignore_for_file: non_const_argument_for_const_parameter
-
 import 'package:flutter/material.dart';
 
 class TeamModel {
@@ -46,51 +44,34 @@ class TeamModel {
       id: id ?? this.id,
       name: name ?? this.name,
       role: role ?? this.role,
-      specialization:
-          specialization ?? this.specialization,
+      specialization: specialization ?? this.specialization,
       email: email ?? this.email,
       phone: phone ?? this.phone,
-      projectCode:
-          projectCode ?? this.projectCode,
-      projectName:
-          projectName ?? this.projectName,
+      projectCode: projectCode ?? this.projectCode,
+      projectName: projectName ?? this.projectName,
       status: status ?? this.status,
       color: color ?? this.color,
       icon: icon ?? this.icon,
     );
   }
 
-  // ==============================================================
-  // TO JSON
-  // ==============================================================
-
   Map<String, dynamic> toJson() {
     return {
       'id': id,
       'name': name,
       'role': role,
-      'specialization':
-          specialization,
+      'specialization': specialization,
       'email': email,
       'phone': phone,
-      'projectCode':
-          projectCode,
-      'projectName':
-          projectName,
+      'projectCode': projectCode,
+      'projectName': projectName,
       'status': status,
       'color': color.toARGB32(),
-      'iconCodePoint':
-          icon.codePoint,
+      'iconCodePoint': icon.codePoint,
     };
   }
 
-  // ==============================================================
-  // FROM JSON
-  // ==============================================================
-
-  factory TeamModel.fromJson(
-    Map<String, dynamic> json,
-  ) {
+  factory TeamModel.fromJson(Map<String, dynamic> json) {
     final int iconCodePoint =
         (json['iconCodePoint'] as num?)?.toInt() ??
         Icons.person.codePoint;
@@ -100,44 +81,22 @@ class TeamModel {
         Colors.blue.toARGB32();
 
     return TeamModel(
-      id:
-          json['id'] as String? ?? '',
-      name:
-          json['name'] as String? ?? '',
-      role:
-          json['role'] as String? ?? '',
-      specialization:
-          json['specialization'] as String? ??
-          '',
-      email:
-          json['email'] as String? ?? '',
-      phone:
-          json['phone'] as String? ?? '',
-      projectCode:
-          json['projectCode'] as String? ??
-          '',
-      projectName:
-          json['projectName'] as String? ??
-          '',
-      status:
-          json['status'] as String? ??
-          'Active',
-      color:
-          Color(colorValue),
-      icon:
-          _iconFromCodePoint(
-        iconCodePoint,
-      ),
+      id: json['id'] as String? ?? '',
+      name: json['name'] as String? ?? '',
+      role: json['role'] as String? ?? '',
+      specialization: json['specialization'] as String? ?? '',
+      email: json['email'] as String? ?? '',
+      phone: json['phone'] as String? ?? '',
+      projectCode: json['projectCode'] as String? ?? '',
+      projectName: json['projectName'] as String? ?? '',
+      status: json['status'] as String? ?? 'Active',
+      color: Color(colorValue),
+      icon: _iconFromCodePoint(iconCodePoint),
     );
   }
 
-  // ==============================================================
-  // ICON PARSER
-  // ==============================================================
-
-  static IconData _iconFromCodePoint(
-    int codePoint,
-  ) {
+  // ignore: non_const_constructor
+  static IconData _iconFromCodePoint(int codePoint) {
     return IconData(
       codePoint,
       fontFamily: 'MaterialIcons',
