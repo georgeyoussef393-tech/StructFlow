@@ -34,7 +34,6 @@ class _AttendanceCenterPageState extends State<AttendanceCenterPage> {
       ProjectGeofenceRepository.instance;
 
   bool _loading = false;
-  Position? _currentPosition;
 
   AttendancePermissionModel? get _permission =>
       _permissionRepository.getForUser(
@@ -207,8 +206,6 @@ class _AttendanceCenterPageState extends State<AttendanceCenterPage> {
         return;
       }
 
-      _currentPosition = position;
-
       final record = await _attendanceRepository.checkIn(
         organizationId: widget.organizationId,
         projectId: projectId,
@@ -255,8 +252,6 @@ class _AttendanceCenterPageState extends State<AttendanceCenterPage> {
       if (position == null) {
         return;
       }
-
-      _currentPosition = position;
 
       final record = await _attendanceRepository.checkOut(
         organizationId: widget.organizationId,

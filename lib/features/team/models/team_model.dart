@@ -95,7 +95,6 @@ class TeamModel {
     );
   }
 
-  // ignore: non_const_constructor
   static IconData _iconFromCodePoint(int codePoint) {
     return IconData(
       codePoint,
