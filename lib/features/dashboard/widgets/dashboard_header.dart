@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import 'package:structflow/core/settings/app_settings.dart';
 import 'package:structflow/core/theme/app_colors.dart';
 
 class DashboardHeader extends StatefulWidget {
@@ -14,11 +15,35 @@ class _DashboardHeaderState extends State<DashboardHeader> {
   final TextEditingController _searchController =
       TextEditingController();
 
+  final AppSettings _settings = AppSettings.instance;
+
   bool _showNotifications = false;
+
+  OverlayEntry? _notificationOverlay;
+
+  @override
+  void initState() {
+    super.initState();
+
+    _settings.addListener(_settingsChanged);
+  }
+
+  void _settingsChanged() {
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {});
+  }
 
   @override
   void dispose() {
+    _hideNotificationOverlay();
+
+    _settings.removeListener(_settingsChanged);
+
     _searchController.dispose();
+
     super.dispose();
   }
 
@@ -88,12 +113,83 @@ class _DashboardHeaderState extends State<DashboardHeader> {
   }
 
   // ============================================================
+  // LANGUAGE
+  // ============================================================
+
+  void _selectLanguage(AppLanguage language) {
+    _settings.setLanguage(language);
+  }
+
+  // ============================================================
+  // THEME
+  // ============================================================
+
+  void _toggleTheme() {
+    _settings.toggleTheme();
+  }
+
+  // ============================================================
   // NOTIFICATIONS
   // ============================================================
 
   void _toggleNotifications() {
+    if (_showNotifications) {
+      _hideNotificationOverlay();
+
+      setState(() {
+        _showNotifications = false;
+      });
+    } else {
+      setState(() {
+        _showNotifications = true;
+      });
+
+      _showNotificationOverlay();
+    }
+  }
+
+  void _showNotificationOverlay() {
+    if (_notificationOverlay != null) {
+      return;
+    }
+
+    final overlay = Overlay.of(context);
+
+    _notificationOverlay = OverlayEntry(
+      builder: (context) {
+        final isDark = Theme.of(context).brightness == Brightness.dark;
+
+        return Positioned(
+          top: 92,
+          right: 24,
+          child: Material(
+            color: Colors.transparent,
+            child: _buildNotificationPanel(
+              isDark: isDark,
+            ),
+          ),
+        );
+      },
+    );
+
+    overlay.insert(_notificationOverlay!);
+  }
+
+  void _hideNotificationOverlay() {
+    _notificationOverlay?.remove();
+
+    _notificationOverlay = null;
+  }
+
+  void _closeNotifications() {
+    _hideNotificationOverlay();
+
+    if (!mounted) {
+      return;
+    }
+
     setState(() {
-      _showNotifications = !_showNotifications;
+      _showNotifications = false;
     });
   }
 
@@ -103,16 +199,22 @@ class _DashboardHeaderState extends State<DashboardHeader> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    final isDark = theme.brightness == Brightness.dark;
+
     return Container(
       height: 85,
       padding: const EdgeInsets.symmetric(
         horizontal: 30,
       ),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: theme.colorScheme.surface,
         border: Border(
           bottom: BorderSide(
-            color: Colors.grey.shade300,
+            color: isDark
+                ? Colors.white.withValues(alpha: 0.08)
+                : Colors.grey.shade300,
           ),
         ),
       ),
@@ -122,12 +224,14 @@ class _DashboardHeaderState extends State<DashboardHeader> {
           // TITLE
           // ==========================================================
 
-          const Text(
+          Text(
             'Dashboard',
             style: TextStyle(
               fontSize: 28,
               fontWeight: FontWeight.bold,
-              color: AppColors.textDark,
+              color: isDark
+                  ? Colors.white
+                  : AppColors.textDark,
             ),
           ),
 
@@ -143,12 +247,26 @@ class _DashboardHeaderState extends State<DashboardHeader> {
               child: TextField(
                 controller: _searchController,
                 onSubmitted: _performSearch,
+                style: TextStyle(
+                  color: isDark
+                      ? Colors.white
+                      : AppColors.textDark,
+                ),
                 decoration: InputDecoration(
                   hintText:
                       'Search projects, drawings, BOQ...',
 
-                  prefixIcon: const Icon(
+                  hintStyle: TextStyle(
+                    color: isDark
+                        ? Colors.white54
+                        : AppColors.textLight,
+                  ),
+
+                  prefixIcon: Icon(
                     Icons.search_rounded,
+                    color: isDark
+                        ? Colors.white70
+                        : AppColors.textLight,
                   ),
 
                   suffixIcon:
@@ -159,15 +277,20 @@ class _DashboardHeaderState extends State<DashboardHeader> {
 
                                 setState(() {});
                               },
-                              icon: const Icon(
+                              icon: Icon(
                                 Icons.close_rounded,
+                                color: isDark
+                                    ? Colors.white70
+                                    : AppColors.textLight,
                               ),
                             )
                           : null,
 
                   filled: true,
 
-                  fillColor: Colors.grey.shade100,
+                  fillColor: isDark
+                      ? const Color(0xFF1E293B)
+                      : Colors.grey.shade100,
 
                   border: OutlineInputBorder(
                     borderRadius:
@@ -239,25 +362,148 @@ class _DashboardHeaderState extends State<DashboardHeader> {
           // LANGUAGE
           // ==========================================================
 
-          IconButton(
-            onPressed: () {},
-            icon: const Icon(
-              Icons.language,
-            ),
+          PopupMenuButton<AppLanguage>(
             tooltip: 'Language',
+
+            onSelected: _selectLanguage,
+
+            position: PopupMenuPosition.under,
+
+            itemBuilder: (BuildContext context) {
+              return const [
+                PopupMenuItem<AppLanguage>(
+                  value: AppLanguage.english,
+                  child: Row(
+                    children: [
+                      Text('🇬🇧'),
+                      SizedBox(width: 10),
+                      Text('English'),
+                    ],
+                  ),
+                ),
+
+                PopupMenuItem<AppLanguage>(
+                  value: AppLanguage.arabic,
+                  child: Row(
+                    children: [
+                      Text('🇪🇬'),
+                      SizedBox(width: 10),
+                      Text('العربية'),
+                    ],
+                  ),
+                ),
+
+                PopupMenuItem<AppLanguage>(
+                  value: AppLanguage.french,
+                  child: Row(
+                    children: [
+                      Text('🇫🇷'),
+                      SizedBox(width: 10),
+                      Text('Français'),
+                    ],
+                  ),
+                ),
+
+                PopupMenuItem<AppLanguage>(
+                  value: AppLanguage.chinese,
+                  child: Row(
+                    children: [
+                      Text('🇨🇳'),
+                      SizedBox(width: 10),
+                      Text('中文'),
+                    ],
+                  ),
+                ),
+              ];
+            },
+
+            child: Container(
+              height: 44,
+              padding: const EdgeInsets.symmetric(
+                horizontal: 10,
+              ),
+              decoration: BoxDecoration(
+                borderRadius:
+                    BorderRadius.circular(12),
+                color: isDark
+                    ? const Color(0xFF1E293B)
+                    : Colors.transparent,
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.language_rounded,
+                    color: isDark
+                        ? Colors.white
+                        : AppColors.textDark,
+                  ),
+
+                  const SizedBox(width: 6),
+
+                  Text(
+                    _settings.languageName,
+                    style: TextStyle(
+                      fontWeight: FontWeight.w500,
+                      color: isDark
+                          ? Colors.white
+                          : AppColors.textDark,
+                    ),
+                  ),
+
+                  const SizedBox(width: 2),
+
+                  Icon(
+                    Icons.keyboard_arrow_down_rounded,
+                    size: 18,
+                    color: isDark
+                        ? Colors.white70
+                        : AppColors.textLight,
+                  ),
+                ],
+              ),
+            ),
           ),
+
+          const SizedBox(width: 5),
 
           // ==========================================================
           // THEME
           // ==========================================================
 
           IconButton(
-            onPressed: () {},
-            icon: const Icon(
-              Icons.dark_mode_outlined,
+            onPressed: _toggleTheme,
+
+            tooltip: _settings.isDarkMode
+                ? 'Light mode'
+                : 'Dark mode',
+
+            icon: AnimatedSwitcher(
+              duration: const Duration(
+                milliseconds: 250,
+              ),
+              transitionBuilder:
+                  (child, animation) {
+                return RotationTransition(
+                  turns: animation,
+                  child: FadeTransition(
+                    opacity: animation,
+                    child: child,
+                  ),
+                );
+              },
+              child: Icon(
+                _settings.isDarkMode
+                    ? Icons.light_mode_rounded
+                    : Icons.dark_mode_outlined,
+                key: ValueKey<bool>(
+                  _settings.isDarkMode,
+                ),
+              ),
             ),
-            tooltip: 'Theme',
           ),
+
+          const SizedBox(width: 5),
 
           // ==========================================================
           // NOTIFICATIONS
@@ -268,12 +514,14 @@ class _DashboardHeaderState extends State<DashboardHeader> {
             children: [
               IconButton(
                 onPressed: _toggleNotifications,
+
+                tooltip: 'Notifications',
+
                 icon: Icon(
                   _showNotifications
                       ? Icons.notifications_rounded
                       : Icons.notifications_none_rounded,
                 ),
-                tooltip: 'Notifications',
               ),
 
               Positioned(
@@ -289,17 +537,6 @@ class _DashboardHeaderState extends State<DashboardHeader> {
                   ),
                 ),
               ),
-
-              // ======================================================
-              // NOTIFICATION PANEL
-              // ======================================================
-
-              if (_showNotifications)
-                Positioned(
-                  top: 55,
-                  right: 0,
-                  child: _buildNotificationPanel(),
-                ),
             ],
           ),
 
@@ -323,7 +560,7 @@ class _DashboardHeaderState extends State<DashboardHeader> {
 
           const SizedBox(width: 12),
 
-          const Column(
+          Column(
             mainAxisAlignment:
                 MainAxisAlignment.center,
             crossAxisAlignment:
@@ -333,17 +570,21 @@ class _DashboardHeaderState extends State<DashboardHeader> {
                 'George',
                 style: TextStyle(
                   fontWeight: FontWeight.bold,
-                  color: AppColors.textDark,
+                  color: isDark
+                      ? Colors.white
+                      : AppColors.textDark,
                 ),
               ),
 
-              SizedBox(height: 2),
+              const SizedBox(height: 2),
 
               Text(
                 'Administrator',
                 style: TextStyle(
                   fontSize: 12,
-                  color: AppColors.textLight,
+                  color: isDark
+                      ? Colors.white60
+                      : AppColors.textLight,
                 ),
               ),
             ],
@@ -359,23 +600,44 @@ class _DashboardHeaderState extends State<DashboardHeader> {
   // NOTIFICATION PANEL
   // ============================================================
 
-  Widget _buildNotificationPanel() {
+  Widget _buildNotificationPanel({
+    required bool isDark,
+  }) {
+    final backgroundColor = isDark
+        ? const Color(0xFF1E293B)
+        : Colors.white;
+
+    final borderColor = isDark
+        ? Colors.white.withValues(alpha: 0.08)
+        : Colors.grey.shade200;
+
+    final primaryTextColor = isDark
+        ? Colors.white
+        : AppColors.textDark;
+
+    final secondaryTextColor = isDark
+        ? Colors.white60
+        : AppColors.textLight;
+
     return Material(
-      elevation: 12,
+      elevation: 16,
+      shadowColor: Colors.black.withValues(
+        alpha: isDark ? 0.40 : 0.20,
+      ),
       borderRadius: BorderRadius.circular(16),
-      color: Colors.white,
+      color: backgroundColor,
       child: Container(
-        width: 330,
+        width: 350,
         constraints: const BoxConstraints(
-          maxHeight: 420,
+          maxHeight: 440,
         ),
         padding: const EdgeInsets.all(18),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: backgroundColor,
           borderRadius:
               BorderRadius.circular(16),
           border: Border.all(
-            color: Colors.grey.shade200,
+            color: borderColor,
           ),
         ),
         child: Column(
@@ -383,28 +645,26 @@ class _DashboardHeaderState extends State<DashboardHeader> {
           crossAxisAlignment:
               CrossAxisAlignment.start,
           children: [
+            // ======================================================
+            // HEADER
+            // ======================================================
+
             Row(
               children: [
-                const Expanded(
+                Expanded(
                   child: Text(
                     'Notifications',
                     style: TextStyle(
                       fontSize: 18,
                       fontWeight:
                           FontWeight.bold,
-                      color:
-                          AppColors.textDark,
+                      color: primaryTextColor,
                     ),
                   ),
                 ),
 
                 TextButton(
-                  onPressed: () {
-                    setState(() {
-                      _showNotifications =
-                          false;
-                    });
-                  },
+                  onPressed: _closeNotifications,
                   child: const Text(
                     'Close',
                   ),
@@ -412,38 +672,70 @@ class _DashboardHeaderState extends State<DashboardHeader> {
               ],
             ),
 
-            const Divider(),
-
-            _notificationItem(
-              Icons.assignment_turned_in_rounded,
-              'BOQ Approved',
-              'New Capital Tower',
-              '5 min ago',
-              Colors.green,
+            Divider(
+              color: borderColor,
             ),
 
-            _notificationItem(
-              Icons.upload_file_rounded,
-              'New Drawing Uploaded',
-              'Cairo Business Park',
-              '18 min ago',
-              Colors.blue,
-            ),
+            // ======================================================
+            // NOTIFICATION 1
+            // ======================================================
 
             _notificationItem(
-              Icons.warning_amber_rounded,
-              'RFI Needs Response',
-              'Smart Village',
-              '40 min ago',
-              Colors.orange,
+              icon:
+                  Icons.assignment_turned_in_rounded,
+              title: 'BOQ Approved',
+              subtitle: 'New Capital Tower',
+              time: '5 min ago',
+              color: Colors.green,
+              textColor: primaryTextColor,
+              secondaryTextColor:
+                  secondaryTextColor,
             ),
 
+            // ======================================================
+            // NOTIFICATION 2
+            // ======================================================
+
             _notificationItem(
-              Icons.person_add_alt_1_rounded,
-              'New Engineer Added',
-              'Tuban Villas',
-              '1 hour ago',
-              Colors.purple,
+              icon: Icons.upload_file_rounded,
+              title: 'New Drawing Uploaded',
+              subtitle: 'Cairo Business Park',
+              time: '18 min ago',
+              color: Colors.blue,
+              textColor: primaryTextColor,
+              secondaryTextColor:
+                  secondaryTextColor,
+            ),
+
+            // ======================================================
+            // NOTIFICATION 3
+            // ======================================================
+
+            _notificationItem(
+              icon: Icons.warning_amber_rounded,
+              title: 'RFI Needs Response',
+              subtitle: 'Smart Village',
+              time: '40 min ago',
+              color: Colors.orange,
+              textColor: primaryTextColor,
+              secondaryTextColor:
+                  secondaryTextColor,
+            ),
+
+            // ======================================================
+            // NOTIFICATION 4
+            // ======================================================
+
+            _notificationItem(
+              icon:
+                  Icons.person_add_alt_1_rounded,
+              title: 'New Engineer Added',
+              subtitle: 'Tuban Villas',
+              time: '1 hour ago',
+              color: Colors.purple,
+              textColor: primaryTextColor,
+              secondaryTextColor:
+                  secondaryTextColor,
             ),
           ],
         ),
@@ -455,13 +747,15 @@ class _DashboardHeaderState extends State<DashboardHeader> {
   // NOTIFICATION ITEM
   // ============================================================
 
-  Widget _notificationItem(
-    IconData icon,
-    String title,
-    String subtitle,
-    String time,
-    Color color,
-  ) {
+  Widget _notificationItem({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required String time,
+    required Color color,
+    required Color textColor,
+    required Color secondaryTextColor,
+  }) {
     return Padding(
       padding:
           const EdgeInsets.symmetric(
@@ -496,11 +790,10 @@ class _DashboardHeaderState extends State<DashboardHeader> {
               children: [
                 Text(
                   title,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontWeight:
                         FontWeight.w600,
-                    color:
-                        AppColors.textDark,
+                    color: textColor,
                   ),
                 ),
 
@@ -508,10 +801,10 @@ class _DashboardHeaderState extends State<DashboardHeader> {
 
                 Text(
                   subtitle,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 12,
                     color:
-                        AppColors.textLight,
+                        secondaryTextColor,
                   ),
                 ),
 
@@ -519,10 +812,10 @@ class _DashboardHeaderState extends State<DashboardHeader> {
 
                 Text(
                   time,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 11,
                     color:
-                        AppColors.textLight,
+                        secondaryTextColor,
                   ),
                 ),
               ],

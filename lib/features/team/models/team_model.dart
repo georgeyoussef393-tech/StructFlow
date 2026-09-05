@@ -3,55 +3,104 @@ import 'package:flutter/material.dart';
 class TeamModel {
   final String id;
   final String name;
-  final String role;
-  final String specialization;
   final String email;
   final String phone;
-  final String projectCode;
+
+  /// Job title / role of the team member.
+  ///
+  /// This is intentionally a String rather than an enum because
+  /// StructFlow supports arbitrary engineering and management roles,
+  /// for example:
+  /// - Senior Civil Engineer
+  /// - Project Manager
+  /// - Electrical Engineer
+  /// - Architect
+  /// - Site Engineer
+  /// - Quantity Surveyor
+  /// - Safety Engineer
+  /// - QA/QC Engineer
+  final String role;
+
+  final String specialization;
   final String projectName;
+  final String projectCode;
   final String status;
+  final String avatarUrl;
+
+  /// Icon code point used for local persistence.
+  final int iconCodePoint;
+
+  /// Visual color of the member.
+  ///
+  /// Kept non-null so UI code can safely use withValues(),
+  /// Icon color, etc.
   final Color color;
+
+  /// Optional custom icon.
   final IconData icon;
 
   const TeamModel({
     required this.id,
     required this.name,
-    required this.role,
-    required this.specialization,
     required this.email,
     required this.phone,
-    required this.projectCode,
-    required this.projectName,
-    required this.status,
-    required this.color,
-    required this.icon,
+    required this.role,
+    this.specialization = '',
+    this.projectName = '',
+    this.projectCode = '',
+    this.status = 'Active',
+    this.avatarUrl = '',
+    this.iconCodePoint = 0xe491,
+    this.color = Colors.blue,
+    this.icon = Icons.person_rounded,
   });
 
-  TeamModel copyWith({
-    String? id,
-    String? name,
-    String? role,
-    String? specialization,
-    String? email,
-    String? phone,
-    String? projectCode,
-    String? projectName,
-    String? status,
-    Color? color,
-    IconData? icon,
-  }) {
+  factory TeamModel.fromJson(
+    Map<String, dynamic> json,
+  ) {
+    final rawRole = json['role'];
+
+    final role = rawRole == null
+        ? ''
+        : rawRole.toString().trim();
+
+    final rawColor = json['color'];
+
+    Color parsedColor = Colors.blue;
+
+    if (rawColor is int) {
+      parsedColor = Color(rawColor);
+    }
+
+    final rawIconCodePoint =
+        json['iconCodePoint'];
+
+    final parsedIconCodePoint =
+        rawIconCodePoint is int
+            ? rawIconCodePoint
+            : int.tryParse(
+                  rawIconCodePoint?.toString() ?? '',
+                ) ??
+                0xe491;
+
     return TeamModel(
-      id: id ?? this.id,
-      name: name ?? this.name,
-      role: role ?? this.role,
-      specialization: specialization ?? this.specialization,
-      email: email ?? this.email,
-      phone: phone ?? this.phone,
-      projectCode: projectCode ?? this.projectCode,
-      projectName: projectName ?? this.projectName,
-      status: status ?? this.status,
-      color: color ?? this.color,
-      icon: icon ?? this.icon,
+      id: json['id']?.toString() ?? '',
+      name: json['name']?.toString() ?? '',
+      email: json['email']?.toString() ?? '',
+      phone: json['phone']?.toString() ?? '',
+      role: role,
+      specialization:
+          json['specialization']?.toString() ?? '',
+      projectName:
+          json['projectName']?.toString() ?? '',
+      projectCode:
+          json['projectCode']?.toString() ?? '',
+      status:
+          json['status']?.toString() ?? 'Active',
+      avatarUrl:
+          json['avatarUrl']?.toString() ?? '',
+      iconCodePoint: parsedIconCodePoint,
+      color: parsedColor,
     );
   }
 
@@ -59,47 +108,96 @@ class TeamModel {
     return {
       'id': id,
       'name': name,
-      'role': role,
-      'specialization': specialization,
       'email': email,
       'phone': phone,
-      'projectCode': projectCode,
+      'role': role,
+      'specialization': specialization,
       'projectName': projectName,
+      'projectCode': projectCode,
       'status': status,
+      'avatarUrl': avatarUrl,
+      'iconCodePoint': iconCodePoint,
       'color': color.toARGB32(),
-      'iconCodePoint': icon.codePoint,
     };
   }
 
-  factory TeamModel.fromJson(Map<String, dynamic> json) {
-    final int iconCodePoint =
-        (json['iconCodePoint'] as num?)?.toInt() ??
-        Icons.person.codePoint;
-
-    final int colorValue =
-        (json['color'] as num?)?.toInt() ??
-        Colors.blue.toARGB32();
-
+  TeamModel copyWith({
+    String? id,
+    String? name,
+    String? email,
+    String? phone,
+    String? role,
+    String? specialization,
+    String? projectName,
+    String? projectCode,
+    String? status,
+    String? avatarUrl,
+    int? iconCodePoint,
+    Color? color,
+    IconData? icon,
+  }) {
     return TeamModel(
-      id: json['id'] as String? ?? '',
-      name: json['name'] as String? ?? '',
-      role: json['role'] as String? ?? '',
-      specialization: json['specialization'] as String? ?? '',
-      email: json['email'] as String? ?? '',
-      phone: json['phone'] as String? ?? '',
-      projectCode: json['projectCode'] as String? ?? '',
-      projectName: json['projectName'] as String? ?? '',
-      status: json['status'] as String? ?? 'Active',
-      color: Color(colorValue),
-      icon: _iconFromCodePoint(iconCodePoint),
+      id: id ?? this.id,
+      name: name ?? this.name,
+      email: email ?? this.email,
+      phone: phone ?? this.phone,
+      role: role ?? this.role,
+      specialization:
+          specialization ?? this.specialization,
+      projectName:
+          projectName ?? this.projectName,
+      projectCode:
+          projectCode ?? this.projectCode,
+      status: status ?? this.status,
+      avatarUrl:
+          avatarUrl ?? this.avatarUrl,
+      iconCodePoint:
+          iconCodePoint ?? this.iconCodePoint,
+      color: color ?? this.color,
+      icon: icon ?? this.icon,
     );
   }
 
-  static IconData _iconFromCodePoint(int codePoint) {
+  IconData get roleIcon {
+    // ignore: non_const_argument_for_const_parameter
     return IconData(
-      codePoint,
+      iconCodePoint,
       fontFamily: 'MaterialIcons',
-      matchTextDirection: false,
+    );
+  }
+
+  String getRoleLabel() {
+    return role.trim().isEmpty
+        ? 'Team Member'
+        : role.trim();
+  }
+
+  Widget getRoleBadge() {
+    final badgeColor = color;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: 8,
+        vertical: 4,
+      ),
+      decoration: BoxDecoration(
+        color: badgeColor.withValues(
+          alpha: 0.1,
+        ),
+        borderRadius:
+            BorderRadius.circular(12),
+        border: Border.all(
+          color: badgeColor,
+        ),
+      ),
+      child: Text(
+        getRoleLabel(),
+        style: TextStyle(
+          color: badgeColor,
+          fontSize: 12,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
     );
   }
 }
