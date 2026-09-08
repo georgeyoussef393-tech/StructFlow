@@ -1,6 +1,9 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
+
 import 'package:structflow/config/app_theme.dart';
+import 'package:structflow/core/localization/app_localizations.dart';
 import 'package:structflow/core/routing/app_router.dart';
 import 'package:structflow/core/settings/app_settings.dart';
 
@@ -43,21 +46,16 @@ class _StructFlowAppState extends State<StructFlowApp> {
     return MaterialApp.router(
       debugShowCheckedModeBanner: false,
 
-      // App information
       title: 'StructFlow',
 
-      // =========================
-      // THEME
-      // =========================
+      // Theme ثابت مؤقتًا على Light.
+      // مفيش Dark Theme ولا ThemeMode دلوقتي.
       theme: AppTheme.lightTheme,
-      darkTheme: AppTheme.darkTheme,
-      themeMode: _settings.themeMode,
 
-      // =========================
-      // LANGUAGE
-      // =========================
+      // اللغة الحالية.
       locale: _settings.locale,
 
+      // اللغات المدعومة.
       supportedLocales: const [
         Locale('en'),
         Locale('ar'),
@@ -65,18 +63,14 @@ class _StructFlowAppState extends State<StructFlowApp> {
         Locale('zh'),
       ],
 
-      // =========================
-      // FLUTTER LOCALIZATIONS
-      // =========================
+      // Flutter built-in localization.
       localizationsDelegates: const [
+        AppLocalizations.delegate,
         GlobalMaterialLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
         GlobalWidgetsLocalizations.delegate,
       ],
 
-      // =========================
-      // ROUTER
-      // =========================
       routerConfig: appRouter,
     );
   }

@@ -13,13 +13,9 @@ class AppSettings extends ChangeNotifier {
 
   static final AppSettings instance = AppSettings._();
 
-  static const String _themeKey = 'structflow_theme_mode';
   static const String _languageKey = 'structflow_language';
 
-  ThemeMode _themeMode = ThemeMode.light;
   AppLanguage _language = AppLanguage.english;
-
-  ThemeMode get themeMode => _themeMode;
 
   AppLanguage get language => _language;
 
@@ -27,16 +23,17 @@ class AppSettings extends ChangeNotifier {
     switch (_language) {
       case AppLanguage.english:
         return const Locale('en');
+
       case AppLanguage.arabic:
         return const Locale('ar');
+
       case AppLanguage.french:
         return const Locale('fr');
+
       case AppLanguage.chinese:
         return const Locale('zh');
     }
   }
-
-  bool get isDarkMode => _themeMode == ThemeMode.dark;
 
   bool get isArabic => _language == AppLanguage.arabic;
 
@@ -44,10 +41,13 @@ class AppSettings extends ChangeNotifier {
     switch (_language) {
       case AppLanguage.english:
         return 'English';
+
       case AppLanguage.arabic:
         return 'العربية';
+
       case AppLanguage.french:
         return 'Français';
+
       case AppLanguage.chinese:
         return '中文';
     }
@@ -56,14 +56,7 @@ class AppSettings extends ChangeNotifier {
   Future<void> load() async {
     final preferences = await SharedPreferences.getInstance();
 
-    final savedTheme = preferences.getString(_themeKey);
     final savedLanguage = preferences.getString(_languageKey);
-
-    if (savedTheme == 'dark') {
-      _themeMode = ThemeMode.dark;
-    } else {
-      _themeMode = ThemeMode.light;
-    }
 
     switch (savedLanguage) {
       case 'ar':
@@ -85,29 +78,6 @@ class AppSettings extends ChangeNotifier {
     }
 
     notifyListeners();
-  }
-
-  Future<void> setThemeMode(ThemeMode mode) async {
-    if (_themeMode == mode) {
-      return;
-    }
-
-    _themeMode = mode;
-
-    final preferences = await SharedPreferences.getInstance();
-
-    await preferences.setString(
-      _themeKey,
-      mode == ThemeMode.dark ? 'dark' : 'light',
-    );
-
-    notifyListeners();
-  }
-
-  Future<void> toggleTheme() async {
-    await setThemeMode(
-      isDarkMode ? ThemeMode.light : ThemeMode.dark,
-    );
   }
 
   Future<void> setLanguage(AppLanguage language) async {
@@ -139,10 +109,7 @@ class AppSettings extends ChangeNotifier {
         break;
     }
 
-    await preferences.setString(
-      _languageKey,
-      value,
-    );
+    await preferences.setString(_languageKey, value);
 
     notifyListeners();
   }

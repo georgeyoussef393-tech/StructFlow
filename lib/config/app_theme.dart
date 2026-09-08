@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import 'app_colors.dart';
+import 'package:structflow/core/theme/app_colors.dart';
 
 class AppTheme {
   AppTheme._();
@@ -13,62 +13,53 @@ class AppTheme {
 
       primaryColor: AppColors.primary,
 
-      scaffoldBackgroundColor:
-          AppColors.background,
+      scaffoldBackgroundColor: AppColors.background,
 
-      colorScheme:
-          ColorScheme.fromSeed(
+      colorScheme: ColorScheme.fromSeed(
         seedColor: AppColors.primary,
         brightness: Brightness.light,
       ),
 
-      appBarTheme:
-          const AppBarTheme(
+      appBarTheme: const AppBarTheme(
         centerTitle: true,
         elevation: 0,
-        backgroundColor:
-            AppColors.primary,
-        foregroundColor:
-            Colors.white,
+        backgroundColor: AppColors.primary,
+        foregroundColor: Colors.white,
       ),
 
-      elevatedButtonTheme:
-          ElevatedButtonThemeData(
-        style:
-            ElevatedButton.styleFrom(
-          backgroundColor:
-              AppColors.primary,
-          foregroundColor:
-              Colors.white,
+      elevatedButtonTheme: ElevatedButtonThemeData(
+        style: ElevatedButton.styleFrom(
+          backgroundColor: AppColors.primary,
+          foregroundColor: Colors.white,
         ),
       ),
 
-      inputDecorationTheme:
-          InputDecorationTheme(
+      filledButtonTheme: FilledButtonThemeData(
+        style: FilledButton.styleFrom(
+          backgroundColor: AppColors.primary,
+          foregroundColor: Colors.white,
+        ),
+      ),
+
+      inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor:
-            const Color(0xFFF5F7FA),
+
+        fillColor: AppColors.background,
+
         border: OutlineInputBorder(
-          borderRadius:
-              BorderRadius.circular(12),
-          borderSide:
-              BorderSide.none,
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide.none,
         ),
-        enabledBorder:
-            OutlineInputBorder(
-          borderRadius:
-              BorderRadius.circular(12),
-          borderSide:
-              BorderSide.none,
+
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide.none,
         ),
-        focusedBorder:
-            OutlineInputBorder(
-          borderRadius:
-              BorderRadius.circular(12),
-          borderSide:
-              const BorderSide(
-            color:
-                AppColors.primary,
+
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(
+            color: AppColors.primary,
             width: 1.5,
           ),
         ),
@@ -79,108 +70,46 @@ class AppTheme {
         elevation: 1,
         margin: EdgeInsets.zero,
         shape: RoundedRectangleBorder(
-          borderRadius:
-              BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(16),
         ),
       ),
 
-      dividerTheme:
-          const DividerThemeData(
+      dividerTheme: const DividerThemeData(
         space: 1,
       ),
-    );
-  }
 
-  static ThemeData get darkTheme {
-    return ThemeData(
-      useMaterial3: true,
-
-      brightness: Brightness.dark,
-
-      primaryColor:
-          AppColors.primary,
-
-      scaffoldBackgroundColor:
-          const Color(0xFF0F172A),
-
-      colorScheme:
-          ColorScheme.fromSeed(
-        seedColor:
-            AppColors.primary,
-        brightness:
-            Brightness.dark,
-      ),
-
-      appBarTheme:
-          const AppBarTheme(
-        centerTitle: true,
-        elevation: 0,
-        backgroundColor:
-            Color(0xFF111827),
-        foregroundColor:
-            Colors.white,
-      ),
-
-      elevatedButtonTheme:
-          ElevatedButtonThemeData(
-        style:
-            ElevatedButton.styleFrom(
-          backgroundColor:
-              AppColors.primary,
-          foregroundColor:
-              Colors.white,
-        ),
-      ),
-
-      inputDecorationTheme:
-          InputDecorationTheme(
-        filled: true,
-        fillColor:
-            const Color(0xFF1E293B),
-        border: OutlineInputBorder(
-          borderRadius:
-              BorderRadius.circular(12),
-          borderSide:
-              BorderSide.none,
-        ),
-        enabledBorder:
-            OutlineInputBorder(
-          borderRadius:
-              BorderRadius.circular(12),
-          borderSide:
-              BorderSide.none,
-        ),
-        focusedBorder:
-            OutlineInputBorder(
-          borderRadius:
-              BorderRadius.circular(12),
-          borderSide:
-              const BorderSide(
-            color:
-                AppColors.secondary,
-            width: 1.5,
-          ),
-        ),
-      ),
-
-      cardTheme: CardThemeData(
-        color:
-            const Color(0xFF1E293B),
-        elevation: 1,
-        margin: EdgeInsets.zero,
+      popupMenuTheme: PopupMenuThemeData(
+        color: Colors.white,
+        elevation: 8,
         shape: RoundedRectangleBorder(
-          borderRadius:
-              BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(14),
         ),
       ),
 
-      dividerTheme:
-          DividerThemeData(
-        color:
-            Colors.white.withValues(
-          alpha: 0.10,
+      tooltipTheme: TooltipThemeData(
+        decoration: BoxDecoration(
+          color: Colors.black87,
+          borderRadius: BorderRadius.circular(8),
         ),
-        space: 1,
+        textStyle: const TextStyle(
+          color: Colors.white,
+        ),
+      ),
+
+      iconTheme: const IconThemeData(
+        color: AppColors.textDark,
+      ),
+
+      textTheme: const TextTheme(
+        bodyLarge: TextStyle(
+          color: AppColors.textDark,
+        ),
+        bodyMedium: TextStyle(
+          color: AppColors.textDark,
+        ),
+        bodySmall: TextStyle(
+          color: AppColors.textLight,
+        ),
       ),
     );
   }

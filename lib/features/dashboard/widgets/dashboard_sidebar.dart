@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import 'package:structflow/core/localization/app_localizations.dart';
 import 'package:structflow/core/theme/app_colors.dart';
 
 class DashboardSidebar extends StatelessWidget {
@@ -8,186 +9,190 @@ class DashboardSidebar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
+
     final currentPath =
         GoRouterState.of(context).uri.path;
 
-    return Material(
-      color: AppColors.primary,
-      child: SizedBox(
-        width: 260,
-        height: double.infinity,
-        child: SafeArea(
-          child: Column(
-            children: [
-              // ========================================================
-              // LOGO
-              // ========================================================
+    return Container(
+      width: 250,
+      decoration: const BoxDecoration(
+        color: AppColors.primary,
+      ),
+      child: SafeArea(
+        child: Column(
+          children: [
+            const SizedBox(height: 20),
 
-              const SizedBox(height: 28),
-
-              const Text(
-                'StructFlow',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 26,
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: .3,
-                ),
+            Padding(
+              padding:
+                  const EdgeInsets.symmetric(
+                horizontal: 20,
               ),
-
-              const SizedBox(height: 28),
-
-              // ========================================================
-              // MENU
-              // ========================================================
-
-              Expanded(
-                child: SingleChildScrollView(
-                  physics:
-                      const BouncingScrollPhysics(),
-                  padding:
-                      const EdgeInsets.fromLTRB(
-                    12,
-                    0,
-                    12,
-                    24,
-                  ),
-                  child: Column(
-                    children: [
-                      _item(
-                        context,
-                        Icons.dashboard_rounded,
-                        'Dashboard',
-                        '/',
-                        currentPath,
-                      ),
-
-                      _item(
-                        context,
-                        Icons.folder_rounded,
-                        'Projects',
-                        '/projects',
-                        currentPath,
-                      ),
-
-                      _item(
-                        context,
-                        Icons.task_alt_rounded,
-                        'Tasks',
-                        '/tasks',
-                        currentPath,
-                      ),
-
-                      _item(
-                        context,
-                        Icons.people_alt_rounded,
-                        'Team',
-                        '/team',
-                        currentPath,
-                      ),
-
-                      _item(
-                        context,
-                        Icons.calendar_month_rounded,
-                        'Calendar',
-                        '/calendar',
-                        currentPath,
-                      ),
-
-                      _item(
-                        context,
-                        Icons.description_rounded,
-                        'Documents',
-                        '/documents',
-                        currentPath,
-                      ),
-
-                      _item(
-                        context,
-                        Icons.how_to_reg_rounded,
-                        'Attendance',
-                        '/attendance',
-                        currentPath,
-                      ),
-
-                      _item(
-                        context,
-                        Icons.admin_panel_settings_rounded,
-                        'Attendance Management',
-                        '/attendance-management',
-                        currentPath,
-                      ),
-
-                      _item(
-                        context,
-                        Icons.bar_chart_rounded,
-                        'Reports',
-                        '/reports',
-                        currentPath,
-                      ),
-
-                      _item(
-                        context,
-                        Icons.smart_toy_rounded,
-                        'AI Assistant',
-                        '/ai-assistant',
-                        currentPath,
-                      ),
-
-                      const SizedBox(height: 12),
-
-                      Divider(
-                        color:
-                            Colors.white.withValues(
-                          alpha: .15,
-                        ),
-                        height: 1,
-                      ),
-
-                      const SizedBox(height: 12),
-
-                      _item(
-                        context,
-                        Icons.settings_rounded,
-                        'Settings',
-                        '/settings',
-                        currentPath,
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-
-              // ========================================================
-              // VERSION
-              // ========================================================
-
-              Padding(
-                padding:
-                    const EdgeInsets.only(
-                  bottom: 16,
-                ),
-                child: Text(
-                  'StructFlow • v1.0',
-                  style: TextStyle(
-                    color:
-                        Colors.white.withValues(
-                      alpha: .45,
+              child: Row(
+                children: [
+                  Container(
+                    width: 42,
+                    height: 42,
+                    decoration: BoxDecoration(
+                      color: Colors.white
+                          .withValues(alpha: .14),
+                      borderRadius:
+                          BorderRadius.circular(12),
                     ),
-                    fontSize: 11,
+                    child: const Icon(
+                      Icons.account_tree_rounded,
+                      color: Colors.white,
+                      size: 24,
+                    ),
                   ),
+
+                  const SizedBox(width: 12),
+
+                  const Expanded(
+                    child: Text(
+                      'StructFlow',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 21,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 30),
+
+            Expanded(
+              child: SingleChildScrollView(
+                padding:
+                    const EdgeInsets.symmetric(
+                  horizontal: 12,
+                ),
+                child: Column(
+                  children: [
+                    _item(
+                      context,
+                      Icons.dashboard_rounded,
+                      l.dashboard,
+                      '/',
+                      currentPath,
+                    ),
+
+                    _item(
+                      context,
+                      Icons.apartment_rounded,
+                      l.projects,
+                      '/projects',
+                      currentPath,
+                    ),
+
+                    _item(
+                      context,
+                      Icons.task_alt_rounded,
+                      l.tasks,
+                      '/tasks',
+                      currentPath,
+                    ),
+
+                    _item(
+                      context,
+                      Icons.groups_rounded,
+                      l.team,
+                      '/team',
+                      currentPath,
+                    ),
+
+                    _item(
+                      context,
+                      Icons.calendar_month_rounded,
+                      l.calendar,
+                      '/calendar',
+                      currentPath,
+                    ),
+
+                    _item(
+                      context,
+                      Icons.description_rounded,
+                      l.documents,
+                      '/documents',
+                      currentPath,
+                    ),
+
+                    _item(
+                      context,
+                      Icons.location_on_rounded,
+                      l.attendance,
+                      '/attendance',
+                      currentPath,
+                    ),
+
+                    _item(
+                      context,
+                      Icons.manage_accounts_rounded,
+                      l.attendanceManagement,
+                      '/attendance-management',
+                      currentPath,
+                    ),
+
+                    const SizedBox(height: 15),
+
+                    Divider(
+                      color: Colors.white
+                          .withValues(alpha: .15),
+                    ),
+
+                    const SizedBox(height: 15),
+
+                    _item(
+                      context,
+                      Icons.bar_chart_rounded,
+                      l.reports,
+                      '/reports',
+                      currentPath,
+                    ),
+
+                    _item(
+                      context,
+                      Icons.auto_awesome_rounded,
+                      l.aiAssistant,
+                      '/ai-assistant',
+                      currentPath,
+                    ),
+
+                    _item(
+                      context,
+                      Icons.settings_rounded,
+                      l.settings,
+                      '/settings',
+                      currentPath,
+                    ),
+                  ],
                 ),
               ),
-            ],
-          ),
+            ),
+
+            Padding(
+              padding:
+                  const EdgeInsets.only(
+                bottom: 16,
+              ),
+              child: Text(
+                'StructFlow • v1.0',
+                style: TextStyle(
+                  color: Colors.white
+                      .withValues(alpha: .45),
+                  fontSize: 11,
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );
   }
-
-  // ================================================================
-  // SIDEBAR ITEM
-  // ================================================================
 
   Widget _item(
     BuildContext context,
@@ -196,17 +201,9 @@ class DashboardSidebar extends StatelessWidget {
     String route,
     String currentPath,
   ) {
-    // ================================================================
-    // PROJECTS SHOULD STAY SELECTED INSIDE PROJECT DETAILS
-    // ================================================================
-
     final isProjectsRoute =
         route == '/projects' &&
         currentPath.startsWith('/projects/');
-
-    // ================================================================
-    // TASKS SHOULD STAY SELECTED INSIDE TASK DETAILS / EDIT
-    // ================================================================
 
     final isTasksRoute =
         route == '/tasks' &&
@@ -237,61 +234,22 @@ class DashboardSidebar extends StatelessWidget {
         clipBehavior: Clip.antiAlias,
         child: ListTile(
           dense: true,
-
-          contentPadding:
-              const EdgeInsets.symmetric(
-            horizontal: 14,
-            vertical: 2,
-          ),
-
           leading: Icon(
             icon,
             color: Colors.white,
-            size: 22,
+            size: 21,
           ),
-
           title: Text(
             title,
-            style: TextStyle(
+            style: const TextStyle(
               color: Colors.white,
-              fontSize: 15,
-              fontWeight: selected
-                  ? FontWeight.w700
-                  : FontWeight.w500,
+              fontSize: 14,
+              fontWeight: FontWeight.w500,
             ),
           ),
-
           onTap: () {
-            // ========================================================
-            // DASHBOARD
-            // ========================================================
-
-            if (route == '/') {
-              context.go('/');
-            }
-
-            // ========================================================
-            // OTHER MAIN MODULES
-            // ========================================================
-
-            else {
-              context.push(route);
-            }
-
-            // ========================================================
-            // CLOSE DRAWER ON MOBILE / TABLET
-            // ========================================================
-
-            if (Navigator.of(context).canPop()) {
-              Navigator.of(context).pop();
-            }
+            context.go(route);
           },
-
-          shape:
-              RoundedRectangleBorder(
-            borderRadius:
-                BorderRadius.circular(12),
-          ),
         ),
       ),
     );

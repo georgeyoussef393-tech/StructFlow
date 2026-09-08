@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import 'package:structflow/core/localization/app_localizations.dart';
 import 'package:structflow/core/settings/app_settings.dart';
 import 'package:structflow/core/theme/app_colors.dart';
 
@@ -8,18 +9,21 @@ class DashboardHeader extends StatefulWidget {
   const DashboardHeader({super.key});
 
   @override
-  State<DashboardHeader> createState() => _DashboardHeaderState();
+  State<DashboardHeader> createState() =>
+      _DashboardHeaderState();
 }
 
-class _DashboardHeaderState extends State<DashboardHeader> {
+class _DashboardHeaderState
+    extends State<DashboardHeader> {
   final TextEditingController _searchController =
       TextEditingController();
 
-  final AppSettings _settings = AppSettings.instance;
-
-  bool _showNotifications = false;
+  final AppSettings _settings =
+      AppSettings.instance;
 
   OverlayEntry? _notificationOverlay;
+
+  bool _showNotifications = false;
 
   @override
   void initState() {
@@ -29,8 +33,13 @@ class _DashboardHeaderState extends State<DashboardHeader> {
   }
 
   void _settingsChanged() {
-    if (!mounted) {
-      return;
+    if (!mounted) return;
+
+    // لو اللغة اتغيرت والـOverlay مفتوح،
+    // نقفله عشان مايفضلش عالق بلغة قديمة.
+    if (_notificationOverlay != null) {
+      _hideNotificationOverlay();
+      _showNotifications = false;
     }
 
     setState(() {});
@@ -47,21 +56,17 @@ class _DashboardHeaderState extends State<DashboardHeader> {
     super.dispose();
   }
 
-  // ============================================================
-  // SEARCH
-  // ============================================================
-
   void _performSearch(String value) {
     final query = value.trim().toLowerCase();
 
-    if (query.isEmpty) {
-      return;
-    }
+    if (query.isEmpty) return;
 
     if (query.contains('project') ||
         query.contains('projects') ||
         query.contains('مشروع') ||
-        query.contains('مشاريع')) {
+        query.contains('مشروعات') ||
+        query.contains('projet') ||
+        query.contains('项目')) {
       context.go('/projects');
       return;
     }
@@ -69,7 +74,9 @@ class _DashboardHeaderState extends State<DashboardHeader> {
     if (query.contains('task') ||
         query.contains('tasks') ||
         query.contains('مهمة') ||
-        query.contains('مهام')) {
+        query.contains('مهام') ||
+        query.contains('tâche') ||
+        query.contains('任务')) {
       context.go('/tasks');
       return;
     }
@@ -78,7 +85,9 @@ class _DashboardHeaderState extends State<DashboardHeader> {
         query.contains('engineer') ||
         query.contains('engineers') ||
         query.contains('فريق') ||
-        query.contains('مهندس')) {
+        query.contains('مهندس') ||
+        query.contains('équipe') ||
+        query.contains('团队')) {
       context.go('/team');
       return;
     }
@@ -89,7 +98,9 @@ class _DashboardHeaderState extends State<DashboardHeader> {
         query.contains('drawings') ||
         query.contains('boq') ||
         query.contains('مستند') ||
-        query.contains('رسومات')) {
+        query.contains('رسمة') ||
+        query.contains('رسومات') ||
+        query.contains('文件')) {
       context.go('/documents');
       return;
     }
@@ -97,55 +108,149 @@ class _DashboardHeaderState extends State<DashboardHeader> {
     if (query.contains('report') ||
         query.contains('reports') ||
         query.contains('تقرير') ||
-        query.contains('تقارير')) {
+        query.contains('تقارير') ||
+        query.contains('rapport') ||
+        query.contains('报告')) {
       context.go('/reports');
       return;
     }
 
+    final l = AppLocalizations.of(context);
+
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
-          'No result found for "$value"',
+          l.noResultFound(value),
         ),
         behavior: SnackBarBehavior.floating,
       ),
     );
   }
 
-  // ============================================================
-  // LANGUAGE
-  // ============================================================
+  Future<void> _openLanguageMenu() async {
+    final selected =
+        await showMenu<AppLanguage>(
+      context: context,
+      position:
+          _languageMenuPosition(context),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(14),
+      ),
+      elevation: 10,
+      items: [
+        _languagePopupItem(
+          AppLanguage.english,
+          'English',
+        ),
+        _languagePopupItem(
+          AppLanguage.arabic,
+          'العربية',
+        ),
+        _languagePopupItem(
+          AppLanguage.french,
+          'Français',
+        ),
+        _languagePopupItem(
+          AppLanguage.chinese,
+          '中文',
+        ),
+      ],
+    );
 
-  void _selectLanguage(AppLanguage language) {
-    _settings.setLanguage(language);
-  }
-
-  // ============================================================
-  // THEME
-  // ============================================================
-
-  void _toggleTheme() {
-    _settings.toggleTheme();
-  }
-
-  // ============================================================
-  // NOTIFICATIONS
-  // ============================================================
-
-  void _toggleNotifications() {
-    if (_showNotifications) {
-      _hideNotificationOverlay();
-
-      setState(() {
-        _showNotifications = false;
-      });
-    } else {
-      setState(() {
-        _showNotifications = true;
-      });
-
-      _showNotificationOverlay();
+    if (!mounted || selected == null) {
+      return;
     }
+
+    await _settings.setLanguage(selected);
+  }
+
+  RelativeRect _languageMenuPosition(
+    BuildContext context,
+  ) {
+    final RenderBox button =
+        context.findRenderObject() as RenderBox;
+
+    final RenderBox overlay =
+        Overlay.of(context)
+            .context
+            .findRenderObject() as RenderBox;
+
+    final Offset topLeft = button.localToGlobal(
+      Offset.zero,
+      ancestor: overlay,
+    );
+
+    final Size buttonSize = button.size;
+    final Size overlaySize = overlay.size;
+
+    final direction =
+        Directionality.of(context);
+
+    const double menuWidth = 180;
+
+    if (direction == TextDirection.rtl) {
+      final double right =
+          overlaySize.width -
+          topLeft.dx -
+          buttonSize.width;
+
+      return RelativeRect.fromLTRB(
+        overlaySize.width -
+            right -
+            menuWidth,
+        topLeft.dy + buttonSize.height + 8,
+        right,
+        0,
+      );
+    }
+
+    return RelativeRect.fromLTRB(
+      topLeft.dx +
+          buttonSize.width -
+          menuWidth,
+      topLeft.dy + buttonSize.height + 8,
+      overlaySize.width -
+          topLeft.dx -
+          buttonSize.width,
+      0,
+    );
+  }
+
+  PopupMenuItem<AppLanguage>
+      _languagePopupItem(
+    AppLanguage language,
+    String title,
+  ) {
+    final selected =
+        _settings.language == language;
+
+    return PopupMenuItem<AppLanguage>(
+      value: language,
+      child: Row(
+        children: [
+          Icon(
+            selected
+                ? Icons.check_circle_rounded
+                : Icons.language_rounded,
+            size: 20,
+            color: selected
+                ? AppColors.primary
+                : AppColors.textLight,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              title,
+              style: TextStyle(
+                fontWeight: selected
+                    ? FontWeight.w600
+                    : FontWeight.normal,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   void _showNotificationOverlay() {
@@ -156,17 +261,22 @@ class _DashboardHeaderState extends State<DashboardHeader> {
     final overlay = Overlay.of(context);
 
     _notificationOverlay = OverlayEntry(
-      builder: (context) {
-        final isDark = Theme.of(context).brightness == Brightness.dark;
+      builder: (overlayContext) {
+        final direction =
+            Directionality.of(context);
 
         return Positioned(
-          top: 92,
-          right: 24,
+          top: 78,
+          width: 350,
+          right: direction == TextDirection.ltr
+              ? 25
+              : null,
+          left: direction == TextDirection.rtl
+              ? 25
+              : null,
           child: Material(
             color: Colors.transparent,
-            child: _buildNotificationPanel(
-              isDark: isDark,
-            ),
+            child: _buildNotificationPanel(),
           ),
         );
       },
@@ -177,31 +287,30 @@ class _DashboardHeaderState extends State<DashboardHeader> {
 
   void _hideNotificationOverlay() {
     _notificationOverlay?.remove();
-
     _notificationOverlay = null;
   }
 
-  void _closeNotifications() {
-    _hideNotificationOverlay();
+  void _toggleNotifications() {
+    if (_showNotifications) {
+      _hideNotificationOverlay();
 
-    if (!mounted) {
+      setState(() {
+        _showNotifications = false;
+      });
+
       return;
     }
 
+    _showNotificationOverlay();
+
     setState(() {
-      _showNotifications = false;
+      _showNotifications = true;
     });
   }
 
-  // ============================================================
-  // BUILD
-  // ============================================================
-
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    final isDark = theme.brightness == Brightness.dark;
+    final l = AppLocalizations.of(context);
 
     return Container(
       height: 85,
@@ -209,37 +318,25 @@ class _DashboardHeaderState extends State<DashboardHeader> {
         horizontal: 30,
       ),
       decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
+        color: Colors.white,
         border: Border(
           bottom: BorderSide(
-            color: isDark
-                ? Colors.white.withValues(alpha: 0.08)
-                : Colors.grey.shade300,
+            color: Colors.grey.shade300,
           ),
         ),
       ),
       child: Row(
         children: [
-          // ==========================================================
-          // TITLE
-          // ==========================================================
-
           Text(
-            'Dashboard',
-            style: TextStyle(
+            l.dashboard,
+            style: const TextStyle(
               fontSize: 28,
               fontWeight: FontWeight.bold,
-              color: isDark
-                  ? Colors.white
-                  : AppColors.textDark,
+              color: AppColors.textDark,
             ),
           ),
 
           const SizedBox(width: 30),
-
-          // ==========================================================
-          // SEARCH
-          // ==========================================================
 
           Expanded(
             child: SizedBox(
@@ -247,78 +344,51 @@ class _DashboardHeaderState extends State<DashboardHeader> {
               child: TextField(
                 controller: _searchController,
                 onSubmitted: _performSearch,
-                style: TextStyle(
-                  color: isDark
-                      ? Colors.white
-                      : AppColors.textDark,
-                ),
                 decoration: InputDecoration(
-                  hintText:
-                      'Search projects, drawings, BOQ...',
-
-                  hintStyle: TextStyle(
-                    color: isDark
-                        ? Colors.white54
-                        : AppColors.textLight,
-                  ),
-
-                  prefixIcon: Icon(
+                  hintText: l.searchHint,
+                  prefixIcon: const Icon(
                     Icons.search_rounded,
-                    color: isDark
-                        ? Colors.white70
-                        : AppColors.textLight,
                   ),
-
                   suffixIcon:
                       _searchController.text.isNotEmpty
                           ? IconButton(
                               onPressed: () {
                                 _searchController.clear();
-
                                 setState(() {});
                               },
-                              icon: Icon(
+                              icon: const Icon(
                                 Icons.close_rounded,
-                                color: isDark
-                                    ? Colors.white70
-                                    : AppColors.textLight,
                               ),
                             )
                           : null,
-
                   filled: true,
-
-                  fillColor: isDark
-                      ? const Color(0xFF1E293B)
-                      : Colors.grey.shade100,
-
+                  fillColor: Colors.grey.shade100,
                   border: OutlineInputBorder(
                     borderRadius:
                         BorderRadius.circular(14),
                     borderSide: BorderSide.none,
                   ),
-
-                  enabledBorder: OutlineInputBorder(
+                  enabledBorder:
+                      OutlineInputBorder(
                     borderRadius:
                         BorderRadius.circular(14),
                     borderSide: BorderSide.none,
                   ),
-
-                  focusedBorder: OutlineInputBorder(
+                  focusedBorder:
+                      OutlineInputBorder(
                     borderRadius:
                         BorderRadius.circular(14),
-                    borderSide: const BorderSide(
+                    borderSide:
+                        const BorderSide(
                       color: AppColors.primary,
                     ),
                   ),
-
                   contentPadding:
                       const EdgeInsets.symmetric(
                     vertical: 0,
                     horizontal: 20,
                   ),
                 ),
-
                 onChanged: (_) {
                   setState(() {});
                 },
@@ -327,10 +397,6 @@ class _DashboardHeaderState extends State<DashboardHeader> {
           ),
 
           const SizedBox(width: 25),
-
-          // ==========================================================
-          // COMPANY
-          // ==========================================================
 
           OutlinedButton.icon(
             onPressed: () {},
@@ -341,189 +407,51 @@ class _DashboardHeaderState extends State<DashboardHeader> {
               'GE&JO Construction',
             ),
             style: OutlinedButton.styleFrom(
-              foregroundColor: AppColors.primary,
+              foregroundColor:
+                  AppColors.primary,
               side: const BorderSide(
                 color: AppColors.primary,
               ),
-              padding: const EdgeInsets.symmetric(
+              padding:
+                  const EdgeInsets.symmetric(
                 horizontal: 18,
                 vertical: 16,
               ),
-              shape: RoundedRectangleBorder(
+              shape:
+                  RoundedRectangleBorder(
                 borderRadius:
                     BorderRadius.circular(14),
               ),
             ),
           ),
 
-          const SizedBox(width: 15),
+          const SizedBox(width: 10),
 
-          // ==========================================================
           // LANGUAGE
-          // ==========================================================
-
-          PopupMenuButton<AppLanguage>(
-            tooltip: 'Language',
-
-            onSelected: _selectLanguage,
-
-            position: PopupMenuPosition.under,
-
-            itemBuilder: (BuildContext context) {
-              return const [
-                PopupMenuItem<AppLanguage>(
-                  value: AppLanguage.english,
-                  child: Row(
-                    children: [
-                      Text('🇬🇧'),
-                      SizedBox(width: 10),
-                      Text('English'),
-                    ],
-                  ),
-                ),
-
-                PopupMenuItem<AppLanguage>(
-                  value: AppLanguage.arabic,
-                  child: Row(
-                    children: [
-                      Text('🇪🇬'),
-                      SizedBox(width: 10),
-                      Text('العربية'),
-                    ],
-                  ),
-                ),
-
-                PopupMenuItem<AppLanguage>(
-                  value: AppLanguage.french,
-                  child: Row(
-                    children: [
-                      Text('🇫🇷'),
-                      SizedBox(width: 10),
-                      Text('Français'),
-                    ],
-                  ),
-                ),
-
-                PopupMenuItem<AppLanguage>(
-                  value: AppLanguage.chinese,
-                  child: Row(
-                    children: [
-                      Text('🇨🇳'),
-                      SizedBox(width: 10),
-                      Text('中文'),
-                    ],
-                  ),
-                ),
-              ];
-            },
-
-            child: Container(
-              height: 44,
-              padding: const EdgeInsets.symmetric(
-                horizontal: 10,
-              ),
-              decoration: BoxDecoration(
-                borderRadius:
-                    BorderRadius.circular(12),
-                color: isDark
-                    ? const Color(0xFF1E293B)
-                    : Colors.transparent,
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    Icons.language_rounded,
-                    color: isDark
-                        ? Colors.white
-                        : AppColors.textDark,
-                  ),
-
-                  const SizedBox(width: 6),
-
-                  Text(
-                    _settings.languageName,
-                    style: TextStyle(
-                      fontWeight: FontWeight.w500,
-                      color: isDark
-                          ? Colors.white
-                          : AppColors.textDark,
-                    ),
-                  ),
-
-                  const SizedBox(width: 2),
-
-                  Icon(
-                    Icons.keyboard_arrow_down_rounded,
-                    size: 18,
-                    color: isDark
-                        ? Colors.white70
-                        : AppColors.textLight,
-                  ),
-                ],
-              ),
-            ),
-          ),
-
-          const SizedBox(width: 5),
-
-          // ==========================================================
-          // THEME
-          // ==========================================================
-
           IconButton(
-            onPressed: _toggleTheme,
-
-            tooltip: _settings.isDarkMode
-                ? 'Light mode'
-                : 'Dark mode',
-
-            icon: AnimatedSwitcher(
-              duration: const Duration(
-                milliseconds: 250,
-              ),
-              transitionBuilder:
-                  (child, animation) {
-                return RotationTransition(
-                  turns: animation,
-                  child: FadeTransition(
-                    opacity: animation,
-                    child: child,
-                  ),
-                );
-              },
-              child: Icon(
-                _settings.isDarkMode
-                    ? Icons.light_mode_rounded
-                    : Icons.dark_mode_outlined,
-                key: ValueKey<bool>(
-                  _settings.isDarkMode,
-                ),
-              ),
+            onPressed: _openLanguageMenu,
+            icon: const Icon(
+              Icons.language_rounded,
             ),
+            tooltip: l.language,
           ),
 
-          const SizedBox(width: 5),
+          // THEME BUTTON REMOVED.
+          // Theme is currently fixed to Light.
 
-          // ==========================================================
           // NOTIFICATIONS
-          // ==========================================================
-
           Stack(
             clipBehavior: Clip.none,
             children: [
               IconButton(
                 onPressed: _toggleNotifications,
-
-                tooltip: 'Notifications',
-
                 icon: Icon(
                   _showNotifications
                       ? Icons.notifications_rounded
                       : Icons.notifications_none_rounded,
                 ),
+                tooltip: l.notifications,
               ),
-
               Positioned(
                 right: 8,
                 top: 8,
@@ -541,10 +469,6 @@ class _DashboardHeaderState extends State<DashboardHeader> {
           ),
 
           const SizedBox(width: 15),
-
-          // ==========================================================
-          // PROFILE
-          // ==========================================================
 
           const CircleAvatar(
             radius: 22,
@@ -566,25 +490,19 @@ class _DashboardHeaderState extends State<DashboardHeader> {
             crossAxisAlignment:
                 CrossAxisAlignment.start,
             children: [
-              Text(
+              const Text(
                 'George',
                 style: TextStyle(
                   fontWeight: FontWeight.bold,
-                  color: isDark
-                      ? Colors.white
-                      : AppColors.textDark,
+                  color: AppColors.textDark,
                 ),
               ),
-
               const SizedBox(height: 2),
-
               Text(
-                'Administrator',
-                style: TextStyle(
+                l.administrator,
+                style: const TextStyle(
                   fontSize: 12,
-                  color: isDark
-                      ? Colors.white60
-                      : AppColors.textLight,
+                  color: AppColors.textLight,
                 ),
               ),
             ],
@@ -596,48 +514,26 @@ class _DashboardHeaderState extends State<DashboardHeader> {
     );
   }
 
-  // ============================================================
-  // NOTIFICATION PANEL
-  // ============================================================
-
-  Widget _buildNotificationPanel({
-    required bool isDark,
-  }) {
-    final backgroundColor = isDark
-        ? const Color(0xFF1E293B)
-        : Colors.white;
-
-    final borderColor = isDark
-        ? Colors.white.withValues(alpha: 0.08)
-        : Colors.grey.shade200;
-
-    final primaryTextColor = isDark
-        ? Colors.white
-        : AppColors.textDark;
-
-    final secondaryTextColor = isDark
-        ? Colors.white60
-        : AppColors.textLight;
+  Widget _buildNotificationPanel() {
+    final l = AppLocalizations.of(context);
 
     return Material(
       elevation: 16,
-      shadowColor: Colors.black.withValues(
-        alpha: isDark ? 0.40 : 0.20,
-      ),
-      borderRadius: BorderRadius.circular(16),
-      color: backgroundColor,
+      borderRadius:
+          BorderRadius.circular(16),
+      color: Colors.white,
       child: Container(
         width: 350,
         constraints: const BoxConstraints(
-          maxHeight: 440,
+          maxHeight: 430,
         ),
         padding: const EdgeInsets.all(18),
         decoration: BoxDecoration(
-          color: backgroundColor,
+          color: Colors.white,
           borderRadius:
               BorderRadius.circular(16),
           border: Border.all(
-            color: borderColor,
+            color: Colors.grey.shade200,
           ),
         ),
         child: Column(
@@ -645,97 +541,69 @@ class _DashboardHeaderState extends State<DashboardHeader> {
           crossAxisAlignment:
               CrossAxisAlignment.start,
           children: [
-            // ======================================================
-            // HEADER
-            // ======================================================
-
             Row(
               children: [
                 Expanded(
                   child: Text(
-                    'Notifications',
-                    style: TextStyle(
+                    l.notifications,
+                    style: const TextStyle(
                       fontSize: 18,
                       fontWeight:
                           FontWeight.bold,
-                      color: primaryTextColor,
+                      color:
+                          AppColors.textDark,
                     ),
                   ),
                 ),
-
                 TextButton(
-                  onPressed: _closeNotifications,
-                  child: const Text(
-                    'Close',
-                  ),
+                  onPressed: () {
+                    _hideNotificationOverlay();
+
+                    setState(() {
+                      _showNotifications =
+                          false;
+                    });
+                  },
+                  child: Text(l.close),
                 ),
               ],
             ),
 
             Divider(
-              color: borderColor,
+              color: Colors.grey.shade300,
             ),
 
-            // ======================================================
-            // NOTIFICATION 1
-            // ======================================================
-
             _notificationItem(
-              icon:
-                  Icons.assignment_turned_in_rounded,
-              title: 'BOQ Approved',
-              subtitle: 'New Capital Tower',
-              time: '5 min ago',
-              color: Colors.green,
-              textColor: primaryTextColor,
-              secondaryTextColor:
-                  secondaryTextColor,
+              Icons
+                  .assignment_turned_in_rounded,
+              l.boqApproved,
+              'New Capital Tower',
+              l.fiveMinutesAgo,
+              AppColors.success,
             ),
 
-            // ======================================================
-            // NOTIFICATION 2
-            // ======================================================
-
             _notificationItem(
-              icon: Icons.upload_file_rounded,
-              title: 'New Drawing Uploaded',
-              subtitle: 'Cairo Business Park',
-              time: '18 min ago',
-              color: Colors.blue,
-              textColor: primaryTextColor,
-              secondaryTextColor:
-                  secondaryTextColor,
+              Icons.upload_file_rounded,
+              l.newDrawingUploaded,
+              'Cairo Business Park',
+              l.eighteenMinutesAgo,
+              AppColors.info,
             ),
 
-            // ======================================================
-            // NOTIFICATION 3
-            // ======================================================
-
             _notificationItem(
-              icon: Icons.warning_amber_rounded,
-              title: 'RFI Needs Response',
-              subtitle: 'Smart Village',
-              time: '40 min ago',
-              color: Colors.orange,
-              textColor: primaryTextColor,
-              secondaryTextColor:
-                  secondaryTextColor,
+              Icons.warning_amber_rounded,
+              l.rfiNeedsResponse,
+              'Smart Village',
+              l.fortyMinutesAgo,
+              AppColors.warning,
             ),
 
-            // ======================================================
-            // NOTIFICATION 4
-            // ======================================================
-
             _notificationItem(
-              icon:
-                  Icons.person_add_alt_1_rounded,
-              title: 'New Engineer Added',
-              subtitle: 'Tuban Villas',
-              time: '1 hour ago',
-              color: Colors.purple,
-              textColor: primaryTextColor,
-              secondaryTextColor:
-                  secondaryTextColor,
+              Icons.person_add_alt_1_rounded,
+              l.newEngineerAdded,
+              'Tuban Villas',
+              l.oneHourAgo,
+              Colors.purple,
             ),
           ],
         ),
@@ -743,19 +611,13 @@ class _DashboardHeaderState extends State<DashboardHeader> {
     );
   }
 
-  // ============================================================
-  // NOTIFICATION ITEM
-  // ============================================================
-
-  Widget _notificationItem({
-    required IconData icon,
-    required String title,
-    required String subtitle,
-    required String time,
-    required Color color,
-    required Color textColor,
-    required Color secondaryTextColor,
-  }) {
+  Widget _notificationItem(
+    IconData icon,
+    String title,
+    String subtitle,
+    String time,
+    Color color,
+  ) {
     return Padding(
       padding:
           const EdgeInsets.symmetric(
@@ -768,10 +630,10 @@ class _DashboardHeaderState extends State<DashboardHeader> {
           Container(
             width: 40,
             height: 40,
-            decoration: BoxDecoration(
-              color: color.withValues(
-                alpha: .10,
-              ),
+            decoration:
+                BoxDecoration(
+              color:
+                  color.withValues(alpha: .10),
               shape: BoxShape.circle,
             ),
             child: Icon(
@@ -790,32 +652,29 @@ class _DashboardHeaderState extends State<DashboardHeader> {
               children: [
                 Text(
                   title,
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontWeight:
                         FontWeight.w600,
-                    color: textColor,
+                    color:
+                        AppColors.textDark,
                   ),
                 ),
-
                 const SizedBox(height: 3),
-
                 Text(
                   subtitle,
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontSize: 12,
                     color:
-                        secondaryTextColor,
+                        AppColors.textLight,
                   ),
                 ),
-
                 const SizedBox(height: 2),
-
                 Text(
                   time,
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontSize: 11,
                     color:
-                        secondaryTextColor,
+                        AppColors.textLight,
                   ),
                 ),
               ],
