@@ -2,10 +2,14 @@ class ProjectGeofenceModel {
   final String id;
   final String organizationId;
   final String projectId;
+
   final double latitude;
   final double longitude;
+
   final double radiusMeters;
+
   final bool attendanceEnabled;
+
   final String updatedByUserId;
   final DateTime updatedAt;
 
@@ -19,12 +23,50 @@ class ProjectGeofenceModel {
     required this.attendanceEnabled,
     required this.updatedByUserId,
     required this.updatedAt,
-  }) : assert(radiusMeters > 0);
+  });
+
+  // ============================================================
+  // ALLOWED ATTENDANCE RADII
+  // ============================================================
+
+  static const List<double>
+      allowedRadiusMeters = [
+    50,
+    100,
+    150,
+    200,
+    300,
+    400,
+    500,
+    600,
+    700,
+    800,
+    900,
+    1000,
+  ];
+
+  // ============================================================
+  // VALIDATION
+  // ============================================================
 
   bool get hasValidCoordinates =>
-      latitude >= -90 && latitude <= 90 && longitude >= -180 && longitude <= 180;
+      latitude >= -90 &&
+      latitude <= 90 &&
+      longitude >= -180 &&
+      longitude <= 180;
 
-  bool get isValid => hasValidCoordinates && radiusMeters > 0;
+  bool get hasValidRadius =>
+      allowedRadiusMeters.contains(
+        radiusMeters,
+      );
+
+  bool get isValid =>
+      hasValidCoordinates &&
+      hasValidRadius;
+
+  // ============================================================
+  // COPY
+  // ============================================================
 
   ProjectGeofenceModel copyWith({
     double? latitude,
@@ -33,42 +75,103 @@ class ProjectGeofenceModel {
     bool? attendanceEnabled,
     String? updatedByUserId,
     DateTime? updatedAt,
-  }) =>
-      ProjectGeofenceModel(
-        id: id,
-        organizationId: organizationId,
-        projectId: projectId,
-        latitude: latitude ?? this.latitude,
-        longitude: longitude ?? this.longitude,
-        radiusMeters: radiusMeters ?? this.radiusMeters,
-        attendanceEnabled: attendanceEnabled ?? this.attendanceEnabled,
-        updatedByUserId: updatedByUserId ?? this.updatedByUserId,
-        updatedAt: updatedAt ?? this.updatedAt,
-      );
+  }) {
+    return ProjectGeofenceModel(
+      id: id,
+      organizationId:
+          organizationId,
+      projectId:
+          projectId,
+      latitude:
+          latitude ?? this.latitude,
+      longitude:
+          longitude ?? this.longitude,
+      radiusMeters:
+          radiusMeters ??
+              this.radiusMeters,
+      attendanceEnabled:
+          attendanceEnabled ??
+              this.attendanceEnabled,
+      updatedByUserId:
+          updatedByUserId ??
+              this.updatedByUserId,
+      updatedAt:
+          updatedAt ??
+              this.updatedAt,
+    );
+  }
 
-  Map<String, dynamic> toJson() => {
-        'id': id,
-        'organizationId': organizationId,
-        'projectId': projectId,
-        'latitude': latitude,
-        'longitude': longitude,
-        'radiusMeters': radiusMeters,
-        'attendanceEnabled': attendanceEnabled,
-        'updatedByUserId': updatedByUserId,
-        'updatedAt': updatedAt.toIso8601String(),
-      };
+  // ============================================================
+  // JSON
+  // ============================================================
 
-  factory ProjectGeofenceModel.fromJson(Map<String, dynamic> json) =>
-      ProjectGeofenceModel(
-        id: json['id'] as String? ?? '',
-        organizationId: json['organizationId'] as String? ?? '',
-        projectId: json['projectId'] as String? ?? '',
-        latitude: (json['latitude'] as num?)?.toDouble() ?? 0,
-        longitude: (json['longitude'] as num?)?.toDouble() ?? 0,
-        radiusMeters: (json['radiusMeters'] as num?)?.toDouble() ?? 100,
-        attendanceEnabled: json['attendanceEnabled'] as bool? ?? false,
-        updatedByUserId: json['updatedByUserId'] as String? ?? '',
-        updatedAt: DateTime.tryParse(json['updatedAt'] as String? ?? '') ??
-            DateTime.now(),
-      );
+  Map<String, dynamic>
+      toJson() {
+    return {
+      'id': id,
+      'organizationId':
+          organizationId,
+      'projectId':
+          projectId,
+      'latitude':
+          latitude,
+      'longitude':
+          longitude,
+      'radiusMeters':
+          radiusMeters,
+      'attendanceEnabled':
+          attendanceEnabled,
+      'updatedByUserId':
+          updatedByUserId,
+      'updatedAt':
+          updatedAt.toIso8601String(),
+    };
+  }
+
+  factory ProjectGeofenceModel
+      .fromJson(
+    Map<String, dynamic> json,
+  ) {
+    return ProjectGeofenceModel(
+      id:
+          json['id'] as String? ??
+              '',
+      organizationId:
+          json['organizationId']
+                  as String? ??
+              '',
+      projectId:
+          json['projectId']
+                  as String? ??
+              '',
+      latitude:
+          (json['latitude'] as num?)
+                  ?.toDouble() ??
+              0,
+      longitude:
+          (json['longitude'] as num?)
+                  ?.toDouble() ??
+              0,
+      radiusMeters:
+          (json['radiusMeters']
+                      as num?)
+                  ?.toDouble() ??
+              100,
+      attendanceEnabled:
+          json['attendanceEnabled']
+                  as bool? ??
+              false,
+      updatedByUserId:
+          json['updatedByUserId']
+                  as String? ??
+              '',
+      updatedAt:
+          DateTime.tryParse(
+                json['updatedAt']
+                        as String? ??
+                    '',
+              ) ??
+              DateTime.now(),
+    );
+  }
 }

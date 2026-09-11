@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
 
 import 'package:structflow/core/theme/app_colors.dart';
 import 'package:structflow/features/attendance/models/attendance_record_model.dart';
@@ -76,21 +77,20 @@ class _EmployeeAttendanceScreenState
       _loading = true;
     });
 
-    /*
-     * Temporary coordinates for the UI/demo layer.
-     *
-     * Real GPS will replace these values when the location service
-     * is connected.
-     */
-    const latitude = 30.0444;
-    const longitude = 31.2357;
+    final position = await _getCurrentPosition();
+    if (position == null) {
+      if (mounted) {
+        setState(() => _loading = false);
+      }
+      return;
+    }
 
     final result = await _attendanceRepository.checkIn(
       organizationId: widget.organizationId,
       projectId: widget.projectId,
       userId: widget.userId,
-      latitude: latitude,
-      longitude: longitude,
+      latitude: position.latitude,
+      longitude: position.longitude,
     );
 
     if (!mounted) return;
@@ -123,15 +123,20 @@ class _EmployeeAttendanceScreenState
       _loading = true;
     });
 
-    const latitude = 30.0444;
-    const longitude = 31.2357;
+    final position = await _getCurrentPosition();
+    if (position == null) {
+      if (mounted) {
+        setState(() => _loading = false);
+      }
+      return;
+    }
 
     final result = await _attendanceRepository.checkOut(
       organizationId: widget.organizationId,
       projectId: widget.projectId,
       userId: widget.userId,
-      latitude: latitude,
-      longitude: longitude,
+      latitude: position.latitude,
+      longitude: position.longitude,
     );
 
     if (!mounted) return;
@@ -149,6 +154,52 @@ class _EmployeeAttendanceScreenState
     }
 
     _showMessage('Check-out recorded successfully.');
+  }
+
+  Future<Position?> _getCurrentPosition() async {
+    final serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    if (!serviceEnabled) {
+      _showMessage(
+        'Please enable GPS/location services on the device.',
+        isError: true,
+      );
+      return null;
+    }
+
+    LocationPermission permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+    }
+
+    if (permission == LocationPermission.denied) {
+      _showMessage(
+        'Location permission was denied.',
+        isError: true,
+      );
+      return null;
+    }
+
+    if (permission == LocationPermission.deniedForever) {
+      _showMessage(
+        'Location permission is permanently denied. Enable it from device settings.',
+        isError: true,
+      );
+      return null;
+    }
+
+    try {
+      return await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+        ),
+      );
+    } catch (_) {
+      _showMessage(
+        'Unable to get the device location.',
+        isError: true,
+      );
+      return null;
+    }
   }
 
   void _showMessage(

@@ -2,6 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:structflow/features/dashboard/screens/dashboard_screen.dart';
+import 'package:structflow/features/auth/repositories/auth_repository.dart';
+import 'package:structflow/features/auth/screens/login_screen.dart';
+import 'package:structflow/features/auth/screens/register_screen.dart';
+import 'package:structflow/features/admin/screens/user_management_screen.dart';
+import 'package:structflow/features/auth/screens/owner_setup_screen.dart';
 
 import 'package:structflow/features/projects/screens/projects_screen.dart';
 import 'package:structflow/features/projects/screens/project_details_screen.dart';
@@ -17,16 +22,250 @@ import 'package:structflow/features/calendar/screens/calendar_screen.dart';
 
 import 'package:structflow/features/documents/screens/documents_screen.dart';
 import 'package:structflow/features/documents/screens/create_document_screen.dart';
+
 import 'package:structflow/features/attendance/screens/attendance_screen.dart';
 import 'package:structflow/features/attendance/screens/attendance_management_screen.dart';
+
+import 'package:structflow/features/attendance/repositories/attendance_context_repository.dart';
+import 'package:structflow/features/attendance/repositories/attendance_permission_repository.dart';
 
 final GoRouter appRouter = GoRouter(
   initialLocation: '/',
 
-  routes: [
-    // ============================================================
+  refreshListenable: Listenable.merge([
+    AuthRepository.instance,
+    AttendancePermissionRepository.instance,
+    AttendanceContextRepository.instance,
+  ]),
+
+  redirect: (context, state) {
+    final authenticated = AuthRepository.instance.isAuthenticated;
+    final path = state.uri.path;
+
+    if (!authenticated) {
+      if (path == '/login' || path == '/register' || path == '/owner-setup') return null;
+      return '/login';
+    }
+
+    if (path == '/login' || path == '/register') return '/';
+    if (path == '/owner-setup') {
+      return AuthRepository.instance.hasOwner ? '/login' : null;
+    }
+
+    // User Management is governed by the authenticated account role,
+    // so it must remain reachable even when an old attendance session
+    // has not yet been synchronized.
+    if (path == '/user-management') {
+      final user = AuthRepository.instance.currentUser;
+      final allowed = user?.isSystemOwner == true ||
+          user?.isOwner == true ||
+          user?.role == 'Consultant Manager' ||
+          user?.role == 'Owner HR Manager' ||
+          user?.role == 'Consultant HR Manager';
+      return allowed ? null : '/';
+    }
+
+    final session =
+        AttendanceContextRepository.instance.context;
+
+    // ==========================================================
+    // NO CURRENT USER
+    // ==========================================================
+
+    // Keep the existing demo unrestricted until a user/session
+    // has been selected.
+    if (session.organizationId.isEmpty ||
+        session.userId.isEmpty) {
+      return null;
+    }
+
+    final permission =
+        AttendancePermissionRepository.instance.getForUser(
+      organizationId:
+          session.organizationId,
+      userId:
+          session.userId,
+    );
+
+    // ==========================================================
+    // USER HAS NO PERMISSION RECORD
+    // ==========================================================
+
+    if (permission == null) {
+      if (state.uri.path == '/' ||
+          state.uri.path == '/attendance') {
+        return null;
+      }
+
+      return '/attendance';
+    }
+
+    // ==========================================================
     // DASHBOARD
-    // ============================================================
+    // ==========================================================
+
+    if (path == '/') {
+      return null;
+    }
+
+    // ==========================================================
+    // ATTENDANCE
+    // ==========================================================
+
+    // Every employee/user can access Attendance.
+    if (path == '/attendance') {
+      return null;
+    }
+
+    // ==========================================================
+    // ATTENDANCE MANAGEMENT
+    // ==========================================================
+
+    if (path == '/attendance-management') {
+      return permission.isManager
+          ? null
+          : '/attendance';
+    }
+
+    // ==========================================================
+    // PROJECTS
+    // ==========================================================
+
+    if (path == '/projects') {
+      return permission.canAccessProjects
+          ? null
+          : '/attendance';
+    }
+
+    if (path.startsWith('/projects/')) {
+      if (!permission.canAccessProjects) {
+        return '/attendance';
+      }
+
+      final parts = path.split('/');
+
+      if (parts.length > 2) {
+        final projectId = parts[2];
+
+        if (projectId.isNotEmpty &&
+            !permission.canAccessProject(projectId)) {
+          return '/projects';
+        }
+      }
+
+      return null;
+    }
+
+    // ==========================================================
+    // CREATE PROJECT
+    // ==========================================================
+
+    if (path == '/create-project') {
+      return permission.canAccessProjects
+          ? null
+          : '/attendance';
+    }
+
+    // ==========================================================
+    // TASKS
+    // ==========================================================
+
+    if (path == '/tasks' ||
+        path.startsWith('/tasks/')) {
+      return permission.canAccessTasks
+          ? null
+          : '/attendance';
+    }
+
+    if (path == '/create-task') {
+      return permission.canAccessTasks
+          ? null
+          : '/attendance';
+    }
+
+    // ==========================================================
+    // TEAM
+    // ==========================================================
+
+    if (path == '/team') {
+      return permission.canAccessTeam
+          ? null
+          : '/attendance';
+    }
+
+    // ==========================================================
+    // CALENDAR
+    // ==========================================================
+
+    if (path == '/calendar') {
+      return permission.canAccessCalendar
+          ? null
+          : '/attendance';
+    }
+
+    // ==========================================================
+    // DOCUMENTS
+    // ==========================================================
+
+    if (path == '/documents' ||
+        path.startsWith('/documents/')) {
+      return permission.canAccessDocuments
+          ? null
+          : '/attendance';
+    }
+
+    if (path == '/create-document') {
+      return permission.canAccessDocuments
+          ? null
+          : '/attendance';
+    }
+
+    // ==========================================================
+    // REPORTS
+    // ==========================================================
+
+    if (path == '/reports') {
+      return permission.canAccessReports
+          ? null
+          : '/attendance';
+    }
+
+    // ==========================================================
+    // AI ASSISTANT
+    // ==========================================================
+
+    if (path == '/ai-assistant') {
+      return null;
+    }
+
+    // ==========================================================
+    // SETTINGS
+    // ==========================================================
+
+    if (path == '/settings') {
+      return null;
+    }
+
+    return null;
+  },
+
+  routes: [
+    GoRoute(
+      path: '/login',
+      builder: (context, state) => const LoginScreen(),
+    ),
+    GoRoute(
+      path: '/register',
+      builder: (context, state) => const RegisterScreen(),
+    ),
+    GoRoute(
+      path: '/owner-setup',
+      builder: (context, state) => const OwnerSetupScreen(),
+    ),
+
+    // ==========================================================
+    // DASHBOARD
+    // ==========================================================
 
     GoRoute(
       path: '/',
@@ -35,9 +274,9 @@ final GoRouter appRouter = GoRouter(
       },
     ),
 
-    // ============================================================
+    // ==========================================================
     // PROJECTS
-    // ============================================================
+    // ==========================================================
 
     GoRoute(
       path: '/projects',
@@ -60,9 +299,9 @@ final GoRouter appRouter = GoRouter(
       ],
     ),
 
-    // ============================================================
+    // ==========================================================
     // CREATE PROJECT
-    // ============================================================
+    // ==========================================================
 
     GoRoute(
       path: '/create-project',
@@ -71,9 +310,9 @@ final GoRouter appRouter = GoRouter(
       },
     ),
 
-    // ============================================================
+    // ==========================================================
     // TASKS
-    // ============================================================
+    // ==========================================================
 
     GoRoute(
       path: '/tasks',
@@ -110,9 +349,9 @@ final GoRouter appRouter = GoRouter(
       ],
     ),
 
-    // ============================================================
+    // ==========================================================
     // CREATE TASK
-    // ============================================================
+    // ==========================================================
 
     GoRoute(
       path: '/create-task',
@@ -124,9 +363,9 @@ final GoRouter appRouter = GoRouter(
       },
     ),
 
-    // ============================================================
+    // ==========================================================
     // TEAM
-    // ============================================================
+    // ==========================================================
 
     GoRoute(
       path: '/team',
@@ -135,9 +374,9 @@ final GoRouter appRouter = GoRouter(
       },
     ),
 
-    // ============================================================
+    // ==========================================================
     // CALENDAR
-    // ============================================================
+    // ==========================================================
 
     GoRoute(
       path: '/calendar',
@@ -146,9 +385,9 @@ final GoRouter appRouter = GoRouter(
       },
     ),
 
-    // ============================================================
+    // ==========================================================
     // DOCUMENTS
-    // ============================================================
+    // ==========================================================
 
     GoRoute(
       path: '/documents',
@@ -157,9 +396,9 @@ final GoRouter appRouter = GoRouter(
       },
     ),
 
-    // ============================================================
+    // ==========================================================
     // CREATE / EDIT DOCUMENT
-    // ============================================================
+    // ==========================================================
 
     GoRoute(
       path: '/create-document',
@@ -171,23 +410,36 @@ final GoRouter appRouter = GoRouter(
       },
     ),
 
-    // ============================================================
+    // ==========================================================
     // ATTENDANCE
-    // ============================================================
+    // ==========================================================
 
     GoRoute(
       path: '/attendance',
-      builder: (context, state) => const AttendanceScreen(),
+      builder: (context, state) {
+        return const AttendanceScreen();
+      },
     ),
+
+    // ==========================================================
+    // ATTENDANCE MANAGEMENT
+    // ==========================================================
 
     GoRoute(
       path: '/attendance-management',
-      builder: (context, state) => const AttendanceManagementScreen(),
+      builder: (context, state) {
+        return const AttendanceManagementScreen();
+      },
     ),
 
-    // ============================================================
+    GoRoute(
+      path: '/user-management',
+      builder: (context, state) => const UserManagementScreen(),
+    ),
+
+    // ==========================================================
     // REPORTS
-    // ============================================================
+    // ==========================================================
 
     GoRoute(
       path: '/reports',
@@ -199,9 +451,9 @@ final GoRouter appRouter = GoRouter(
       },
     ),
 
-    // ============================================================
+    // ==========================================================
     // AI ASSISTANT
-    // ============================================================
+    // ==========================================================
 
     GoRoute(
       path: '/ai-assistant',
@@ -213,9 +465,9 @@ final GoRouter appRouter = GoRouter(
       },
     ),
 
-    // ============================================================
+    // ==========================================================
     // SETTINGS
-    // ============================================================
+    // ==========================================================
 
     GoRoute(
       path: '/settings',
@@ -230,7 +482,7 @@ final GoRouter appRouter = GoRouter(
 );
 
 // ============================================================================
-// COMING SOON
+// COMING SOON SCREEN
 // ============================================================================
 
 class _ComingSoonScreen extends StatelessWidget {
@@ -250,7 +502,8 @@ class _ComingSoonScreen extends StatelessWidget {
 
       appBar: AppBar(
         title: Text(title),
-        backgroundColor: Colors.white,
+        backgroundColor:
+            Colors.white,
         foregroundColor:
             const Color(0xff1F2937),
         elevation: 0,
@@ -283,7 +536,9 @@ class _ComingSoonScreen extends StatelessWidget {
                     const Color(0xff0B3D91),
               ),
 
-              const SizedBox(height: 20),
+              const SizedBox(
+                height: 20,
+              ),
 
               Text(
                 title,
@@ -295,7 +550,9 @@ class _ComingSoonScreen extends StatelessWidget {
                 ),
               ),
 
-              const SizedBox(height: 10),
+              const SizedBox(
+                height: 10,
+              ),
 
               const Text(
                 'This module is under development.',
@@ -306,7 +563,9 @@ class _ComingSoonScreen extends StatelessWidget {
                 ),
               ),
 
-              const SizedBox(height: 25),
+              const SizedBox(
+                height: 25,
+              ),
 
               ElevatedButton.icon(
                 onPressed: () {

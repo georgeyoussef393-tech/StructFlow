@@ -9,62 +9,80 @@ class DashboardHeader extends StatefulWidget {
   const DashboardHeader({super.key});
 
   @override
-  State<DashboardHeader> createState() =>
-      _DashboardHeaderState();
+  State<DashboardHeader> createState() => _DashboardHeaderState();
 }
 
-class _DashboardHeaderState
-    extends State<DashboardHeader> {
+class _DashboardHeaderState extends State<DashboardHeader> {
   final TextEditingController _searchController =
       TextEditingController();
 
-  final AppSettings _settings =
-      AppSettings.instance;
-
-  OverlayEntry? _notificationOverlay;
-
   bool _showNotifications = false;
-
-  @override
-  void initState() {
-    super.initState();
-
-    _settings.addListener(_settingsChanged);
-  }
-
-  void _settingsChanged() {
-    if (!mounted) return;
-
-    // لو اللغة اتغيرت والـOverlay مفتوح،
-    // نقفله عشان مايفضلش عالق بلغة قديمة.
-    if (_notificationOverlay != null) {
-      _hideNotificationOverlay();
-      _showNotifications = false;
-    }
-
-    setState(() {});
-  }
+  final LayerLink _notificationLink = LayerLink();
+  OverlayEntry? _notificationEntry;
 
   @override
   void dispose() {
-    _hideNotificationOverlay();
-
-    _settings.removeListener(_settingsChanged);
-
+    _removeNotificationOverlay();
     _searchController.dispose();
-
     super.dispose();
+  }
+
+  void _changeLanguage(AppLanguage language) {
+    AppSettings.instance.setLanguage(language);
+
+    if (_showNotifications) {
+      _removeNotificationOverlay();
+    }
+  }
+
+  void _toggleNotifications() {
+    if (_showNotifications) {
+      _removeNotificationOverlay();
+      return;
+    }
+
+    setState(() => _showNotifications = true);
+    _notificationEntry = OverlayEntry(
+      builder: (context) => CompositedTransformFollower(
+        link: _notificationLink,
+        showWhenUnlinked: false,
+        targetAnchor: Alignment.bottomRight,
+        followerAnchor: Alignment.topRight,
+        offset: const Offset(0, 10),
+        child: _buildNotificationPanel(AppLocalizations.of(context)),
+      ),
+    );
+    Overlay.of(context).insert(_notificationEntry!);
+  }
+
+  void _removeNotificationOverlay() {
+    _notificationEntry?.remove();
+    _notificationEntry = null;
+    if (mounted && _showNotifications) {
+      setState(() => _showNotifications = false);
+    } else {
+      _showNotifications = false;
+    }
+  }
+
+  void _closeNotifications() {
+    if (!_showNotifications) {
+      return;
+    }
+
+    _removeNotificationOverlay();
   }
 
   void _performSearch(String value) {
     final query = value.trim().toLowerCase();
 
-    if (query.isEmpty) return;
+    if (query.isEmpty) {
+      return;
+    }
 
     if (query.contains('project') ||
-        query.contains('projects') ||
+        query.contains('project') ||
         query.contains('مشروع') ||
-        query.contains('مشروعات') ||
         query.contains('projet') ||
         query.contains('项目')) {
       context.go('/projects');
@@ -72,9 +90,7 @@ class _DashboardHeaderState
     }
 
     if (query.contains('task') ||
-        query.contains('tasks') ||
         query.contains('مهمة') ||
-        query.contains('مهام') ||
         query.contains('tâche') ||
         query.contains('任务')) {
       context.go('/tasks');
@@ -82,10 +98,7 @@ class _DashboardHeaderState
     }
 
     if (query.contains('team') ||
-        query.contains('engineer') ||
-        query.contains('engineers') ||
         query.contains('فريق') ||
-        query.contains('مهندس') ||
         query.contains('équipe') ||
         query.contains('团队')) {
       context.go('/team');
@@ -93,517 +106,556 @@ class _DashboardHeaderState
     }
 
     if (query.contains('document') ||
-        query.contains('documents') ||
-        query.contains('drawing') ||
-        query.contains('drawings') ||
-        query.contains('boq') ||
         query.contains('مستند') ||
-        query.contains('رسمة') ||
-        query.contains('رسومات') ||
-        query.contains('文件')) {
+        query.contains('وثيقة') ||
+        query.contains('document') ||
+        query.contains('文档')) {
       context.go('/documents');
       return;
     }
 
     if (query.contains('report') ||
-        query.contains('reports') ||
         query.contains('تقرير') ||
-        query.contains('تقارير') ||
         query.contains('rapport') ||
         query.contains('报告')) {
       context.go('/reports');
       return;
     }
-
-    final l = AppLocalizations.of(context);
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          l.noResultFound(value),
-        ),
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
-  }
-
-  Future<void> _openLanguageMenu() async {
-    final selected =
-        await showMenu<AppLanguage>(
-      context: context,
-      position:
-          _languageMenuPosition(context),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(14),
-      ),
-      elevation: 10,
-      items: [
-        _languagePopupItem(
-          AppLanguage.english,
-          'English',
-        ),
-        _languagePopupItem(
-          AppLanguage.arabic,
-          'العربية',
-        ),
-        _languagePopupItem(
-          AppLanguage.french,
-          'Français',
-        ),
-        _languagePopupItem(
-          AppLanguage.chinese,
-          '中文',
-        ),
-      ],
-    );
-
-    if (!mounted || selected == null) {
-      return;
-    }
-
-    await _settings.setLanguage(selected);
-  }
-
-  RelativeRect _languageMenuPosition(
-    BuildContext context,
-  ) {
-    final RenderBox button =
-        context.findRenderObject() as RenderBox;
-
-    final RenderBox overlay =
-        Overlay.of(context)
-            .context
-            .findRenderObject() as RenderBox;
-
-    final Offset topLeft = button.localToGlobal(
-      Offset.zero,
-      ancestor: overlay,
-    );
-
-    final Size buttonSize = button.size;
-    final Size overlaySize = overlay.size;
-
-    final direction =
-        Directionality.of(context);
-
-    const double menuWidth = 180;
-
-    if (direction == TextDirection.rtl) {
-      final double right =
-          overlaySize.width -
-          topLeft.dx -
-          buttonSize.width;
-
-      return RelativeRect.fromLTRB(
-        overlaySize.width -
-            right -
-            menuWidth,
-        topLeft.dy + buttonSize.height + 8,
-        right,
-        0,
-      );
-    }
-
-    return RelativeRect.fromLTRB(
-      topLeft.dx +
-          buttonSize.width -
-          menuWidth,
-      topLeft.dy + buttonSize.height + 8,
-      overlaySize.width -
-          topLeft.dx -
-          buttonSize.width,
-      0,
-    );
-  }
-
-  PopupMenuItem<AppLanguage>
-      _languagePopupItem(
-    AppLanguage language,
-    String title,
-  ) {
-    final selected =
-        _settings.language == language;
-
-    return PopupMenuItem<AppLanguage>(
-      value: language,
-      child: Row(
-        children: [
-          Icon(
-            selected
-                ? Icons.check_circle_rounded
-                : Icons.language_rounded,
-            size: 20,
-            color: selected
-                ? AppColors.primary
-                : AppColors.textLight,
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              title,
-              style: TextStyle(
-                fontWeight: selected
-                    ? FontWeight.w600
-                    : FontWeight.normal,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showNotificationOverlay() {
-    if (_notificationOverlay != null) {
-      return;
-    }
-
-    final overlay = Overlay.of(context);
-
-    _notificationOverlay = OverlayEntry(
-      builder: (overlayContext) {
-        final direction =
-            Directionality.of(context);
-
-        return Positioned(
-          top: 78,
-          width: 350,
-          right: direction == TextDirection.ltr
-              ? 25
-              : null,
-          left: direction == TextDirection.rtl
-              ? 25
-              : null,
-          child: Material(
-            color: Colors.transparent,
-            child: _buildNotificationPanel(),
-          ),
-        );
-      },
-    );
-
-    overlay.insert(_notificationOverlay!);
-  }
-
-  void _hideNotificationOverlay() {
-    _notificationOverlay?.remove();
-    _notificationOverlay = null;
-  }
-
-  void _toggleNotifications() {
-    if (_showNotifications) {
-      _hideNotificationOverlay();
-
-      setState(() {
-        _showNotifications = false;
-      });
-
-      return;
-    }
-
-    _showNotificationOverlay();
-
-    setState(() {
-      _showNotifications = true;
-    });
   }
 
   @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
 
-    return Container(
-      height: 85,
-      padding: const EdgeInsets.symmetric(
-        horizontal: 30,
-      ),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border(
-          bottom: BorderSide(
-            color: Colors.grey.shade300,
+    return Material(
+      color: Colors.white,
+      elevation: 2,
+      child: SizedBox(
+        height: 76,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(
+            horizontal: 24,
+            vertical: 12,
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: _buildSearchField(l),
+              ),
+
+              const SizedBox(width: 18),
+
+              _buildCompanyButton(),
+
+              const SizedBox(width: 8),
+
+              _buildLanguageButton(l),
+
+              const SizedBox(width: 8),
+
+              _buildNotificationButton(l),
+
+              const SizedBox(width: 8),
+
+              _buildProfileButton(l),
+            ],
           ),
         ),
-      ),
-      child: Row(
-        children: [
-          Text(
-            l.dashboard,
-            style: const TextStyle(
-              fontSize: 28,
-              fontWeight: FontWeight.bold,
-              color: AppColors.textDark,
-            ),
-          ),
-
-          const SizedBox(width: 30),
-
-          Expanded(
-            child: SizedBox(
-              height: 48,
-              child: TextField(
-                controller: _searchController,
-                onSubmitted: _performSearch,
-                decoration: InputDecoration(
-                  hintText: l.searchHint,
-                  prefixIcon: const Icon(
-                    Icons.search_rounded,
-                  ),
-                  suffixIcon:
-                      _searchController.text.isNotEmpty
-                          ? IconButton(
-                              onPressed: () {
-                                _searchController.clear();
-                                setState(() {});
-                              },
-                              icon: const Icon(
-                                Icons.close_rounded,
-                              ),
-                            )
-                          : null,
-                  filled: true,
-                  fillColor: Colors.grey.shade100,
-                  border: OutlineInputBorder(
-                    borderRadius:
-                        BorderRadius.circular(14),
-                    borderSide: BorderSide.none,
-                  ),
-                  enabledBorder:
-                      OutlineInputBorder(
-                    borderRadius:
-                        BorderRadius.circular(14),
-                    borderSide: BorderSide.none,
-                  ),
-                  focusedBorder:
-                      OutlineInputBorder(
-                    borderRadius:
-                        BorderRadius.circular(14),
-                    borderSide:
-                        const BorderSide(
-                      color: AppColors.primary,
-                    ),
-                  ),
-                  contentPadding:
-                      const EdgeInsets.symmetric(
-                    vertical: 0,
-                    horizontal: 20,
-                  ),
-                ),
-                onChanged: (_) {
-                  setState(() {});
-                },
-              ),
-            ),
-          ),
-
-          const SizedBox(width: 25),
-
-          OutlinedButton.icon(
-            onPressed: () {},
-            icon: const Icon(
-              Icons.business,
-            ),
-            label: const Text(
-              'GE&JO Construction',
-            ),
-            style: OutlinedButton.styleFrom(
-              foregroundColor:
-                  AppColors.primary,
-              side: const BorderSide(
-                color: AppColors.primary,
-              ),
-              padding:
-                  const EdgeInsets.symmetric(
-                horizontal: 18,
-                vertical: 16,
-              ),
-              shape:
-                  RoundedRectangleBorder(
-                borderRadius:
-                    BorderRadius.circular(14),
-              ),
-            ),
-          ),
-
-          const SizedBox(width: 10),
-
-          // LANGUAGE
-          IconButton(
-            onPressed: _openLanguageMenu,
-            icon: const Icon(
-              Icons.language_rounded,
-            ),
-            tooltip: l.language,
-          ),
-
-          // THEME BUTTON REMOVED.
-          // Theme is currently fixed to Light.
-
-          // NOTIFICATIONS
-          Stack(
-            clipBehavior: Clip.none,
-            children: [
-              IconButton(
-                onPressed: _toggleNotifications,
-                icon: Icon(
-                  _showNotifications
-                      ? Icons.notifications_rounded
-                      : Icons.notifications_none_rounded,
-                ),
-                tooltip: l.notifications,
-              ),
-              Positioned(
-                right: 8,
-                top: 8,
-                child: Container(
-                  width: 10,
-                  height: 10,
-                  decoration:
-                      const BoxDecoration(
-                    color: AppColors.accent,
-                    shape: BoxShape.circle,
-                  ),
-                ),
-              ),
-            ],
-          ),
-
-          const SizedBox(width: 15),
-
-          const CircleAvatar(
-            radius: 22,
-            backgroundColor: AppColors.primary,
-            child: Text(
-              'G',
-              style: TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-
-          const SizedBox(width: 12),
-
-          Column(
-            mainAxisAlignment:
-                MainAxisAlignment.center,
-            crossAxisAlignment:
-                CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'George',
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.textDark,
-                ),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                l.administrator,
-                style: const TextStyle(
-                  fontSize: 12,
-                  color: AppColors.textLight,
-                ),
-              ),
-            ],
-          ),
-
-          const SizedBox(width: 10),
-        ],
       ),
     );
   }
 
-  Widget _buildNotificationPanel() {
-    final l = AppLocalizations.of(context);
-
-    return Material(
-      elevation: 16,
-      borderRadius:
-          BorderRadius.circular(16),
-      color: Colors.white,
-      child: Container(
-        width: 350,
-        constraints: const BoxConstraints(
-          maxHeight: 430,
+  Widget _buildSearchField(AppLocalizations l) {
+    return ConstrainedBox(
+      constraints: const BoxConstraints(
+        maxWidth: 560,
+      ),
+      child: TextField(
+        controller: _searchController,
+        onSubmitted: _performSearch,
+        textInputAction: TextInputAction.search,
+        decoration: InputDecoration(
+          hintText: l.searchHint,
+          prefixIcon: const Icon(
+            Icons.search_rounded,
+            size: 22,
+          ),
+          suffixIcon: _searchController.text.isNotEmpty
+              ? IconButton(
+                  tooltip: 'Clear',
+                  onPressed: () {
+                    _searchController.clear();
+                    setState(() {});
+                  },
+                  icon: const Icon(
+                    Icons.close_rounded,
+                    size: 18,
+                  ),
+                )
+              : null,
+          filled: true,
+          fillColor: const Color(0xFFF5F7FA),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 16,
+            vertical: 12,
+          ),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(14),
+            borderSide: BorderSide.none,
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(14),
+            borderSide: BorderSide.none,
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(14),
+            borderSide: const BorderSide(
+              color: AppColors.primary,
+              width: 1.2,
+            ),
+          ),
         ),
-        padding: const EdgeInsets.all(18),
+        onChanged: (_) {
+          setState(() {});
+        },
+      ),
+    );
+  }
+
+  Widget _buildCompanyButton() {
+    return Material(
+      color: const Color(0xFFF5F7FA),
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: () {},
+        child: Padding(
+          padding: const EdgeInsets.symmetric(
+            horizontal: 14,
+            vertical: 9,
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 34,
+                height: 34,
+                decoration: BoxDecoration(
+                  color: AppColors.primary,
+                  borderRadius: BorderRadius.circular(9),
+                ),
+                alignment: Alignment.center,
+                child: const Text(
+                  'S',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 17,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 9),
+              const Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment:
+                    CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'StructFlow',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 13,
+                    ),
+                  ),
+                  SizedBox(height: 2),
+                  Text(
+                    'Main Organization',
+                    style: TextStyle(
+                      color: AppColors.textLight,
+                      fontSize: 10,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(width: 8),
+              const Icon(
+                Icons.keyboard_arrow_down_rounded,
+                size: 19,
+                color: AppColors.textLight,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLanguageButton(AppLocalizations l) {
+    final currentLanguage =
+        AppSettings.instance.language;
+
+    return PopupMenuButton<AppLanguage>(
+      tooltip: l.language,
+      onSelected: _changeLanguage,
+
+      // أهم جزء:
+      // القائمة مرتبطة بالزرار نفسه
+      // ولا تعتمد على إحداثيات ثابتة في الشاشة.
+      position: PopupMenuPosition.under,
+
+      offset: const Offset(
+        0,
+        8,
+      ),
+
+      elevation: 8,
+
+      color: Colors.white,
+
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(14),
+      ),
+
+      constraints: const BoxConstraints(
+        minWidth: 190,
+        maxWidth: 220,
+      ),
+
+      itemBuilder: (context) {
+        return [
+          _languageMenuItem(
+            language: AppLanguage.english,
+            title: 'English',
+            subtitle: 'English',
+            icon: Icons.language_rounded,
+            selected:
+                currentLanguage == AppLanguage.english,
+          ),
+          _languageMenuItem(
+            language: AppLanguage.arabic,
+            title: 'العربية',
+            subtitle: 'Arabic',
+            icon: Icons.translate_rounded,
+            selected:
+                currentLanguage == AppLanguage.arabic,
+          ),
+          _languageMenuItem(
+            language: AppLanguage.french,
+            title: 'Français',
+            subtitle: 'French',
+            icon: Icons.language_rounded,
+            selected:
+                currentLanguage == AppLanguage.french,
+          ),
+          _languageMenuItem(
+            language: AppLanguage.chinese,
+            title: '中文',
+            subtitle: 'Chinese',
+            icon: Icons.language_rounded,
+            selected:
+                currentLanguage == AppLanguage.chinese,
+          ),
+        ];
+      },
+
+      child: Container(
+        width: 46,
+        height: 46,
+        decoration: BoxDecoration(
+          color: const Color(0xFFF5F7FA),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: const Icon(
+          Icons.language_rounded,
+          color: AppColors.primary,
+          size: 22,
+        ),
+      ),
+    );
+  }
+
+  PopupMenuItem<AppLanguage> _languageMenuItem({
+    required AppLanguage language,
+    required String title,
+    required String subtitle,
+    required IconData icon,
+    required bool selected,
+  }) {
+    return PopupMenuItem<AppLanguage>(
+      value: language,
+      height: 64,
+      padding: const EdgeInsets.symmetric(
+        horizontal: 10,
+        vertical: 4,
+      ),
+      child: Container(
+        padding: const EdgeInsets.symmetric(
+          horizontal: 8,
+          vertical: 6,
+        ),
+        decoration: BoxDecoration(
+          color: selected
+              ? AppColors.primary.withValues(
+                  alpha: 0.08,
+                )
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 34,
+              height: 34,
+              decoration: BoxDecoration(
+                color: selected
+                    ? AppColors.primary
+                    : const Color(0xFFF1F5F9),
+                borderRadius: BorderRadius.circular(9),
+              ),
+              child: Icon(
+                icon,
+                size: 18,
+                color: selected
+                    ? Colors.white
+                    : AppColors.textLight,
+              ),
+            ),
+
+            const SizedBox(width: 10),
+
+            Expanded(
+              child: Directionality(
+                textDirection:
+                    language == AppLanguage.arabic
+                        ? TextDirection.rtl
+                        : TextDirection.ltr,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment:
+                      CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: selected
+                            ? FontWeight.w700
+                            : FontWeight.w500,
+                        color: AppColors.textDark,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitle,
+                      style: const TextStyle(
+                        fontSize: 10,
+                        color: AppColors.textLight,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+            if (selected)
+              const Icon(
+                Icons.check_circle_rounded,
+                color: AppColors.primary,
+                size: 19,
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildNotificationButton(
+    AppLocalizations l,
+  ) {
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        CompositedTransformTarget(
+          link: _notificationLink,
+          child: Material(
+            color: const Color(0xFFF5F7FA),
+            borderRadius: BorderRadius.circular(12),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(12),
+              onTap: _toggleNotifications,
+              child: SizedBox(
+                width: 46,
+                height: 46,
+                child: Icon(
+                  _showNotifications
+                      ? Icons.notifications_rounded
+                      : Icons.notifications_none_rounded,
+                  color: AppColors.primary,
+                  size: 23,
+                ),
+              ),
+            ),
+          ),
+        ),
+        Positioned(
+          top: -2,
+          right: -2,
+          child: Container(
+            width: 18,
+            height: 18,
+            decoration: BoxDecoration(
+              color: AppColors.danger,
+              shape: BoxShape.circle,
+              border: Border.all(color: Colors.white, width: 2),
+            ),
+            alignment: Alignment.center,
+            child: const Text(
+              '4',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 8,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildNotificationPanel(
+    AppLocalizations l,
+  ) {
+    return Material(
+      elevation: 12,
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        width: 360,
+        constraints: const BoxConstraints(
+          maxHeight: 470,
+        ),
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius:
-              BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: Colors.grey.shade200,
+            color: AppColors.border,
           ),
+          boxShadow: const [
+            BoxShadow(
+              blurRadius: 24,
+              offset: Offset(0, 10),
+              color: Color(0x22000000),
+            ),
+          ],
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment:
-              CrossAxisAlignment.start,
           children: [
-            Row(
-              children: [
-                Expanded(
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                18,
+                16,
+                12,
+                12,
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      l.notifications,
+                      style: const TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w800,
+                        color: AppColors.textDark,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: l.close,
+                    onPressed: _closeNotifications,
+                    icon: const Icon(
+                      Icons.close_rounded,
+                      size: 20,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            const Divider(
+              height: 1,
+            ),
+
+            Flexible(
+              child: ListView(
+                shrinkWrap: true,
+                padding: const EdgeInsets.symmetric(
+                  vertical: 8,
+                ),
+                children: [
+                  _notificationItem(
+                    icon: Icons.check_circle_rounded,
+                    iconColor: AppColors.success,
+                    title: l.boqApproved,
+                    subtitle:
+                        'Capital Site • BOQ has been approved.',
+                    time: '5 min ago',
+                  ),
+                  _notificationItem(
+                    icon: Icons.architecture_rounded,
+                    iconColor: AppColors.primary,
+                    title: l.newDrawingUploaded,
+                    subtitle:
+                        'Tuban Villas • New drawing uploaded.',
+                    time: '18 min ago',
+                  ),
+                  _notificationItem(
+                    icon: Icons.description_rounded,
+                    iconColor: AppColors.warning,
+                    title: l.rfiNeedsResponse,
+                    subtitle:
+                        'Capital Site • RFI requires a response.',
+                    time: '40 min ago',
+                  ),
+                  _notificationItem(
+                    icon: Icons.person_add_alt_1_rounded,
+                    iconColor: AppColors.info,
+                    title: l.newEngineerAdded,
+                    subtitle:
+                        'A new engineer joined the team.',
+                    time: '1 hour ago',
+                  ),
+                ],
+              ),
+            ),
+
+            const Divider(
+              height: 1,
+            ),
+
+            InkWell(
+              borderRadius: const BorderRadius.vertical(
+                bottom: Radius.circular(16),
+              ),
+              onTap: () {
+                setState(() {
+                  _showNotifications = false;
+                });
+              },
+              child: Padding(
+                padding: const EdgeInsets.all(14),
+                child: Center(
                   child: Text(
-                    l.notifications,
+                    l.close,
                     style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight:
-                          FontWeight.bold,
-                      color:
-                          AppColors.textDark,
+                      color: AppColors.primary,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 13,
                     ),
                   ),
                 ),
-                TextButton(
-                  onPressed: () {
-                    _hideNotificationOverlay();
-
-                    setState(() {
-                      _showNotifications =
-                          false;
-                    });
-                  },
-                  child: Text(l.close),
-                ),
-              ],
-            ),
-
-            Divider(
-              color: Colors.grey.shade300,
-            ),
-
-            _notificationItem(
-              Icons
-                  .assignment_turned_in_rounded,
-              l.boqApproved,
-              'New Capital Tower',
-              l.fiveMinutesAgo,
-              AppColors.success,
-            ),
-
-            _notificationItem(
-              Icons.upload_file_rounded,
-              l.newDrawingUploaded,
-              'Cairo Business Park',
-              l.eighteenMinutesAgo,
-              AppColors.info,
-            ),
-
-            _notificationItem(
-              Icons.warning_amber_rounded,
-              l.rfiNeedsResponse,
-              'Smart Village',
-              l.fortyMinutesAgo,
-              AppColors.warning,
-            ),
-
-            _notificationItem(
-              Icons.person_add_alt_1_rounded,
-              l.newEngineerAdded,
-              'Tuban Villas',
-              l.oneHourAgo,
-              Colors.purple,
+              ),
             ),
           ],
         ),
@@ -611,76 +663,155 @@ class _DashboardHeaderState
     );
   }
 
-  Widget _notificationItem(
-    IconData icon,
-    String title,
-    String subtitle,
-    String time,
-    Color color,
-  ) {
-    return Padding(
-      padding:
-          const EdgeInsets.symmetric(
-        vertical: 9,
+  Widget _notificationItem({
+    required IconData icon,
+    required Color iconColor,
+    required String title,
+    required String subtitle,
+    required String time,
+  }) {
+    return InkWell(
+      onTap: () {},
+      child: Padding(
+        padding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 11,
+        ),
+        child: Row(
+          crossAxisAlignment:
+              CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 38,
+              height: 38,
+              decoration: BoxDecoration(
+                color: iconColor.withValues(
+                  alpha: 0.10,
+                ),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(
+                icon,
+                color: iconColor,
+                size: 19,
+              ),
+            ),
+
+            const SizedBox(width: 11),
+
+            Expanded(
+              child: Column(
+                crossAxisAlignment:
+                    CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: AppColors.textDark,
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    subtitle,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: AppColors.textLight,
+                      fontSize: 11,
+                      height: 1.35,
+                    ),
+                  ),
+                  const SizedBox(height: 5),
+                  Text(
+                    time,
+                    style: const TextStyle(
+                      color: AppColors.textLight,
+                      fontSize: 9.5,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
-      child: Row(
-        crossAxisAlignment:
-            CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: 40,
-            height: 40,
-            decoration:
-                BoxDecoration(
-              color:
-                  color.withValues(alpha: .10),
-              shape: BoxShape.circle,
-            ),
-            child: Icon(
-              icon,
-              color: color,
-              size: 20,
-            ),
+    );
+  }
+
+  Widget _buildProfileButton(
+    AppLocalizations l,
+  ) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: () {},
+        child: Padding(
+          padding: const EdgeInsets.symmetric(
+            horizontal: 8,
+            vertical: 5,
           ),
-
-          const SizedBox(width: 10),
-
-          Expanded(
-            child: Column(
-              crossAxisAlignment:
-                  CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: const TextStyle(
-                    fontWeight:
-                        FontWeight.w600,
-                    color:
-                        AppColors.textDark,
-                  ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: AppColors.primary,
+                  borderRadius: BorderRadius.circular(12),
                 ),
-                const SizedBox(height: 3),
-                Text(
-                  subtitle,
-                  style: const TextStyle(
+                alignment: Alignment.center,
+                child: const Text(
+                  'GY',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w800,
                     fontSize: 12,
-                    color:
-                        AppColors.textLight,
                   ),
                 ),
-                const SizedBox(height: 2),
-                Text(
-                  time,
-                  style: const TextStyle(
-                    fontSize: 11,
-                    color:
-                        AppColors.textLight,
+              ),
+
+              const SizedBox(width: 9),
+
+              Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment:
+                    CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'George Youssef',
+                    style: TextStyle(
+                      color: AppColors.textDark,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 12,
+                    ),
                   ),
-                ),
-              ],
-            ),
+                  const SizedBox(height: 2),
+                  Text(
+                    l.administrator,
+                    style: const TextStyle(
+                      color: AppColors.textLight,
+                      fontSize: 10,
+                    ),
+                  ),
+                ],
+              ),
+
+              const SizedBox(width: 5),
+
+              const Icon(
+                Icons.keyboard_arrow_down_rounded,
+                color: AppColors.textLight,
+                size: 19,
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }

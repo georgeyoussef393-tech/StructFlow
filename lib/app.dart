@@ -6,6 +6,12 @@ import 'package:structflow/config/app_theme.dart';
 import 'package:structflow/core/localization/app_localizations.dart';
 import 'package:structflow/core/routing/app_router.dart';
 import 'package:structflow/core/settings/app_settings.dart';
+import 'package:structflow/features/auth/repositories/auth_repository.dart';
+import 'package:structflow/features/attendance/models/attendance_permission_model.dart';
+import 'package:structflow/features/attendance/repositories/attendance_context_repository.dart';
+import 'package:structflow/features/attendance/repositories/attendance_permission_repository.dart';
+import 'package:structflow/features/attendance/repositories/project_geofence_repository.dart';
+import 'package:structflow/features/attendance/repositories/attendance_repository.dart';
 
 class StructFlowApp extends StatefulWidget {
   const StructFlowApp({super.key});
@@ -22,11 +28,52 @@ class _StructFlowAppState extends State<StructFlowApp> {
     super.initState();
 
     _settings.addListener(_settingsChanged);
+    AuthRepository.instance.addListener(_settingsChanged);
     _loadSettings();
   }
 
   Future<void> _loadSettings() async {
-    await _settings.load();
+    await Future.wait([
+      _settings.load(),
+      AuthRepository.instance.load(),
+      AttendanceContextRepository.instance.load(),
+      AttendancePermissionRepository.instance.load(),
+      ProjectGeofenceRepository.instance.load(),
+      AttendanceRepository.instance.load(),
+    ]);
+
+    final user = AuthRepository.instance.currentUser;
+    if (user != null) {
+      final organizationId = 'ORG-${user.organization.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), '-')}';
+      final existing = AttendancePermissionRepository.instance.getForUser(
+        organizationId: organizationId,
+        userId: user.id,
+      );
+      if (existing == null) {
+        if (user.isOwner) {
+          await AttendancePermissionRepository.instance.seedSuperAdmin(
+            AttendancePermissionModel.owner(
+              id: 'PERM-${user.id}',
+              organizationId: organizationId,
+              userId: user.id,
+            ),
+          );
+        } else {
+          await AttendancePermissionRepository.instance.save(
+            actorUserId: user.id,
+            permission: AttendancePermissionModel(
+              id: 'PERM-${user.id}',
+              organizationId: organizationId,
+              userId: user.id,
+              role: user.role,
+              locationAttendanceEnabled: true,
+              permissions: const [],
+              updatedAt: DateTime.now(),
+            ),
+          );
+        }
+      }
+    }
   }
 
   void _settingsChanged() {
@@ -38,6 +85,7 @@ class _StructFlowAppState extends State<StructFlowApp> {
   @override
   void dispose() {
     _settings.removeListener(_settingsChanged);
+    AuthRepository.instance.removeListener(_settingsChanged);
     super.dispose();
   }
 
