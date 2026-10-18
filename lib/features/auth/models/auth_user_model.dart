@@ -4,6 +4,7 @@ class AuthUserModel {
   final String email;
   final String role;
   final String organization;
+  final String organizationId;
   final String status;
   final bool systemOwner;
 
@@ -13,6 +14,7 @@ class AuthUserModel {
     required this.email,
     required this.role,
     required this.organization,
+    this.organizationId = '',
     this.status = 'Approved',
     this.systemOwner = false,
   });
@@ -28,6 +30,7 @@ class AuthUserModel {
     String? email,
     String? role,
     String? organization,
+    String? organizationId,
     String? status,
     bool? systemOwner,
   }) {
@@ -37,28 +40,31 @@ class AuthUserModel {
       email: email ?? this.email,
       role: role ?? this.role,
       organization: organization ?? this.organization,
+      organizationId: organizationId ?? this.organizationId,
       status: status ?? this.status,
       systemOwner: systemOwner ?? this.systemOwner,
     );
   }
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'name': name,
-        'email': email,
-        'role': role,
-        'organization': organization,
-        'status': status,
-        'systemOwner': systemOwner,
-      };
+    'id': id,
+    'name': name,
+    'email': email,
+    'role': role,
+    'organization': organization,
+    'organizationId': organizationId,
+    'status': status,
+    'systemOwner': systemOwner,
+  };
 
   factory AuthUserModel.fromJson(Map<String, dynamic> json) => AuthUserModel(
-        id: json['id'] as String? ?? '',
-        name: json['name'] as String? ?? '',
-        email: (json['email'] as String? ?? '').toLowerCase(),
-        role: json['role'] as String? ?? 'Employee',
-        organization: json['organization'] as String? ?? '',
-        status: json['status'] as String? ?? 'Approved',
-        systemOwner: json['systemOwner'] as bool? ?? false,
-      );
+    id: json['id'] as String? ?? '',
+    name: json['name'] as String? ?? '',
+    email: (json['email'] as String? ?? '').toLowerCase(),
+    role: json['role'] as String? ?? 'Employee',
+    organization: json['organization'] as String? ?? '',
+    organizationId: json['organizationId'] as String? ?? '',
+    status: json['status'] as String? ?? 'Approved',
+    systemOwner: json['systemOwner'] as bool? ?? false,
+  );
 }

@@ -35,8 +35,13 @@ class _OwnerSetupScreenState extends State<OwnerSetupScreen> {
   }
 
   Future<void> _setup() async {
-    if ([name, email, organization, password, confirm]
-        .any((c) => c.text.trim().isEmpty)) {
+    if ([
+      name,
+      email,
+      organization,
+      password,
+      confirm,
+    ].any((c) => c.text.trim().isEmpty)) {
       _message('Complete all required fields.');
       return;
     }
@@ -61,7 +66,8 @@ class _OwnerSetupScreenState extends State<OwnerSetupScreen> {
     }
     final user = AuthRepository.instance.currentUser!;
     if (user.isOwner) {
-      final organizationId = 'ORG-${user.organization.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), '-')}';
+      final organizationId =
+          'ORG-${user.organization.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), '-')}';
       await AttendancePermissionRepository.instance.seedSuperAdmin(
         AttendancePermissionModel.owner(
           id: 'PERM-${user.id}',
@@ -72,10 +78,12 @@ class _OwnerSetupScreenState extends State<OwnerSetupScreen> {
     }
     await AttendanceContextRepository.instance.save(
       AttendanceContextModel(
-        organizationId: 'ORG-${user.organization.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), '-')}',
+        organizationId:
+            'ORG-${user.organization.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), '-')}',
         userId: user.id,
       ),
     );
+    if (!mounted) return;
     context.go('/');
   }
 
@@ -109,7 +117,10 @@ class _OwnerSetupScreenState extends State<OwnerSetupScreen> {
                       const SizedBox(height: 8),
                       const Text(
                         'StructFlow Owner Setup',
-                        style: TextStyle(fontSize: 28, fontWeight: FontWeight.w800),
+                        style: TextStyle(
+                          fontSize: 28,
+                          fontWeight: FontWeight.w800,
+                        ),
                       ),
                       const SizedBox(height: 8),
                       const Text(
@@ -150,9 +161,11 @@ class _OwnerSetupScreenState extends State<OwnerSetupScreen> {
                           prefixIcon: const Icon(Icons.lock_outline),
                           suffixIcon: IconButton(
                             onPressed: () => setState(() => obscure = !obscure),
-                            icon: Icon(obscure
-                                ? Icons.visibility_outlined
-                                : Icons.visibility_off_outlined),
+                            icon: Icon(
+                              obscure
+                                  ? Icons.visibility_outlined
+                                  : Icons.visibility_off_outlined,
+                            ),
                           ),
                         ),
                       ),

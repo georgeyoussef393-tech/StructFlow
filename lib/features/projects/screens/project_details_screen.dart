@@ -2,31 +2,37 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:structflow/core/theme/app_colors.dart';
+import 'package:structflow/core/network/api_auth_client.dart';
+import 'package:structflow/features/auth/repositories/auth_repository.dart';
 import 'package:structflow/features/projects/models/project_model.dart';
 import 'package:structflow/features/projects/repositories/project_repository.dart';
 
 class ProjectDetailsScreen extends StatefulWidget {
   final String projectId;
 
-  const ProjectDetailsScreen({
-    super.key,
-    required this.projectId,
-  });
+  const ProjectDetailsScreen({super.key, required this.projectId});
 
   @override
-  State<ProjectDetailsScreen> createState() =>
-      _ProjectDetailsScreenState();
+  State<ProjectDetailsScreen> createState() => _ProjectDetailsScreenState();
 }
 
-class _ProjectDetailsScreenState
-    extends State<ProjectDetailsScreen> {
-  final ProjectRepository _repository =
-      ProjectRepository.instance;
+class _ProjectDetailsScreenState extends State<ProjectDetailsScreen> {
+  final ProjectRepository _repository = ProjectRepository.instance;
+  ProjectModel? _apiProject;
+  String? _loadError;
+  bool _loadingProject = false;
+
+  bool get _apiMode => AuthRepository.instance.usesApiAuth;
+  bool get _canEditProject =>
+      _apiMode && AuthRepository.instance.currentUser?.isOwner == true;
 
   @override
   void initState() {
     super.initState();
     _repository.addListener(_onProjectChanged);
+    if (_apiMode) {
+      _loadProject();
+    }
   }
 
   @override
@@ -48,9 +54,28 @@ class _ProjectDetailsScreenState
   // ================================================================
 
   ProjectModel? get _project {
-    return _repository.getProjectByCode(
-      widget.projectId,
-    );
+    if (_apiMode) return _apiProject;
+    return _repository.getProjectByCode(widget.projectId);
+  }
+
+  Future<void> _loadProject() async {
+    setState(() {
+      _loadingProject = true;
+      _loadError = null;
+    });
+    try {
+      final project = await _repository.loadProject(widget.projectId);
+      if (mounted) setState(() => _apiProject = project);
+    } on Exception catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _loadError = error is AuthApiException
+            ? error.message
+            : 'Could not load project details. Please try again.';
+      });
+    } finally {
+      if (mounted) setState(() => _loadingProject = false);
+    }
   }
 
   // ================================================================
@@ -59,6 +84,14 @@ class _ProjectDetailsScreenState
 
   @override
   Widget build(BuildContext context) {
+    if (_apiMode && _loadingProject) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+
+    if (_apiMode && _loadError != null) {
+      return _buildProjectLoadError(_loadError!);
+    }
+
     final project = _project;
 
     if (project == null) {
@@ -73,31 +106,40 @@ class _ProjectDetailsScreenState
             final width = constraints.maxWidth;
 
             return SingleChildScrollView(
-              padding: EdgeInsets.all(
-                width < 600 ? 16 : 28,
-              ),
+              padding: EdgeInsets.all(width < 600 ? 16 : 28),
               child: Column(
-                crossAxisAlignment:
-                    CrossAxisAlignment.start,
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _buildHeader(
-                    project,
-                    width,
-                  ),
+                  _buildHeader(project, width),
 
                   const SizedBox(height: 24),
 
-                  _buildOverviewCard(
-                    project,
-                    width,
-                  ),
+                  if (_canEditProject) ...[
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: OutlinedButton.icon(
+                        onPressed: () async {
+                          final updated = await context.push<ProjectModel>(
+                            '/projects/${Uri.encodeComponent(project.id)}/edit',
+                            extra: project,
+                          );
+                          if (updated != null && mounted) {
+                            setState(() => _apiProject = updated);
+                          }
+                        },
+                        icon: const Icon(Icons.edit_outlined),
+                        label: const Text('Edit project'),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                  ],
 
-                  const SizedBox(height: 20),
+                  if (!_apiMode) ...[
+                    _buildOverviewCard(project, width),
+                    const SizedBox(height: 20),
+                  ],
 
-                  _buildMainContent(
-                    project,
-                    width,
-                  ),
+                  _buildMainContent(project, width),
                 ],
               ),
             );
@@ -111,43 +153,29 @@ class _ProjectDetailsScreenState
   // HEADER
   // ================================================================
 
-  Widget _buildHeader(
-    ProjectModel project,
-    double width,
-  ) {
+  Widget _buildHeader(ProjectModel project, double width) {
     final isMobile = width < 700;
 
     if (isMobile) {
       return Column(
-        crossAxisAlignment:
-            CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           TextButton.icon(
             onPressed: () {
               context.go('/projects');
             },
-            icon: const Icon(
-              Icons.arrow_back_rounded,
-            ),
-            label: const Text(
-              'Back to Projects',
-            ),
+            icon: const Icon(Icons.arrow_back_rounded),
+            label: const Text('Back to Projects'),
             style: TextButton.styleFrom(
-              foregroundColor:
-                  AppColors.primary,
-              padding:
-                  const EdgeInsets.symmetric(
-                horizontal: 0,
-                vertical: 4,
-              ),
+              foregroundColor: AppColors.primary,
+              padding: const EdgeInsets.symmetric(horizontal: 0, vertical: 4),
             ),
           ),
 
           const SizedBox(height: 12),
 
           Row(
-            crossAxisAlignment:
-                CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               _buildProjectIcon(project),
 
@@ -155,18 +183,14 @@ class _ProjectDetailsScreenState
 
               Expanded(
                 child: Column(
-                  crossAxisAlignment:
-                      CrossAxisAlignment.start,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       project.name,
-                      style:
-                          const TextStyle(
+                      style: const TextStyle(
                         fontSize: 25,
-                        fontWeight:
-                            FontWeight.bold,
-                        color:
-                            AppColors.textDark,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.textDark,
                       ),
                     ),
 
@@ -174,19 +198,15 @@ class _ProjectDetailsScreenState
 
                     Text(
                       project.code,
-                      style:
-                          const TextStyle(
+                      style: const TextStyle(
                         fontSize: 13,
-                        color:
-                            AppColors.textLight,
+                        color: AppColors.textLight,
                       ),
                     ),
 
                     const SizedBox(height: 10),
 
-                    _buildStatusBadge(
-                      project.status,
-                    ),
+                    _buildStatusBadge(project.status),
                   ],
                 ),
               ),
@@ -197,17 +217,14 @@ class _ProjectDetailsScreenState
     }
 
     return Row(
-      crossAxisAlignment:
-          CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         IconButton(
           onPressed: () {
             context.go('/projects');
           },
           tooltip: 'Back to Projects',
-          icon: const Icon(
-            Icons.arrow_back_rounded,
-          ),
+          icon: const Icon(Icons.arrow_back_rounded),
         ),
 
         const SizedBox(width: 8),
@@ -218,18 +235,14 @@ class _ProjectDetailsScreenState
 
         Expanded(
           child: Column(
-            crossAxisAlignment:
-                CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
                 project.name,
-                style:
-                    const TextStyle(
+                style: const TextStyle(
                   fontSize: 30,
-                  fontWeight:
-                      FontWeight.bold,
-                  color:
-                      AppColors.textDark,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.textDark,
                 ),
               ),
 
@@ -237,20 +250,16 @@ class _ProjectDetailsScreenState
 
               Text(
                 project.code,
-                style:
-                    const TextStyle(
+                style: const TextStyle(
                   fontSize: 14,
-                  color:
-                      AppColors.textLight,
+                  color: AppColors.textLight,
                 ),
               ),
             ],
           ),
         ),
 
-        _buildStatusBadge(
-          project.status,
-        ),
+        _buildStatusBadge(project.status),
       ],
     );
   }
@@ -259,24 +268,15 @@ class _ProjectDetailsScreenState
   // PROJECT ICON
   // ================================================================
 
-  Widget _buildProjectIcon(
-    ProjectModel project,
-  ) {
+  Widget _buildProjectIcon(ProjectModel project) {
     return Container(
       width: 58,
       height: 58,
       decoration: BoxDecoration(
-        color: project.color.withValues(
-          alpha: .10,
-        ),
-        borderRadius:
-            BorderRadius.circular(16),
+        color: project.color.withValues(alpha: .10),
+        borderRadius: BorderRadius.circular(16),
       ),
-      child: Icon(
-        project.icon,
-        color: project.color,
-        size: 29,
-      ),
+      child: Icon(project.icon, color: project.color, size: 29),
     );
   }
 
@@ -284,19 +284,13 @@ class _ProjectDetailsScreenState
   // OVERVIEW
   // ================================================================
 
-  Widget _buildOverviewCard(
-    ProjectModel project,
-    double width,
-  ) {
+  Widget _buildOverviewCard(ProjectModel project, double width) {
     return Container(
       width: double.infinity,
-      padding: EdgeInsets.all(
-        width < 600 ? 18 : 24,
-      ),
+      padding: EdgeInsets.all(width < 600 ? 18 : 24),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius:
-            BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(20),
         boxShadow: const [
           BoxShadow(
             color: Colors.black12,
@@ -306,8 +300,7 @@ class _ProjectDetailsScreenState
         ],
       ),
       child: Column(
-        crossAxisAlignment:
-            CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
@@ -316,10 +309,8 @@ class _ProjectDetailsScreenState
                   'Project Overview',
                   style: TextStyle(
                     fontSize: 20,
-                    fontWeight:
-                        FontWeight.bold,
-                    color:
-                        AppColors.textDark,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.textDark,
                   ),
                 ),
               ),
@@ -328,10 +319,8 @@ class _ProjectDetailsScreenState
                 '${(project.progress * 100).round()}%',
                 style: TextStyle(
                   fontSize: 22,
-                  fontWeight:
-                      FontWeight.bold,
-                  color:
-                      project.color,
+                  fontWeight: FontWeight.bold,
+                  color: project.color,
                 ),
               ),
             ],
@@ -342,24 +331,12 @@ class _ProjectDetailsScreenState
           Row(
             children: [
               Expanded(
-                child:
-                    LinearProgressIndicator(
-                  value:
-                      project.progress,
+                child: LinearProgressIndicator(
+                  value: project.progress,
                   minHeight: 10,
-                  borderRadius:
-                      BorderRadius.circular(
-                    20,
-                  ),
-                  backgroundColor:
-                      project.color.withValues(
-                    alpha: .10,
-                  ),
-                  valueColor:
-                      AlwaysStoppedAnimation<
-                          Color>(
-                    project.color,
-                  ),
+                  borderRadius: BorderRadius.circular(20),
+                  backgroundColor: project.color.withValues(alpha: .10),
+                  valueColor: AlwaysStoppedAnimation<Color>(project.color),
                 ),
               ),
             ],
@@ -368,100 +345,71 @@ class _ProjectDetailsScreenState
           const SizedBox(height: 10),
 
           Text(
-            _progressLabel(
-              project.progress,
-            ),
-            style:
-                const TextStyle(
-              fontSize: 12,
-              color:
-                  AppColors.textLight,
-            ),
+            _progressLabel(project.progress),
+            style: const TextStyle(fontSize: 12, color: AppColors.textLight),
           ),
 
           const SizedBox(height: 24),
 
-          _buildOverviewGrid(
-            project,
-            width,
-          ),
+          _buildOverviewGrid(project, width),
         ],
       ),
     );
   }
 
-  Widget _buildOverviewGrid(
-    ProjectModel project,
-    double width,
-  ) {
+  Widget _buildOverviewGrid(ProjectModel project, double width) {
     final columns = width >= 1100
         ? 4
         : width >= 700
-            ? 2
-            : 1;
+        ? 2
+        : 1;
 
     final items = [
       _OverviewItem(
         title: 'Client',
         value: project.client,
-        icon:
-            Icons.person_outline_rounded,
+        icon: Icons.person_outline_rounded,
       ),
       _OverviewItem(
         title: 'Location',
         value: project.location,
-        icon:
-            Icons.location_on_outlined,
+        icon: Icons.location_on_outlined,
       ),
       _OverviewItem(
         title: 'Budget',
         value: project.budget,
-        icon:
-            Icons.account_balance_wallet_outlined,
+        icon: Icons.account_balance_wallet_outlined,
       ),
       _OverviewItem(
         title: 'Team Members',
         value: '${project.team}',
-        icon:
-            Icons.people_outline_rounded,
+        icon: Icons.people_outline_rounded,
       ),
     ];
 
     return GridView.builder(
       shrinkWrap: true,
-      physics:
-          const NeverScrollableScrollPhysics(),
+      physics: const NeverScrollableScrollPhysics(),
       itemCount: items.length,
-      gridDelegate:
-          SliverGridDelegateWithFixedCrossAxisCount(
+      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: columns,
         crossAxisSpacing: 14,
         mainAxisSpacing: 14,
         mainAxisExtent: 100,
       ),
       itemBuilder: (context, index) {
-        return _buildOverviewItem(
-          items[index],
-        );
+        return _buildOverviewItem(items[index]);
       },
     );
   }
 
-  Widget _buildOverviewItem(
-    _OverviewItem item,
-  ) {
+  Widget _buildOverviewItem(_OverviewItem item) {
     return Container(
-      padding:
-          const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color:
-            const Color(0xffF8FAFC),
-        borderRadius:
-            BorderRadius.circular(14),
-        border: Border.all(
-          color:
-              Colors.grey.shade200,
-        ),
+        color: const Color(0xffF8FAFC),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.grey.shade200),
       ),
       child: Row(
         children: [
@@ -469,37 +417,24 @@ class _ProjectDetailsScreenState
             width: 42,
             height: 42,
             decoration: BoxDecoration(
-              color:
-                  AppColors.primary.withValues(
-                alpha: .08,
-              ),
-              borderRadius:
-                  BorderRadius.circular(12),
+              color: AppColors.primary.withValues(alpha: .08),
+              borderRadius: BorderRadius.circular(12),
             ),
-            child: Icon(
-              item.icon,
-              size: 21,
-              color:
-                  AppColors.primary,
-            ),
+            child: Icon(item.icon, size: 21, color: AppColors.primary),
           ),
 
           const SizedBox(width: 12),
 
           Expanded(
             child: Column(
-              mainAxisAlignment:
-                  MainAxisAlignment.center,
-              crossAxisAlignment:
-                  CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   item.title,
-                  style:
-                      const TextStyle(
+                  style: const TextStyle(
                     fontSize: 11,
-                    color:
-                        AppColors.textLight,
+                    color: AppColors.textLight,
                   ),
                 ),
 
@@ -508,15 +443,11 @@ class _ProjectDetailsScreenState
                 Text(
                   item.value,
                   maxLines: 1,
-                  overflow:
-                      TextOverflow.ellipsis,
-                  style:
-                      const TextStyle(
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
                     fontSize: 14,
-                    fontWeight:
-                        FontWeight.w600,
-                    color:
-                        AppColors.textDark,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textDark,
                   ),
                 ),
               ],
@@ -531,18 +462,16 @@ class _ProjectDetailsScreenState
   // MAIN CONTENT
   // ================================================================
 
-  Widget _buildMainContent(
-    ProjectModel project,
-    double width,
-  ) {
+  Widget _buildMainContent(ProjectModel project, double width) {
+    if (_apiMode) {
+      return _buildProjectInformation(project);
+    }
     final isMobile = width < 900;
 
     if (isMobile) {
       return Column(
         children: [
-          _buildProjectInformation(
-            project,
-          ),
+          _buildProjectInformation(project),
 
           const SizedBox(height: 20),
 
@@ -552,23 +481,13 @@ class _ProjectDetailsScreenState
     }
 
     return Row(
-      crossAxisAlignment:
-          CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Expanded(
-          flex: 2,
-          child:
-              _buildProjectInformation(
-            project,
-          ),
-        ),
+        Expanded(flex: 2, child: _buildProjectInformation(project)),
 
         const SizedBox(width: 20),
 
-        Expanded(
-          child:
-              _buildQuickActions(),
-        ),
+        Expanded(child: _buildQuickActions()),
       ],
     );
   }
@@ -577,17 +496,13 @@ class _ProjectDetailsScreenState
   // PROJECT INFORMATION
   // ================================================================
 
-  Widget _buildProjectInformation(
-    ProjectModel project,
-  ) {
+  Widget _buildProjectInformation(ProjectModel project) {
     return Container(
       width: double.infinity,
-      padding:
-          const EdgeInsets.all(22),
+      padding: const EdgeInsets.all(22),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius:
-            BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(20),
         boxShadow: const [
           BoxShadow(
             color: Colors.black12,
@@ -597,92 +512,56 @@ class _ProjectDetailsScreenState
         ],
       ),
       child: Column(
-        crossAxisAlignment:
-            CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text(
             'Project Information',
             style: TextStyle(
               fontSize: 19,
-              fontWeight:
-                  FontWeight.bold,
-              color:
-                  AppColors.textDark,
+              fontWeight: FontWeight.bold,
+              color: AppColors.textDark,
             ),
           ),
 
           const SizedBox(height: 20),
 
-          _detailRow(
-            'Project Name',
-            project.name,
-          ),
-
-          _detailRow(
-            'Project Code',
-            project.code,
-          ),
-
-          _detailRow(
-            'Client',
-            project.client,
-          ),
-
-          _detailRow(
-            'Location',
-            project.location,
-          ),
-
-          _detailRow(
-            'Status',
-            project.status,
-          ),
-
-          _detailRow(
-            'Budget',
-            project.budget,
-          ),
-
-          _detailRow(
-            'Team Size',
-            '${project.team} members',
-          ),
+          _detailRow('Project Name', project.name),
+          _detailRow('Project Code', project.code),
+          if (project.client.isNotEmpty) _detailRow('Client', project.client),
+          _detailRow('Project Type', project.projectType),
+          _detailRow('Location', project.location),
+          _detailRow('Status', project.status),
+          if (project.budget.isNotEmpty) _detailRow('Budget', project.budget),
+          if (project.plannedStartDate != null)
+            _detailRow(
+              'Planned Start',
+              project.plannedStartDate!.toIso8601String().split('T').first,
+            ),
+          if (project.plannedEndDate != null)
+            _detailRow(
+              'Planned End',
+              project.plannedEndDate!.toIso8601String().split('T').first,
+            ),
+          if (!_apiMode) _detailRow('Team Size', '${project.team} members'),
         ],
       ),
     );
   }
 
-  Widget _detailRow(
-    String title,
-    String value,
-  ) {
+  Widget _detailRow(String title, String value) {
     return Container(
-      padding:
-          const EdgeInsets.symmetric(
-        vertical: 13,
-      ),
+      padding: const EdgeInsets.symmetric(vertical: 13),
       decoration: BoxDecoration(
-        border: Border(
-          bottom: BorderSide(
-            color:
-                Colors.grey.shade200,
-          ),
-        ),
+        border: Border(bottom: BorderSide(color: Colors.grey.shade200)),
       ),
       child: Row(
-        crossAxisAlignment:
-            CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           SizedBox(
             width: 125,
             child: Text(
               title,
-              style:
-                  const TextStyle(
-                fontSize: 12,
-                color:
-                    AppColors.textLight,
-              ),
+              style: const TextStyle(fontSize: 12, color: AppColors.textLight),
             ),
           ),
 
@@ -691,13 +570,10 @@ class _ProjectDetailsScreenState
           Expanded(
             child: Text(
               value,
-              style:
-                  const TextStyle(
+              style: const TextStyle(
                 fontSize: 13,
-                fontWeight:
-                    FontWeight.w600,
-                color:
-                    AppColors.textDark,
+                fontWeight: FontWeight.w600,
+                color: AppColors.textDark,
               ),
             ),
           ),
@@ -713,12 +589,10 @@ class _ProjectDetailsScreenState
   Widget _buildQuickActions() {
     return Container(
       width: double.infinity,
-      padding:
-          const EdgeInsets.all(22),
+      padding: const EdgeInsets.all(22),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius:
-            BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(20),
         boxShadow: const [
           BoxShadow(
             color: Colors.black12,
@@ -728,31 +602,25 @@ class _ProjectDetailsScreenState
         ],
       ),
       child: Column(
-        crossAxisAlignment:
-            CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text(
             'Quick Actions',
             style: TextStyle(
               fontSize: 19,
-              fontWeight:
-                  FontWeight.bold,
-              color:
-                  AppColors.textDark,
+              fontWeight: FontWeight.bold,
+              color: AppColors.textDark,
             ),
           ),
 
           const SizedBox(height: 18),
 
           _actionButton(
-            icon:
-                Icons.task_alt_rounded,
+            icon: Icons.task_alt_rounded,
             title: 'Project Tasks',
-            subtitle:
-                'View and manage project tasks',
+            subtitle: 'View and manage project tasks',
             onPressed: () {
-              final project =
-                  _project;
+              final project = _project;
 
               if (project == null) {
                 return;
@@ -767,11 +635,9 @@ class _ProjectDetailsScreenState
           const SizedBox(height: 10),
 
           _actionButton(
-            icon:
-                Icons.description_outlined,
+            icon: Icons.description_outlined,
             title: 'Project Documents',
-            subtitle:
-                'View project documents',
+            subtitle: 'View project documents',
             onPressed: () {
               context.go('/documents');
             },
@@ -780,11 +646,9 @@ class _ProjectDetailsScreenState
           const SizedBox(height: 10),
 
           _actionButton(
-            icon:
-                Icons.people_outline_rounded,
+            icon: Icons.people_outline_rounded,
             title: 'Project Team',
-            subtitle:
-                'View team members',
+            subtitle: 'View team members',
             onPressed: () {
               context.go('/team');
             },
@@ -793,11 +657,9 @@ class _ProjectDetailsScreenState
           const SizedBox(height: 10),
 
           _actionButton(
-            icon:
-                Icons.calendar_month_outlined,
+            icon: Icons.calendar_month_outlined,
             title: 'Project Calendar',
-            subtitle:
-                'View project schedule',
+            subtitle: 'View project schedule',
             onPressed: () {
               context.go('/calendar');
             },
@@ -825,58 +687,37 @@ class _ProjectDetailsScreenState
     required VoidCallback onPressed,
   }) {
     return Material(
-      color:
-          const Color(0xffF8FAFC),
-      borderRadius:
-          BorderRadius.circular(14),
+      color: const Color(0xffF8FAFC),
+      borderRadius: BorderRadius.circular(14),
       child: InkWell(
         onTap: onPressed,
-        borderRadius:
-            BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(14),
         child: Padding(
-          padding:
-              const EdgeInsets.all(14),
+          padding: const EdgeInsets.all(14),
           child: Row(
             children: [
               Container(
                 width: 42,
                 height: 42,
-                decoration:
-                    BoxDecoration(
-                  color:
-                      AppColors.primary
-                          .withValues(
-                    alpha: .08,
-                  ),
-                  borderRadius:
-                      BorderRadius.circular(
-                    12,
-                  ),
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withValues(alpha: .08),
+                  borderRadius: BorderRadius.circular(12),
                 ),
-                child: Icon(
-                  icon,
-                  color:
-                      AppColors.primary,
-                  size: 21,
-                ),
+                child: Icon(icon, color: AppColors.primary, size: 21),
               ),
 
               const SizedBox(width: 12),
 
               Expanded(
                 child: Column(
-                  crossAxisAlignment:
-                      CrossAxisAlignment.start,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       title,
-                      style:
-                          const TextStyle(
+                      style: const TextStyle(
                         fontSize: 13,
-                        fontWeight:
-                            FontWeight.w600,
-                        color:
-                            AppColors.textDark,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.textDark,
                       ),
                     ),
 
@@ -885,13 +726,10 @@ class _ProjectDetailsScreenState
                     Text(
                       subtitle,
                       maxLines: 1,
-                      overflow:
-                          TextOverflow.ellipsis,
-                      style:
-                          const TextStyle(
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
                         fontSize: 11,
-                        color:
-                            AppColors.textLight,
+                        color: AppColors.textLight,
                       ),
                     ),
                   ],
@@ -899,11 +737,9 @@ class _ProjectDetailsScreenState
               ),
 
               const Icon(
-                Icons
-                    .arrow_forward_ios_rounded,
+                Icons.arrow_forward_ios_rounded,
                 size: 13,
-                color:
-                    AppColors.textLight,
+                color: AppColors.textLight,
               ),
             ],
           ),
@@ -916,40 +752,27 @@ class _ProjectDetailsScreenState
   // STATUS
   // ================================================================
 
-  Widget _buildStatusBadge(
-    String status,
-  ) {
-    final color =
-        _statusColor(status);
+  Widget _buildStatusBadge(String status) {
+    final color = _statusColor(status);
 
     return Container(
-      padding:
-          const EdgeInsets.symmetric(
-        horizontal: 11,
-        vertical: 6,
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
       decoration: BoxDecoration(
-        color: color.withValues(
-          alpha: .10,
-        ),
-        borderRadius:
-            BorderRadius.circular(20),
+        color: color.withValues(alpha: .10),
+        borderRadius: BorderRadius.circular(20),
       ),
       child: Text(
         status,
         style: TextStyle(
           color: color,
           fontSize: 11,
-          fontWeight:
-              FontWeight.bold,
+          fontWeight: FontWeight.bold,
         ),
       ),
     );
   }
 
-  Color _statusColor(
-    String status,
-  ) {
+  Color _statusColor(String status) {
     switch (status) {
       case 'Active':
         return Colors.green;
@@ -966,9 +789,7 @@ class _ProjectDetailsScreenState
   // PROGRESS LABEL
   // ================================================================
 
-  String _progressLabel(
-    double progress,
-  ) {
+  String _progressLabel(double progress) {
     if (progress >= .90) {
       return 'Project is nearly complete.';
     }
@@ -990,22 +811,17 @@ class _ProjectDetailsScreenState
 
   Widget _buildProjectNotFound() {
     return Scaffold(
-      backgroundColor:
-          const Color(0xffF5F7FB),
+      backgroundColor: const Color(0xffF5F7FB),
       body: SafeArea(
         child: Center(
           child: Padding(
-            padding:
-                const EdgeInsets.all(24),
+            padding: const EdgeInsets.all(24),
             child: Container(
               width: 460,
-              padding:
-                  const EdgeInsets.all(32),
-              decoration:
-                  BoxDecoration(
+              padding: const EdgeInsets.all(32),
+              decoration: BoxDecoration(
                 color: Colors.white,
-                borderRadius:
-                    BorderRadius.circular(24),
+                borderRadius: BorderRadius.circular(24),
                 boxShadow: const [
                   BoxShadow(
                     color: Colors.black12,
@@ -1015,26 +831,17 @@ class _ProjectDetailsScreenState
                 ],
               ),
               child: Column(
-                mainAxisSize:
-                    MainAxisSize.min,
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   Container(
                     width: 72,
                     height: 72,
-                    decoration:
-                        BoxDecoration(
-                      color:
-                          Colors.red.withValues(
-                        alpha: .08,
-                      ),
-                      borderRadius:
-                          BorderRadius.circular(
-                        20,
-                      ),
+                    decoration: BoxDecoration(
+                      color: Colors.red.withValues(alpha: .08),
+                      borderRadius: BorderRadius.circular(20),
                     ),
                     child: const Icon(
-                      Icons
-                          .folder_off_rounded,
+                      Icons.folder_off_rounded,
                       color: Colors.red,
                       size: 36,
                     ),
@@ -1044,14 +851,11 @@ class _ProjectDetailsScreenState
 
                   const Text(
                     'Project Not Found',
-                    textAlign:
-                        TextAlign.center,
+                    textAlign: TextAlign.center,
                     style: TextStyle(
                       fontSize: 24,
-                      fontWeight:
-                          FontWeight.bold,
-                      color:
-                          AppColors.textDark,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.textDark,
                     ),
                   ),
 
@@ -1059,13 +863,10 @@ class _ProjectDetailsScreenState
 
                   Text(
                     'No project was found with code "${widget.projectId}".',
-                    textAlign:
-                        TextAlign.center,
-                    style:
-                        const TextStyle(
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
                       fontSize: 13,
-                      color:
-                          AppColors.textLight,
+                      color: AppColors.textLight,
                     ),
                   ),
 
@@ -1073,41 +874,77 @@ class _ProjectDetailsScreenState
 
                   ElevatedButton.icon(
                     onPressed: () {
-                      context.go(
-                        '/projects',
-                      );
+                      context.go('/projects');
                     },
-                    icon: const Icon(
-                      Icons
-                          .arrow_back_rounded,
-                    ),
-                    label: const Text(
-                      'Back to Projects',
-                    ),
-                    style:
-                        ElevatedButton.styleFrom(
-                      backgroundColor:
-                          AppColors.primary,
-                      foregroundColor:
-                          Colors.white,
+                    icon: const Icon(Icons.arrow_back_rounded),
+                    label: const Text('Back to Projects'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primary,
+                      foregroundColor: Colors.white,
                       elevation: 0,
-                      padding:
-                          const EdgeInsets
-                              .symmetric(
+                      padding: const EdgeInsets.symmetric(
                         horizontal: 20,
                         vertical: 14,
                       ),
-                      shape:
-                          RoundedRectangleBorder(
-                        borderRadius:
-                            BorderRadius.circular(
-                          12,
-                        ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
                       ),
                     ),
                   ),
                 ],
               ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildProjectLoadError(String message) {
+    return Scaffold(
+      backgroundColor: const Color(0xffF5F7FB),
+      body: SafeArea(
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(
+                  Icons.cloud_off_rounded,
+                  color: Colors.red,
+                  size: 48,
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  'Could not load project',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.textDark,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  message,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(color: AppColors.textLight),
+                ),
+                const SizedBox(height: 20),
+                Wrap(
+                  spacing: 12,
+                  children: [
+                    OutlinedButton(
+                      onPressed: () => context.go('/projects'),
+                      child: const Text('Back to projects'),
+                    ),
+                    ElevatedButton(
+                      onPressed: _loadProject,
+                      child: const Text('Retry'),
+                    ),
+                  ],
+                ),
+              ],
             ),
           ),
         ),

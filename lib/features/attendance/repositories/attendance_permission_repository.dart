@@ -5,25 +5,18 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:structflow/features/attendance/models/attendance_permission_model.dart';
 
-class AttendancePermissionRepository
-    extends ChangeNotifier {
+class AttendancePermissionRepository extends ChangeNotifier {
   AttendancePermissionRepository._();
 
-  static const String _storageKey =
-      'structflow_attendance_permissions';
+  static const String _storageKey = 'structflow_attendance_permissions';
 
-  static final AttendancePermissionRepository
-      instance =
+  static final AttendancePermissionRepository instance =
       AttendancePermissionRepository._();
 
-  final List<AttendancePermissionModel>
-      _permissions = [];
+  final List<AttendancePermissionModel> _permissions = [];
 
-  List<AttendancePermissionModel>
-      get permissions =>
-          List.unmodifiable(
-            _permissions,
-          );
+  List<AttendancePermissionModel> get permissions =>
+      List.unmodifiable(_permissions);
 
   // ============================================================
   // FIND USER
@@ -33,10 +26,8 @@ class AttendancePermissionRepository
     required String organizationId,
     required String userId,
   }) {
-    for (final permission
-        in _permissions) {
-      if (permission.organizationId ==
-              organizationId &&
+    for (final permission in _permissions) {
+      if (permission.organizationId == organizationId &&
           permission.userId == userId) {
         return permission;
       }
@@ -51,12 +42,10 @@ class AttendancePermissionRepository
 
   Future<bool> save({
     required String actorUserId,
-    required AttendancePermissionModel
-        permission,
+    required AttendancePermissionModel permission,
   }) async {
     final actor = getForUser(
-      organizationId:
-          permission.organizationId,
+      organizationId: permission.organizationId,
       userId: actorUserId,
     );
 
@@ -74,8 +63,7 @@ class AttendancePermissionRepository
      * Owner can manage everyone.
      */
 
-    if (!actor.isOwner &&
-        !permission.isEmployee) {
+    if (!actor.isOwner && !permission.isEmployee) {
       return false;
     }
 
@@ -84,27 +72,20 @@ class AttendancePermissionRepository
      * Owner account.
      */
 
-    if (!actor.isOwner &&
-        permission.isOwner) {
+    if (!actor.isOwner && permission.isOwner) {
       return false;
     }
 
-    final index =
-        _permissions.indexWhere(
+    final index = _permissions.indexWhere(
       (item) =>
-          item.organizationId ==
-              permission.organizationId &&
-          item.userId ==
-              permission.userId,
+          item.organizationId == permission.organizationId &&
+          item.userId == permission.userId,
     );
 
     if (index == -1) {
-      _permissions.add(
-        permission,
-      );
+      _permissions.add(permission);
     } else {
-      _permissions[index] =
-          permission;
+      _permissions[index] = permission;
     }
 
     await _persist();
@@ -118,30 +99,37 @@ class AttendancePermissionRepository
   // CREATE / INITIALIZE OWNER
   // ============================================================
 
-  Future<void> seedSuperAdmin(
-    AttendancePermissionModel
-        permission,
-  ) async {
-    final index =
-        _permissions.indexWhere(
+  Future<void> seedSuperAdmin(AttendancePermissionModel permission) async {
+    final index = _permissions.indexWhere(
       (item) =>
-          item.organizationId ==
-              permission.organizationId &&
-          item.userId ==
-              permission.userId,
+          item.organizationId == permission.organizationId &&
+          item.userId == permission.userId,
     );
 
     if (index == -1) {
-      _permissions.add(
-        permission,
-      );
+      _permissions.add(permission);
     } else {
-      _permissions[index] =
-          permission;
+      _permissions[index] = permission;
     }
 
     await _persist();
 
+    notifyListeners();
+  }
+
+  Future<void> ensureUserPermission({
+    required AttendancePermissionModel permission,
+  }) async {
+    if (getForUser(
+          organizationId: permission.organizationId,
+          userId: permission.userId,
+        ) !=
+        null) {
+      return;
+    }
+
+    _permissions.add(permission);
+    await _persist();
     notifyListeners();
   }
 
@@ -155,8 +143,7 @@ class AttendancePermissionRepository
     required String userId,
   }) async {
     final actor = getForUser(
-      organizationId:
-          organizationId,
+      organizationId: organizationId,
       userId: actorUserId,
     );
 
@@ -181,26 +168,18 @@ class AttendancePermissionRepository
      * Only Owner can remove another manager.
      */
 
-    final target = getForUser(
-      organizationId:
-          organizationId,
-      userId: userId,
-    );
+    final target = getForUser(organizationId: organizationId, userId: userId);
 
     if (target == null) {
       return false;
     }
 
-    if (!actor.isOwner &&
-        !target.isEmployee) {
+    if (!actor.isOwner && !target.isEmployee) {
       return false;
     }
 
     _permissions.removeWhere(
-      (item) =>
-          item.organizationId ==
-              organizationId &&
-          item.userId == userId,
+      (item) => item.organizationId == organizationId && item.userId == userId,
     );
 
     await _persist();
@@ -219,19 +198,13 @@ class AttendancePermissionRepository
     required String userId,
     required String permission,
   }) {
-    final user = getForUser(
-      organizationId:
-          organizationId,
-      userId: userId,
-    );
+    final user = getForUser(organizationId: organizationId, userId: userId);
 
     if (user == null) {
       return false;
     }
 
-    return user.hasPermission(
-      permission,
-    );
+    return user.hasPermission(permission);
   }
 
   // ============================================================
@@ -239,35 +212,23 @@ class AttendancePermissionRepository
   // ============================================================
 
   Future<void> load() async {
-    final preferences =
-        await SharedPreferences
-            .getInstance();
+    final preferences = await SharedPreferences.getInstance();
 
-    final value =
-        preferences.getString(
-      _storageKey,
-    );
+    final value = preferences.getString(_storageKey);
 
-    if (value == null ||
-        value.isEmpty) {
+    if (value == null || value.isEmpty) {
       return;
     }
 
     try {
-      final decoded =
-          jsonDecode(value)
-              as List<dynamic>;
+      final decoded = jsonDecode(value) as List<dynamic>;
 
       _permissions
         ..clear()
         ..addAll(
           decoded.map(
-            (item) =>
-                AttendancePermissionModel
-                    .fromJson(
-              Map<String, dynamic>.from(
-                item as Map,
-              ),
+            (item) => AttendancePermissionModel.fromJson(
+              Map<String, dynamic>.from(item as Map),
             ),
           ),
         );
@@ -286,20 +247,11 @@ class AttendancePermissionRepository
   // ============================================================
 
   Future<void> _persist() async {
-    final preferences =
-        await SharedPreferences
-            .getInstance();
+    final preferences = await SharedPreferences.getInstance();
 
     await preferences.setString(
       _storageKey,
-      jsonEncode(
-        _permissions
-            .map(
-              (item) =>
-                  item.toJson(),
-            )
-            .toList(),
-      ),
+      jsonEncode(_permissions.map((item) => item.toJson()).toList()),
     );
   }
 }

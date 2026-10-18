@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:structflow/core/utils/material_icon_registry.dart';
 
 class TeamModel {
   final String id;
@@ -55,14 +56,10 @@ class TeamModel {
     this.icon = Icons.person_rounded,
   });
 
-  factory TeamModel.fromJson(
-    Map<String, dynamic> json,
-  ) {
+  factory TeamModel.fromJson(Map<String, dynamic> json) {
     final rawRole = json['role'];
 
-    final role = rawRole == null
-        ? ''
-        : rawRole.toString().trim();
+    final role = rawRole == null ? '' : rawRole.toString().trim();
 
     final rawColor = json['color'];
 
@@ -72,16 +69,11 @@ class TeamModel {
       parsedColor = Color(rawColor);
     }
 
-    final rawIconCodePoint =
-        json['iconCodePoint'];
+    final rawIconCodePoint = json['iconCodePoint'];
 
-    final parsedIconCodePoint =
-        rawIconCodePoint is int
-            ? rawIconCodePoint
-            : int.tryParse(
-                  rawIconCodePoint?.toString() ?? '',
-                ) ??
-                0xe491;
+    final parsedIconCodePoint = rawIconCodePoint is int
+        ? rawIconCodePoint
+        : int.tryParse(rawIconCodePoint?.toString() ?? '') ?? 0xe491;
 
     return TeamModel(
       id: json['id']?.toString() ?? '',
@@ -89,16 +81,11 @@ class TeamModel {
       email: json['email']?.toString() ?? '',
       phone: json['phone']?.toString() ?? '',
       role: role,
-      specialization:
-          json['specialization']?.toString() ?? '',
-      projectName:
-          json['projectName']?.toString() ?? '',
-      projectCode:
-          json['projectCode']?.toString() ?? '',
-      status:
-          json['status']?.toString() ?? 'Active',
-      avatarUrl:
-          json['avatarUrl']?.toString() ?? '',
+      specialization: json['specialization']?.toString() ?? '',
+      projectName: json['projectName']?.toString() ?? '',
+      projectCode: json['projectCode']?.toString() ?? '',
+      status: json['status']?.toString() ?? 'Active',
+      avatarUrl: json['avatarUrl']?.toString() ?? '',
       iconCodePoint: parsedIconCodePoint,
       color: parsedColor,
     );
@@ -142,53 +129,37 @@ class TeamModel {
       email: email ?? this.email,
       phone: phone ?? this.phone,
       role: role ?? this.role,
-      specialization:
-          specialization ?? this.specialization,
-      projectName:
-          projectName ?? this.projectName,
-      projectCode:
-          projectCode ?? this.projectCode,
+      specialization: specialization ?? this.specialization,
+      projectName: projectName ?? this.projectName,
+      projectCode: projectCode ?? this.projectCode,
       status: status ?? this.status,
-      avatarUrl:
-          avatarUrl ?? this.avatarUrl,
-      iconCodePoint:
-          iconCodePoint ?? this.iconCodePoint,
+      avatarUrl: avatarUrl ?? this.avatarUrl,
+      iconCodePoint: iconCodePoint ?? this.iconCodePoint,
       color: color ?? this.color,
       icon: icon ?? this.icon,
     );
   }
 
   IconData get roleIcon {
-    // ignore: non_const_argument_for_const_parameter
-    return IconData(
+    return materialIconFromCodePoint(
       iconCodePoint,
-      fontFamily: 'MaterialIcons',
+      fallback: Icons.person_rounded,
     );
   }
 
   String getRoleLabel() {
-    return role.trim().isEmpty
-        ? 'Team Member'
-        : role.trim();
+    return role.trim().isEmpty ? 'Team Member' : role.trim();
   }
 
   Widget getRoleBadge() {
     final badgeColor = color;
 
     return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: 8,
-        vertical: 4,
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: badgeColor.withValues(
-          alpha: 0.1,
-        ),
-        borderRadius:
-            BorderRadius.circular(12),
-        border: Border.all(
-          color: badgeColor,
-        ),
+        color: badgeColor.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: badgeColor),
       ),
       child: Text(
         getRoleLabel(),

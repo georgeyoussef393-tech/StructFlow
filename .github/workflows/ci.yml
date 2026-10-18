@@ -1,0 +1,62 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  flutter:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - run: flutter analyze
+      - run: flutter test
+
+  api:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: structflow
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d structflow"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dart-lang/setup-dart@v1
+        with:
+          sdk: 3.12.2
+      - working-directory: backend
+        run: dart pub get
+      - working-directory: backend
+        run: dart analyze
+      - working-directory: backend
+        run: dart test
+      - name: Install PostgreSQL client
+        run: sudo apt-get update && sudo apt-get install --yes postgresql-client
+      - name: Verify migrations and tenant row-level security
+        env:
+          PGPASSWORD: postgres
+        run: |
+          psql -h localhost -U postgres -d structflow -v ON_ERROR_STOP=1 -c "CREATE ROLE structflow_runtime NOLOGIN"
+          psql -h localhost -U postgres -d structflow -v ON_ERROR_STOP=1 -f backend/migrations/001_initial.sql
+          psql -h localhost -U postgres -d structflow -v ON_ERROR_STOP=1 -f backend/migrations/002_runtime_grants.sql
+          psql -h localhost -U postgres -d structflow -v ON_ERROR_STOP=1 -f backend/migrations/003_project_metadata.sql
+          psql -h localhost -U postgres -d structflow -v ON_ERROR_STOP=1 -f backend/migrations/004_project_update_access.sql
+          psql -h localhost -U postgres -d structflow -v ON_ERROR_STOP=1 -f backend/test/postgres_rls_integration.sql

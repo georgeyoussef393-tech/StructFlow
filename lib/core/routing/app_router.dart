@@ -5,12 +5,15 @@ import 'package:structflow/features/dashboard/screens/dashboard_screen.dart';
 import 'package:structflow/features/auth/repositories/auth_repository.dart';
 import 'package:structflow/features/auth/screens/login_screen.dart';
 import 'package:structflow/features/auth/screens/register_screen.dart';
+import 'package:structflow/features/auth/screens/api_readiness_screen.dart';
 import 'package:structflow/features/admin/screens/user_management_screen.dart';
 import 'package:structflow/features/auth/screens/owner_setup_screen.dart';
 
 import 'package:structflow/features/projects/screens/projects_screen.dart';
 import 'package:structflow/features/projects/screens/project_details_screen.dart';
 import 'package:structflow/features/projects/screens/create_project_screen.dart';
+import 'package:structflow/features/projects/screens/edit_project_screen.dart';
+import 'package:structflow/features/projects/models/project_model.dart';
 
 import 'package:structflow/features/tasks/screens/tasks_screen.dart';
 import 'package:structflow/features/tasks/screens/create_task_screen.dart';
@@ -43,9 +46,29 @@ final GoRouter appRouter = GoRouter(
     final path = state.uri.path;
 
     if (!authenticated) {
-      if (path == '/login' || path == '/register' || path == '/owner-setup') return null;
+      if (path == '/login' ||
+          (!AuthRepository.instance.usesApiAuth &&
+              (path == '/register' || path == '/owner-setup'))) {
+        return null;
+      }
       return '/login';
     }
+
+    if (AuthRepository.instance.usesApiAuth) {
+      if (path == '/api-readiness' || path == '/projects') return null;
+      if (path.startsWith('/projects/') && path.endsWith('/edit')) {
+        return AuthRepository.instance.currentUser?.isOwner == true
+            ? null
+            : '/projects';
+      }
+      if (path.startsWith('/projects/')) return null;
+      if (path == '/create-project' &&
+          AuthRepository.instance.currentUser?.isOwner == true) {
+        return null;
+      }
+      return '/api-readiness';
+    }
+    if (path == '/api-readiness') return '/login';
 
     if (path == '/login' || path == '/register') return '/';
     if (path == '/owner-setup') {
@@ -57,7 +80,8 @@ final GoRouter appRouter = GoRouter(
     // has not yet been synchronized.
     if (path == '/user-management') {
       final user = AuthRepository.instance.currentUser;
-      final allowed = user?.isSystemOwner == true ||
+      final allowed =
+          user?.isSystemOwner == true ||
           user?.isOwner == true ||
           user?.role == 'Consultant Manager' ||
           user?.role == 'Owner HR Manager' ||
@@ -65,8 +89,7 @@ final GoRouter appRouter = GoRouter(
       return allowed ? null : '/';
     }
 
-    final session =
-        AttendanceContextRepository.instance.context;
+    final session = AttendanceContextRepository.instance.context;
 
     // ==========================================================
     // NO CURRENT USER
@@ -74,17 +97,13 @@ final GoRouter appRouter = GoRouter(
 
     // Keep the existing demo unrestricted until a user/session
     // has been selected.
-    if (session.organizationId.isEmpty ||
-        session.userId.isEmpty) {
-      return null;
+    if (session.organizationId.isEmpty || session.userId.isEmpty) {
+      return path == '/attendance' ? null : '/attendance';
     }
 
-    final permission =
-        AttendancePermissionRepository.instance.getForUser(
-      organizationId:
-          session.organizationId,
-      userId:
-          session.userId,
+    final permission = AttendancePermissionRepository.instance.getForUser(
+      organizationId: session.organizationId,
+      userId: session.userId,
     );
 
     // ==========================================================
@@ -92,12 +111,7 @@ final GoRouter appRouter = GoRouter(
     // ==========================================================
 
     if (permission == null) {
-      if (state.uri.path == '/' ||
-          state.uri.path == '/attendance') {
-        return null;
-      }
-
-      return '/attendance';
+      return path == '/attendance' ? null : '/attendance';
     }
 
     // ==========================================================
@@ -122,9 +136,7 @@ final GoRouter appRouter = GoRouter(
     // ==========================================================
 
     if (path == '/attendance-management') {
-      return permission.isManager
-          ? null
-          : '/attendance';
+      return permission.isManager ? null : '/attendance';
     }
 
     // ==========================================================
@@ -132,9 +144,7 @@ final GoRouter appRouter = GoRouter(
     // ==========================================================
 
     if (path == '/projects') {
-      return permission.canAccessProjects
-          ? null
-          : '/attendance';
+      return permission.canAccessProjects ? null : '/attendance';
     }
 
     if (path.startsWith('/projects/')) {
@@ -147,8 +157,7 @@ final GoRouter appRouter = GoRouter(
       if (parts.length > 2) {
         final projectId = parts[2];
 
-        if (projectId.isNotEmpty &&
-            !permission.canAccessProject(projectId)) {
+        if (projectId.isNotEmpty && !permission.canAccessProject(projectId)) {
           return '/projects';
         }
       }
@@ -161,26 +170,19 @@ final GoRouter appRouter = GoRouter(
     // ==========================================================
 
     if (path == '/create-project') {
-      return permission.canAccessProjects
-          ? null
-          : '/attendance';
+      return permission.canAccessProjects ? null : '/attendance';
     }
 
     // ==========================================================
     // TASKS
     // ==========================================================
 
-    if (path == '/tasks' ||
-        path.startsWith('/tasks/')) {
-      return permission.canAccessTasks
-          ? null
-          : '/attendance';
+    if (path == '/tasks' || path.startsWith('/tasks/')) {
+      return permission.canAccessTasks ? null : '/attendance';
     }
 
     if (path == '/create-task') {
-      return permission.canAccessTasks
-          ? null
-          : '/attendance';
+      return permission.canAccessTasks ? null : '/attendance';
     }
 
     // ==========================================================
@@ -188,9 +190,7 @@ final GoRouter appRouter = GoRouter(
     // ==========================================================
 
     if (path == '/team') {
-      return permission.canAccessTeam
-          ? null
-          : '/attendance';
+      return permission.canAccessTeam ? null : '/attendance';
     }
 
     // ==========================================================
@@ -198,26 +198,19 @@ final GoRouter appRouter = GoRouter(
     // ==========================================================
 
     if (path == '/calendar') {
-      return permission.canAccessCalendar
-          ? null
-          : '/attendance';
+      return permission.canAccessCalendar ? null : '/attendance';
     }
 
     // ==========================================================
     // DOCUMENTS
     // ==========================================================
 
-    if (path == '/documents' ||
-        path.startsWith('/documents/')) {
-      return permission.canAccessDocuments
-          ? null
-          : '/attendance';
+    if (path == '/documents' || path.startsWith('/documents/')) {
+      return permission.canAccessDocuments ? null : '/attendance';
     }
 
     if (path == '/create-document') {
-      return permission.canAccessDocuments
-          ? null
-          : '/attendance';
+      return permission.canAccessDocuments ? null : '/attendance';
     }
 
     // ==========================================================
@@ -225,34 +218,21 @@ final GoRouter appRouter = GoRouter(
     // ==========================================================
 
     if (path == '/reports') {
-      return permission.canAccessReports
-          ? null
-          : '/attendance';
+      return permission.canAccessReports ? null : '/attendance';
     }
 
     // ==========================================================
     // AI ASSISTANT
     // ==========================================================
 
-    if (path == '/ai-assistant') {
-      return null;
-    }
-
-    // ==========================================================
-    // SETTINGS
-    // ==========================================================
-
-    if (path == '/settings') {
-      return null;
-    }
-
-    return null;
+    return '/attendance';
   },
 
   routes: [
+    GoRoute(path: '/login', builder: (context, state) => const LoginScreen()),
     GoRoute(
-      path: '/login',
-      builder: (context, state) => const LoginScreen(),
+      path: '/api-readiness',
+      builder: (context, state) => const ApiReadinessScreen(),
     ),
     GoRoute(
       path: '/register',
@@ -266,7 +246,6 @@ final GoRouter appRouter = GoRouter(
     // ==========================================================
     // DASHBOARD
     // ==========================================================
-
     GoRoute(
       path: '/',
       builder: (context, state) {
@@ -277,7 +256,6 @@ final GoRouter appRouter = GoRouter(
     // ==========================================================
     // PROJECTS
     // ==========================================================
-
     GoRoute(
       path: '/projects',
       builder: (context, state) {
@@ -285,15 +263,20 @@ final GoRouter appRouter = GoRouter(
       },
       routes: [
         GoRoute(
+          path: ':projectId/edit',
+          builder: (context, state) => EditProjectScreen(
+            projectId: state.pathParameters['projectId'] ?? '',
+            initialProject: state.extra is ProjectModel
+                ? state.extra as ProjectModel
+                : null,
+          ),
+        ),
+        GoRoute(
           path: ':projectId',
           builder: (context, state) {
-            final projectId =
-                state.pathParameters['projectId'] ??
-                'PRJ-001';
+            final projectId = state.pathParameters['projectId'] ?? 'PRJ-001';
 
-            return ProjectDetailsScreen(
-              projectId: projectId,
-            );
+            return ProjectDetailsScreen(projectId: projectId);
           },
         ),
       ],
@@ -302,7 +285,6 @@ final GoRouter appRouter = GoRouter(
     // ==========================================================
     // CREATE PROJECT
     // ==========================================================
-
     GoRoute(
       path: '/create-project',
       builder: (context, state) {
@@ -313,7 +295,6 @@ final GoRouter appRouter = GoRouter(
     // ==========================================================
     // TASKS
     // ==========================================================
-
     GoRoute(
       path: '/tasks',
       builder: (context, state) {
@@ -323,25 +304,17 @@ final GoRouter appRouter = GoRouter(
         GoRoute(
           path: ':taskId',
           builder: (context, state) {
-            final taskId =
-                state.pathParameters['taskId'] ??
-                '';
+            final taskId = state.pathParameters['taskId'] ?? '';
 
-            return TaskDetailsScreen(
-              taskId: taskId,
-            );
+            return TaskDetailsScreen(taskId: taskId);
           },
           routes: [
             GoRoute(
               path: 'edit',
               builder: (context, state) {
-                final taskId =
-                    state.pathParameters['taskId'] ??
-                    '';
+                final taskId = state.pathParameters['taskId'] ?? '';
 
-                return CreateTaskScreen(
-                  taskId: taskId,
-                );
+                return CreateTaskScreen(taskId: taskId);
               },
             ),
           ],
@@ -352,13 +325,11 @@ final GoRouter appRouter = GoRouter(
     // ==========================================================
     // CREATE TASK
     // ==========================================================
-
     GoRoute(
       path: '/create-task',
       builder: (context, state) {
         return CreateTaskScreen(
-          initialProjectCode:
-              state.uri.queryParameters['projectCode'],
+          initialProjectCode: state.uri.queryParameters['projectCode'],
         );
       },
     ),
@@ -366,7 +337,6 @@ final GoRouter appRouter = GoRouter(
     // ==========================================================
     // TEAM
     // ==========================================================
-
     GoRoute(
       path: '/team',
       builder: (context, state) {
@@ -377,7 +347,6 @@ final GoRouter appRouter = GoRouter(
     // ==========================================================
     // CALENDAR
     // ==========================================================
-
     GoRoute(
       path: '/calendar',
       builder: (context, state) {
@@ -388,7 +357,6 @@ final GoRouter appRouter = GoRouter(
     // ==========================================================
     // DOCUMENTS
     // ==========================================================
-
     GoRoute(
       path: '/documents',
       builder: (context, state) {
@@ -399,13 +367,11 @@ final GoRouter appRouter = GoRouter(
     // ==========================================================
     // CREATE / EDIT DOCUMENT
     // ==========================================================
-
     GoRoute(
       path: '/create-document',
       builder: (context, state) {
         return CreateDocumentScreen(
-          documentId:
-              state.uri.queryParameters['documentId'],
+          documentId: state.uri.queryParameters['documentId'],
         );
       },
     ),
@@ -413,7 +379,6 @@ final GoRouter appRouter = GoRouter(
     // ==========================================================
     // ATTENDANCE
     // ==========================================================
-
     GoRoute(
       path: '/attendance',
       builder: (context, state) {
@@ -424,7 +389,6 @@ final GoRouter appRouter = GoRouter(
     // ==========================================================
     // ATTENDANCE MANAGEMENT
     // ==========================================================
-
     GoRoute(
       path: '/attendance-management',
       builder: (context, state) {
@@ -440,7 +404,6 @@ final GoRouter appRouter = GoRouter(
     // ==========================================================
     // REPORTS
     // ==========================================================
-
     GoRoute(
       path: '/reports',
       builder: (context, state) {
@@ -454,7 +417,6 @@ final GoRouter appRouter = GoRouter(
     // ==========================================================
     // AI ASSISTANT
     // ==========================================================
-
     GoRoute(
       path: '/ai-assistant',
       builder: (context, state) {
@@ -468,7 +430,6 @@ final GoRouter appRouter = GoRouter(
     // ==========================================================
     // SETTINGS
     // ==========================================================
-
     GoRoute(
       path: '/settings',
       builder: (context, state) {
@@ -489,96 +450,64 @@ class _ComingSoonScreen extends StatelessWidget {
   final String title;
   final IconData icon;
 
-  const _ComingSoonScreen({
-    required this.title,
-    required this.icon,
-  });
+  const _ComingSoonScreen({required this.title, required this.icon});
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor:
-          const Color(0xffF5F7FB),
+      backgroundColor: const Color(0xffF5F7FB),
 
       appBar: AppBar(
         title: Text(title),
-        backgroundColor:
-            Colors.white,
-        foregroundColor:
-            const Color(0xff1F2937),
+        backgroundColor: Colors.white,
+        foregroundColor: const Color(0xff1F2937),
         elevation: 0,
       ),
 
       body: Center(
         child: Container(
-          padding:
-              const EdgeInsets.all(40),
+          padding: const EdgeInsets.all(40),
 
-          margin:
-              const EdgeInsets.all(24),
+          margin: const EdgeInsets.all(24),
 
-          decoration:
-              BoxDecoration(
+          decoration: BoxDecoration(
             color: Colors.white,
-            borderRadius:
-                BorderRadius.circular(24),
+            borderRadius: BorderRadius.circular(24),
           ),
 
           child: Column(
-            mainAxisSize:
-                MainAxisSize.min,
+            mainAxisSize: MainAxisSize.min,
 
             children: [
-              Icon(
-                icon,
-                size: 60,
-                color:
-                    const Color(0xff0B3D91),
-              ),
+              Icon(icon, size: 60, color: const Color(0xff0B3D91)),
 
-              const SizedBox(
-                height: 20,
-              ),
+              const SizedBox(height: 20),
 
               Text(
                 title,
-                style:
-                    const TextStyle(
+                style: const TextStyle(
                   fontSize: 28,
-                  fontWeight:
-                      FontWeight.bold,
+                  fontWeight: FontWeight.bold,
                 ),
               ),
 
-              const SizedBox(
-                height: 10,
-              ),
+              const SizedBox(height: 10),
 
               const Text(
                 'This module is under development.',
-                style:
-                    TextStyle(
-                  color: Colors.grey,
-                  fontSize: 15,
-                ),
+                style: TextStyle(color: Colors.grey, fontSize: 15),
               ),
 
-              const SizedBox(
-                height: 25,
-              ),
+              const SizedBox(height: 25),
 
               ElevatedButton.icon(
                 onPressed: () {
                   context.go('/');
                 },
 
-                icon: const Icon(
-                  Icons.dashboard_rounded,
-                ),
+                icon: const Icon(Icons.dashboard_rounded),
 
-                label: const Text(
-                  'Back to Dashboard',
-                ),
+                label: const Text('Back to Dashboard'),
               ),
             ],
           ),

@@ -37,10 +37,21 @@ class _LoginScreenState extends State<LoginScreen> {
 
     setState(() => loading = true);
 
-    final error = await AuthRepository.instance.signIn(
-      email: email.text.trim(),
-      password: password.text,
-    );
+    String? error;
+    try {
+      error = await AuthRepository.instance.signIn(
+        email: email.text.trim(),
+        password: password.text,
+      );
+    } on Exception {
+      if (!mounted) return;
+      setState(() => loading = false);
+      _message(
+        'Sign in could not be completed. Check the server configuration and '
+        'secure storage, then try again.',
+      );
+      return;
+    }
 
     if (!mounted) return;
 
@@ -51,9 +62,12 @@ class _LoginScreenState extends State<LoginScreen> {
       return;
     }
 
+    if (AuthRepository.instance.usesApiAuth) return;
+
     final user = AuthRepository.instance.currentUser!;
     if (user.isOwner) {
-      final organizationId = 'ORG-${user.organization.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), '-')}';
+      final organizationId =
+          'ORG-${user.organization.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), '-')}';
       await AttendancePermissionRepository.instance.seedSuperAdmin(
         AttendancePermissionModel.owner(
           id: 'PERM-${user.id}',
@@ -64,10 +78,12 @@ class _LoginScreenState extends State<LoginScreen> {
     }
     await AttendanceContextRepository.instance.save(
       AttendanceContextModel(
-        organizationId: 'ORG-${user.organization.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), '-')}',
+        organizationId:
+            'ORG-${user.organization.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), '-')}',
         userId: user.id,
       ),
     );
+    if (!mounted) return;
     context.go('/');
   }
 
@@ -184,24 +200,39 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                       ),
                       const SizedBox(height: 8),
-                      if (!AuthRepository.instance.hasOwner)
+                      if (!AuthRepository.instance.usesApiAuth &&
+                          !AuthRepository.instance.hasOwner)
                         SizedBox(
                           width: double.infinity,
                           child: OutlinedButton.icon(
                             onPressed: () => context.go('/owner-setup'),
-                            icon: const Icon(Icons.admin_panel_settings_outlined),
-                            label: const Text('First-time StructFlow Owner Setup'),
+                            icon: const Icon(
+                              Icons.admin_panel_settings_outlined,
+                            ),
+                            label: const Text(
+                              'First-time StructFlow Owner Setup',
+                            ),
                           ),
                         ),
                       const SizedBox(height: 8),
-                      Center(
-                        child: TextButton(
-                          onPressed: () => context.go('/register'),
-                          child: const Text(
-                            "Don't have an account? Create one",
+                      if (!AuthRepository.instance.usesApiAuth)
+                        Center(
+                          child: TextButton(
+                            onPressed: () => context.go('/register'),
+                            child: const Text(
+                              "Don't have an account? Create one",
+                            ),
                           ),
                         ),
-                      ),
+                      if (AuthRepository.instance.usesApiAuth) ...[
+                        const SizedBox(height: 8),
+                        const Text(
+                          'Accounts must be provisioned by your company '
+                          'administrator. Local demo registration is disabled.',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(color: AppColors.textLight),
+                        ),
+                      ],
                     ],
                   ),
                 ),

@@ -35,17 +35,20 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
     if (mounted) setState(() {});
   }
 
-  bool get _canManage => _auth.currentUser?.isSystemOwner == true || _auth.currentUser?.isOwner == true ||
-      const {'Consultant Manager', 'Owner HR Manager', 'Consultant HR Manager'}
-          .contains(_auth.currentUser?.role);
+  bool get _canManage =>
+      _auth.currentUser?.isSystemOwner == true ||
+      _auth.currentUser?.isOwner == true ||
+      const {
+        'Consultant Manager',
+        'Owner HR Manager',
+        'Consultant HR Manager',
+      }.contains(_auth.currentUser?.role);
 
   @override
   Widget build(BuildContext context) {
     final current = _auth.currentUser;
     if (current == null || !_canManage) {
-      return const Scaffold(
-        body: Center(child: Text('Access denied.')),
-      );
+      return const Scaffold(body: Center(child: Text('Access denied.')));
     }
 
     final currentOrg = current.organization;
@@ -83,10 +86,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                 else
                   ...pending.map((user) => _pendingCard(user)),
                 const SizedBox(height: 28),
-                _sectionHeader(
-                  'Users',
-                  '${approved.length} approved',
-                ),
+                _sectionHeader('Users', '${approved.length} approved'),
                 const SizedBox(height: 10),
                 if (wide)
                   _usersTable(approved)
@@ -143,9 +143,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                   '${current.name} • ${current.role} • ${current.organization}',
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: Colors.white.withValues(alpha: .86),
-                  ),
+                  style: TextStyle(color: Colors.white.withValues(alpha: .86)),
                 ),
               ],
             ),
@@ -214,12 +212,23 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(user.name, style: const TextStyle(fontWeight: FontWeight.w800)),
+                  Text(
+                    user.name,
+                    style: const TextStyle(fontWeight: FontWeight.w800),
+                  ),
                   const SizedBox(height: 3),
-                  Text(user.email, style: const TextStyle(color: AppColors.textLight)),
+                  Text(
+                    user.email,
+                    style: const TextStyle(color: AppColors.textLight),
+                  ),
                   const SizedBox(height: 3),
-                  Text('${user.organization} • Requested: ${user.role}',
-                      style: const TextStyle(fontSize: 12, color: AppColors.textLight)),
+                  Text(
+                    '${user.organization} • Requested: ${user.role}',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: AppColors.textLight,
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -247,29 +256,50 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
         ],
         rows: users.map((user) {
           final p = _permissionFor(user);
-          return DataRow(cells: [
-            DataCell(Row(children: [
-              _avatar(user, small: true),
-              const SizedBox(width: 9),
-              SizedBox(
-                width: 190,
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.start,
+          return DataRow(
+            cells: [
+              DataCell(
+                Row(
                   children: [
-                    Text(user.name, overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontWeight: FontWeight.w700)),
-                    Text(user.email, overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontSize: 11, color: AppColors.textLight)),
+                    _avatar(user, small: true),
+                    const SizedBox(width: 9),
+                    SizedBox(
+                      width: 190,
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            user.name,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(fontWeight: FontWeight.w700),
+                          ),
+                          Text(
+                            user.email,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 11,
+                              color: AppColors.textLight,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   ],
                 ),
               ),
-            ])),
-            DataCell(Text(user.role)),
-            DataCell(Text(user.isOwner ? 'Full access' : '${p?.permissions.length ?? 0} modules')),
-            DataCell(_statusChip(user.status)),
-            DataCell(_actions(user)),
-          ]);
+              DataCell(Text(user.role)),
+              DataCell(
+                Text(
+                  user.isOwner
+                      ? 'Full access'
+                      : '${p?.permissions.length ?? 0} modules',
+                ),
+              ),
+              DataCell(_statusChip(user.status)),
+              DataCell(_actions(user)),
+            ],
+          );
         }).toList(),
       ),
     );
@@ -281,8 +311,13 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
       margin: const EdgeInsets.only(bottom: 10),
       child: ListTile(
         leading: _avatar(user),
-        title: Text(user.name, style: const TextStyle(fontWeight: FontWeight.w800)),
-        subtitle: Text('${user.email}\n${user.role} • ${user.isOwner ? 'Full access' : '${p?.permissions.length ?? 0} modules'}'),
+        title: Text(
+          user.name,
+          style: const TextStyle(fontWeight: FontWeight.w800),
+        ),
+        subtitle: Text(
+          '${user.email}\n${user.role} • ${user.isOwner ? 'Full access' : '${p?.permissions.length ?? 0} modules'}',
+        ),
         isThreeLine: true,
         trailing: _actions(user),
       ),
@@ -291,7 +326,8 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
 
   Widget _actions(AuthUserModel user) {
     final current = _auth.currentUser!;
-    final canEdit = current.isSystemOwner || current.isOwner || user.role == 'Employee';
+    final canEdit =
+        current.isSystemOwner || current.isOwner || user.role == 'Employee';
     if (user.id == current.id) {
       return const Chip(label: Text('You'));
     }
@@ -302,20 +338,27 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
       },
       itemBuilder: (context) => [
         if (canEdit)
-          const PopupMenuItem(value: 'edit', child: Text('Edit role & permissions')),
+          const PopupMenuItem(
+            value: 'edit',
+            child: Text('Edit role & permissions'),
+          ),
         const PopupMenuItem(value: 'delete', child: Text('Remove user')),
       ],
     );
   }
 
   AttendancePermissionModel? _permissionFor(AuthUserModel user) {
-    return _permissions.permissions.cast<AttendancePermissionModel?>().firstWhere(
-          (p) => p!.userId == user.id && p.organizationId == _organizationId(user),
+    return _permissions.permissions
+        .cast<AttendancePermissionModel?>()
+        .firstWhere(
+          (p) =>
+              p!.userId == user.id && p.organizationId == _organizationId(user),
           orElse: () => null,
         );
   }
 
-  String _organizationId(AuthUserModel user) => 'ORG-${user.organization.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), '-')}';
+  String _organizationId(AuthUserModel user) =>
+      'ORG-${user.organization.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), '-')}';
 
   Widget _avatar(AuthUserModel user, {bool small = false}) {
     final size = small ? 32.0 : 44.0;
@@ -432,7 +475,8 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
       userId: user.id,
       role: role,
       locationAttendanceEnabled: true,
-      canManageProjectGeofences: isOwner ||
+      canManageProjectGeofences:
+          isOwner ||
           role == 'Consultant Manager' ||
           role == 'Owner HR Manager' ||
           role == 'Consultant HR Manager',
@@ -454,8 +498,13 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
     final roles = actor.isSystemOwner
         ? AttendancePermissionModel.roles
         : actor.isOwner
-            ? const ['Employee', 'Consultant Manager', 'Owner HR Manager', 'Consultant HR Manager']
-            : const ['Employee'];
+        ? const [
+            'Employee',
+            'Consultant Manager',
+            'Owner HR Manager',
+            'Consultant HR Manager',
+          ]
+        : const ['Employee'];
 
     return showDialog<_PermissionResult>(
       context: context,
@@ -472,26 +521,33 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     DropdownButtonFormField<String>(
-                      value: roles.contains(role) ? role : roles.first,
+                      initialValue: roles.contains(role) ? role : roles.first,
                       decoration: const InputDecoration(
                         labelText: 'Role',
                         prefixIcon: Icon(Icons.badge_outlined),
                       ),
                       items: roles
-                          .map((r) => DropdownMenuItem(value: r, child: Text(r)))
+                          .map(
+                            (r) => DropdownMenuItem(value: r, child: Text(r)),
+                          )
                           .toList(),
                       onChanged: (value) {
                         if (value == null) return;
                         setLocal(() {
                           role = value;
                           if (value == 'Owner') {
-                            selected.addAll(AttendancePermissionModel.modulePermissions);
+                            selected.addAll(
+                              AttendancePermissionModel.modulePermissions,
+                            );
                           }
                         });
                       },
                     ),
                     const SizedBox(height: 18),
-                    const Text('Module access', style: TextStyle(fontWeight: FontWeight.w800)),
+                    const Text(
+                      'Module access',
+                      style: TextStyle(fontWeight: FontWeight.w800),
+                    ),
                     const SizedBox(height: 6),
                     ...AttendancePermissionModel.modulePermissions.map(
                       (module) => CheckboxListTile(
@@ -515,7 +571,10 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                     const SizedBox(height: 6),
                     const Text(
                       'Attendance is always available. Attendance Management is controlled by the manager role.',
-                      style: TextStyle(fontSize: 12, color: AppColors.textLight),
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: AppColors.textLight,
+                      ),
                     ),
                   ],
                 ),
@@ -551,7 +610,10 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
         title: const Text('Remove user?'),
         content: Text('Remove ${user.name} from this organization?'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
           FilledButton(
             onPressed: () => Navigator.pop(context, true),
             child: const Text('Remove'),

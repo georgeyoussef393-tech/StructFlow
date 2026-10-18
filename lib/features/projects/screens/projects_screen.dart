@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:structflow/core/theme/app_colors.dart';
+import 'package:structflow/core/network/api_auth_client.dart';
+import 'package:structflow/features/auth/repositories/auth_repository.dart';
 import 'package:structflow/features/projects/models/project_model.dart';
 import 'package:structflow/features/projects/repositories/project_repository.dart';
 
@@ -13,18 +15,23 @@ class ProjectsScreen extends StatefulWidget {
 }
 
 class _ProjectsScreenState extends State<ProjectsScreen> {
-  final TextEditingController _searchController =
-      TextEditingController();
+  final TextEditingController _searchController = TextEditingController();
 
-  final ProjectRepository _repository =
-      ProjectRepository.instance;
+  final ProjectRepository _repository = ProjectRepository.instance;
 
   String _selectedFilter = 'All';
+  bool _loading = false;
+  String? _loadError;
+
+  bool get _apiMode => AuthRepository.instance.usesApiAuth;
+  bool get _canCreateProject =>
+      !_apiMode || AuthRepository.instance.currentUser?.isOwner == true;
 
   @override
   void initState() {
     super.initState();
     _repository.addListener(_onProjectsChanged);
+    if (_apiMode) _loadProjects();
   }
 
   @override
@@ -38,17 +45,33 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
     if (!mounted) {
       return;
     }
-
     setState(() {});
   }
+
+  Future<void> _loadProjects() async {
+    setState(() {
+      _loading = true;
+      _loadError = null;
+    });
+    try {
+      await _repository.loadProjects();
+    } on Exception catch (error) {
+      if (mounted) setState(() => _loadError = _readableError(error));
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  String _readableError(Exception error) => error is AuthApiException
+      ? error.message
+      : 'Could not load projects. Please try again.';
 
   // ================================================================
   // FILTERED PROJECTS
   // ================================================================
 
   List<ProjectModel> get _filteredProjects {
-    final query =
-        _searchController.text.trim().toLowerCase();
+    final query = _searchController.text.trim().toLowerCase();
 
     return _repository.projects.where((project) {
       final matchesSearch =
@@ -59,8 +82,7 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
           project.location.toLowerCase().contains(query);
 
       final matchesFilter =
-          _selectedFilter == 'All' ||
-          project.status == _selectedFilter;
+          _selectedFilter == 'All' || project.status == _selectedFilter;
 
       return matchesSearch && matchesFilter;
     }).toList();
@@ -80,12 +102,9 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
             final width = constraints.maxWidth;
 
             return SingleChildScrollView(
-              padding: EdgeInsets.all(
-                width < 600 ? 16 : 28,
-              ),
+              padding: EdgeInsets.all(width < 600 ? 16 : 28),
               child: Column(
-                crossAxisAlignment:
-                    CrossAxisAlignment.start,
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   _buildPageHeader(width),
 
@@ -118,27 +137,17 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
 
     if (isMobile) {
       return Column(
-        crossAxisAlignment:
-            CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           TextButton.icon(
             onPressed: () {
               context.go('/');
             },
-            icon: const Icon(
-              Icons.arrow_back_rounded,
-            ),
-            label: const Text(
-              'Back to Dashboard',
-            ),
+            icon: const Icon(Icons.arrow_back_rounded),
+            label: const Text('Back to Dashboard'),
             style: TextButton.styleFrom(
-              foregroundColor:
-                  AppColors.primary,
-              padding:
-                  const EdgeInsets.symmetric(
-                horizontal: 0,
-                vertical: 4,
-              ),
+              foregroundColor: AppColors.primary,
+              padding: const EdgeInsets.symmetric(horizontal: 0, vertical: 4),
             ),
           ),
 
@@ -157,47 +166,35 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
 
           const Text(
             'Manage and monitor your construction projects.',
-            style: TextStyle(
-              fontSize: 14,
-              color: AppColors.textLight,
-            ),
+            style: TextStyle(fontSize: 14, color: AppColors.textLight),
           ),
 
-          const SizedBox(height: 16),
-
-          SizedBox(
-            width: double.infinity,
-            child: _buildCreateButton(),
-          ),
+          if (_canCreateProject) ...[
+            const SizedBox(height: 16),
+            SizedBox(width: double.infinity, child: _buildCreateButton()),
+          ],
         ],
       );
     }
 
     return Row(
-      crossAxisAlignment:
-          CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: const EdgeInsets.only(
-            top: 2,
-            right: 10,
-          ),
+          padding: const EdgeInsets.only(top: 2, right: 10),
           child: IconButton(
             onPressed: () {
               context.go('/');
             },
             tooltip: 'Back to Dashboard',
-            icon: const Icon(
-              Icons.arrow_back_rounded,
-            ),
+            icon: const Icon(Icons.arrow_back_rounded),
             color: AppColors.textDark,
           ),
         ),
 
         const Expanded(
           child: Column(
-            crossAxisAlignment:
-                CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
                 'Projects',
@@ -212,16 +209,13 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
 
               Text(
                 'Manage and monitor your construction projects.',
-                style: TextStyle(
-                  fontSize: 14,
-                  color: AppColors.textLight,
-                ),
+                style: TextStyle(fontSize: 14, color: AppColors.textLight),
               ),
             ],
           ),
         ),
 
-        _buildCreateButton(),
+        if (_canCreateProject) _buildCreateButton(),
       ],
     );
   }
@@ -235,24 +229,14 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
       onPressed: () {
         context.push('/create-project');
       },
-      icon: const Icon(
-        Icons.add_rounded,
-        size: 20,
-      ),
-      label: const Text(
-        'New Project',
-      ),
+      icon: const Icon(Icons.add_rounded, size: 20),
+      label: const Text('New Project'),
       style: ElevatedButton.styleFrom(
         backgroundColor: AppColors.primary,
         foregroundColor: Colors.white,
         elevation: 0,
-        padding: const EdgeInsets.symmetric(
-          horizontal: 20,
-          vertical: 16,
-        ),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
     );
   }
@@ -265,8 +249,8 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
     final columns = width >= 1100
         ? 4
         : width >= 700
-            ? 2
-            : 1;
+        ? 2
+        : 1;
 
     final cards = [
       _SummaryData(
@@ -301,33 +285,26 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
 
     return GridView.builder(
       shrinkWrap: true,
-      physics:
-          const NeverScrollableScrollPhysics(),
+      physics: const NeverScrollableScrollPhysics(),
       itemCount: cards.length,
-      gridDelegate:
-          SliverGridDelegateWithFixedCrossAxisCount(
+      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: columns,
         crossAxisSpacing: 16,
         mainAxisSpacing: 16,
         mainAxisExtent: 145,
       ),
       itemBuilder: (context, index) {
-        return _buildSummaryCard(
-          cards[index],
-        );
+        return _buildSummaryCard(cards[index]);
       },
     );
   }
 
-  Widget _buildSummaryCard(
-    _SummaryData data,
-  ) {
+  Widget _buildSummaryCard(_SummaryData data) {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius:
-            BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(18),
         boxShadow: const [
           BoxShadow(
             color: Colors.black12,
@@ -342,34 +319,24 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
             width: 50,
             height: 50,
             decoration: BoxDecoration(
-              color: data.color.withValues(
-                alpha: .10,
-              ),
-              borderRadius:
-                  BorderRadius.circular(14),
+              color: data.color.withValues(alpha: .10),
+              borderRadius: BorderRadius.circular(14),
             ),
-            child: Icon(
-              data.icon,
-              color: data.color,
-              size: 25,
-            ),
+            child: Icon(data.icon, color: data.color, size: 25),
           ),
 
           const SizedBox(width: 14),
 
           Expanded(
             child: Column(
-              mainAxisAlignment:
-                  MainAxisAlignment.center,
-              crossAxisAlignment:
-                  CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   data.title,
                   style: const TextStyle(
                     fontSize: 13,
-                    color:
-                        AppColors.textLight,
+                    color: AppColors.textLight,
                   ),
                 ),
 
@@ -379,10 +346,8 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
                   data.value,
                   style: const TextStyle(
                     fontSize: 25,
-                    fontWeight:
-                        FontWeight.bold,
-                    color:
-                        AppColors.textDark,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.textDark,
                   ),
                 ),
 
@@ -392,8 +357,7 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
                   data.subtitle,
                   style: const TextStyle(
                     fontSize: 11,
-                    color:
-                        AppColors.textLight,
+                    color: AppColors.textLight,
                   ),
                 ),
               ],
@@ -418,20 +382,14 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
 
           const SizedBox(height: 12),
 
-          Align(
-            alignment:
-                Alignment.centerLeft,
-            child: _buildFilterRow(),
-          ),
+          Align(alignment: Alignment.centerLeft, child: _buildFilterRow()),
         ],
       );
     }
 
     return Row(
       children: [
-        Expanded(
-          child: _buildSearchBox(),
-        ),
+        Expanded(child: _buildSearchBox()),
 
         const SizedBox(width: 16),
 
@@ -451,41 +409,30 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
         setState(() {});
       },
       decoration: InputDecoration(
-        hintText:
-            'Search projects, clients, locations...',
-        prefixIcon: const Icon(
-          Icons.search_rounded,
-        ),
-        suffixIcon:
-            _searchController.text.isNotEmpty
-                ? IconButton(
-                    onPressed: () {
-                      _searchController.clear();
-                      setState(() {});
-                    },
-                    icon: const Icon(
-                      Icons.close_rounded,
-                    ),
-                  )
-                : null,
+        hintText: 'Search projects, clients, locations...',
+        prefixIcon: const Icon(Icons.search_rounded),
+        suffixIcon: _searchController.text.isNotEmpty
+            ? IconButton(
+                onPressed: () {
+                  _searchController.clear();
+                  setState(() {});
+                },
+                icon: const Icon(Icons.close_rounded),
+              )
+            : null,
         filled: true,
         fillColor: Colors.white,
         border: OutlineInputBorder(
-          borderRadius:
-              BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(14),
           borderSide: BorderSide.none,
         ),
         enabledBorder: OutlineInputBorder(
-          borderRadius:
-              BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(14),
           borderSide: BorderSide.none,
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius:
-              BorderRadius.circular(14),
-          borderSide: const BorderSide(
-            color: AppColors.primary,
-          ),
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: AppColors.primary),
         ),
       ),
     );
@@ -497,36 +444,20 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
 
   Widget _buildFilterRow() {
     return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: 12,
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: 12),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius:
-            BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(14),
       ),
       child: DropdownButtonHideUnderline(
         child: DropdownButton<String>(
           value: _selectedFilter,
-          borderRadius:
-              BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(14),
           items: const [
-            DropdownMenuItem(
-              value: 'All',
-              child: Text('All Status'),
-            ),
-            DropdownMenuItem(
-              value: 'Active',
-              child: Text('Active'),
-            ),
-            DropdownMenuItem(
-              value: 'Planning',
-              child: Text('Planning'),
-            ),
-            DropdownMenuItem(
-              value: 'On Hold',
-              child: Text('On Hold'),
-            ),
+            DropdownMenuItem(value: 'All', child: Text('All Status')),
+            DropdownMenuItem(value: 'Active', child: Text('Active')),
+            DropdownMenuItem(value: 'Planning', child: Text('Planning')),
+            DropdownMenuItem(value: 'On Hold', child: Text('On Hold')),
           ],
           onChanged: (value) {
             if (value == null) {
@@ -546,21 +477,15 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
   // PROJECTS SECTION
   // ================================================================
 
-  Widget _buildProjectsSection(
-    double width,
-  ) {
-    final projects =
-        _filteredProjects;
+  Widget _buildProjectsSection(double width) {
+    final projects = _filteredProjects;
 
     return Container(
       width: double.infinity,
-      padding: EdgeInsets.all(
-        width < 600 ? 16 : 22,
-      ),
+      padding: EdgeInsets.all(width < 600 ? 16 : 22),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius:
-            BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(20),
         boxShadow: const [
           BoxShadow(
             color: Colors.black12,
@@ -570,8 +495,7 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
         ],
       ),
       child: Column(
-        crossAxisAlignment:
-            CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
@@ -580,10 +504,8 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
                   'All Projects',
                   style: TextStyle(
                     fontSize: 20,
-                    fontWeight:
-                        FontWeight.bold,
-                    color:
-                        AppColors.textDark,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.textDark,
                   ),
                 ),
               ),
@@ -592,8 +514,7 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
                 '${projects.length} projects',
                 style: const TextStyle(
                   fontSize: 13,
-                  color:
-                      AppColors.textLight,
+                  color: AppColors.textLight,
                 ),
               ),
             ],
@@ -601,13 +522,34 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
 
           const SizedBox(height: 20),
 
-          if (projects.isEmpty)
+          if (_loading)
+            const Center(
+              child: Padding(
+                padding: EdgeInsets.all(48),
+                child: CircularProgressIndicator(),
+              ),
+            )
+          else if (_loadError != null)
+            Center(
+              child: Padding(
+                padding: const EdgeInsets.all(32),
+                child: Column(
+                  children: [
+                    Text(_loadError!, textAlign: TextAlign.center),
+                    const SizedBox(height: 12),
+                    OutlinedButton.icon(
+                      onPressed: _loadProjects,
+                      icon: const Icon(Icons.refresh),
+                      label: const Text('Retry'),
+                    ),
+                  ],
+                ),
+              ),
+            )
+          else if (projects.isEmpty)
             _buildEmptyState()
           else
-            _buildProjectGrid(
-              projects,
-              width,
-            ),
+            _buildProjectGrid(projects, width),
         ],
       ),
     );
@@ -617,32 +559,25 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
   // PROJECT GRID
   // ================================================================
 
-  Widget _buildProjectGrid(
-    List<ProjectModel> projects,
-    double width,
-  ) {
+  Widget _buildProjectGrid(List<ProjectModel> projects, double width) {
     final columns = width >= 1250
         ? 3
         : width >= 750
-            ? 2
-            : 1;
+        ? 2
+        : 1;
 
     return GridView.builder(
       shrinkWrap: true,
-      physics:
-          const NeverScrollableScrollPhysics(),
+      physics: const NeverScrollableScrollPhysics(),
       itemCount: projects.length,
-      gridDelegate:
-          SliverGridDelegateWithFixedCrossAxisCount(
+      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: columns,
         crossAxisSpacing: 18,
         mainAxisSpacing: 18,
         mainAxisExtent: 320,
       ),
       itemBuilder: (context, index) {
-        return _buildProjectCard(
-          projects[index],
-        );
+        return _buildProjectCard(projects[index]);
       },
     );
   }
@@ -651,60 +586,35 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
   // PROJECT CARD
   // ================================================================
 
-  Widget _buildProjectCard(
-    ProjectModel project,
-  ) {
+  Widget _buildProjectCard(ProjectModel project) {
     return InkWell(
-      onTap: () {
-        _openProject(project);
-      },
-      borderRadius:
-          BorderRadius.circular(18),
+      onTap: _apiMode ? null : () => _openProject(project),
+      borderRadius: BorderRadius.circular(18),
       child: Container(
-        padding:
-            const EdgeInsets.all(18),
+        padding: const EdgeInsets.all(18),
         decoration: BoxDecoration(
-          color:
-              const Color(0xffFBFCFE),
-          borderRadius:
-              BorderRadius.circular(18),
-          border: Border.all(
-            color:
-                Colors.grey.shade200,
-          ),
+          color: const Color(0xffFBFCFE),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: Colors.grey.shade200),
         ),
         child: Column(
-          crossAxisAlignment:
-              CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               children: [
                 Container(
                   width: 48,
                   height: 48,
-                  decoration:
-                      BoxDecoration(
-                    color:
-                        project.color.withValues(
-                      alpha: .10,
-                    ),
-                    borderRadius:
-                        BorderRadius.circular(
-                      14,
-                    ),
+                  decoration: BoxDecoration(
+                    color: project.color.withValues(alpha: .10),
+                    borderRadius: BorderRadius.circular(14),
                   ),
-                  child: Icon(
-                    project.icon,
-                    color: project.color,
-                    size: 24,
-                  ),
+                  child: Icon(project.icon, color: project.color, size: 24),
                 ),
 
                 const Spacer(),
 
-                _buildStatusBadge(
-                  project.status,
-                ),
+                _buildStatusBadge(project.status),
               ],
             ),
 
@@ -713,14 +623,11 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
             Text(
               project.name,
               maxLines: 1,
-              overflow:
-                  TextOverflow.ellipsis,
+              overflow: TextOverflow.ellipsis,
               style: const TextStyle(
                 fontSize: 17,
-                fontWeight:
-                    FontWeight.bold,
-                color:
-                    AppColors.textDark,
+                fontWeight: FontWeight.bold,
+                color: AppColors.textDark,
               ),
             ),
 
@@ -728,125 +635,95 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
 
             Text(
               project.code,
-              style: const TextStyle(
-                fontSize: 12,
-                color:
-                    AppColors.textLight,
-              ),
+              style: const TextStyle(fontSize: 12, color: AppColors.textLight),
             ),
 
             const SizedBox(height: 14),
 
-            _infoRow(
-              Icons.person_outline_rounded,
-              project.client,
-            ),
+            if (project.client.isNotEmpty) ...[
+              _infoRow(Icons.person_outline_rounded, project.client),
+              const SizedBox(height: 8),
+            ],
 
-            const SizedBox(height: 8),
+            _infoRow(Icons.location_on_outlined, project.location),
 
-            _infoRow(
-              Icons.location_on_outlined,
-              project.location,
-            ),
+            if (!_apiMode) const Spacer(),
 
-            const Spacer(),
-
-            Row(
-              children: [
-                const Text(
-                  'Progress',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color:
-                        AppColors.textLight,
+            if (!_apiMode)
+              Row(
+                children: [
+                  const Text(
+                    'Progress',
+                    style: TextStyle(fontSize: 12, color: AppColors.textLight),
                   ),
-                ),
 
-                const Spacer(),
+                  const Spacer(),
 
-                Text(
-                  '${(project.progress * 100).round()}%',
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight:
-                        FontWeight.bold,
-                    color:
-                        project.color,
+                  Text(
+                    '${(project.progress * 100).round()}%',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.bold,
+                      color: project.color,
+                    ),
                   ),
-                ),
-              ],
-            ),
+                ],
+              ),
 
-            const SizedBox(height: 7),
+            if (!_apiMode) const SizedBox(height: 7),
 
-            ClipRRect(
-              borderRadius:
-                  BorderRadius.circular(20),
-              child:
-                  LinearProgressIndicator(
-                value:
-                    project.progress,
-                minHeight: 7,
-                backgroundColor:
-                    project.color.withValues(
-                  alpha: .10,
-                ),
-                valueColor:
-                    AlwaysStoppedAnimation<
-                        Color>(
-                  project.color,
+            if (!_apiMode)
+              ClipRRect(
+                borderRadius: BorderRadius.circular(20),
+                child: LinearProgressIndicator(
+                  value: project.progress,
+                  minHeight: 7,
+                  backgroundColor: project.color.withValues(alpha: .10),
+                  valueColor: AlwaysStoppedAnimation<Color>(project.color),
                 ),
               ),
-            ),
 
-            const SizedBox(height: 14),
+            if (!_apiMode) const SizedBox(height: 14),
 
-            Row(
-              children: [
-                Icon(
-                  Icons
-                      .account_balance_wallet_outlined,
-                  size: 16,
-                  color:
-                      Colors.grey.shade600,
-                ),
-
-                const SizedBox(width: 5),
-
-                Text(
-                  project.budget,
-                  style:
-                      const TextStyle(
-                    fontSize: 12,
-                    fontWeight:
-                        FontWeight.w600,
-                    color:
-                        AppColors.textDark,
+            if (!_apiMode)
+              Row(
+                children: [
+                  Icon(
+                    Icons.account_balance_wallet_outlined,
+                    size: 16,
+                    color: Colors.grey.shade600,
                   ),
-                ),
 
-                const Spacer(),
+                  const SizedBox(width: 5),
 
-                Icon(
-                  Icons.people_outline_rounded,
-                  size: 17,
-                  color:
-                      Colors.grey.shade600,
-                ),
-
-                const SizedBox(width: 5),
-
-                Text(
-                  '${project.team}',
-                  style:
-                      const TextStyle(
-                    fontSize: 12,
-                    color:
-                        AppColors.textDark,
+                  Text(
+                    project.budget,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textDark,
+                    ),
                   ),
-                ),
-              ],
-            ),
+
+                  const Spacer(),
+
+                  Icon(
+                    Icons.people_outline_rounded,
+                    size: 17,
+                    color: Colors.grey.shade600,
+                  ),
+
+                  const SizedBox(width: 5),
+
+                  Text(
+                    '${project.team}',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: AppColors.textDark,
+                    ),
+                  ),
+                ],
+              ),
           ],
         ),
       ),
@@ -857,9 +734,7 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
   // STATUS BADGE
   // ================================================================
 
-  Widget _buildStatusBadge(
-    String status,
-  ) {
+  Widget _buildStatusBadge(String status) {
     Color color;
 
     switch (status) {
@@ -877,25 +752,17 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
     }
 
     return Container(
-      padding:
-          const EdgeInsets.symmetric(
-        horizontal: 9,
-        vertical: 5,
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
       decoration: BoxDecoration(
-        color: color.withValues(
-          alpha: .10,
-        ),
-        borderRadius:
-            BorderRadius.circular(20),
+        color: color.withValues(alpha: .10),
+        borderRadius: BorderRadius.circular(20),
       ),
       child: Text(
         status,
         style: TextStyle(
           color: color,
           fontSize: 11,
-          fontWeight:
-              FontWeight.bold,
+          fontWeight: FontWeight.bold,
         ),
       ),
     );
@@ -905,18 +772,10 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
   // INFO ROW
   // ================================================================
 
-  Widget _infoRow(
-    IconData icon,
-    String text,
-  ) {
+  Widget _infoRow(IconData icon, String text) {
     return Row(
       children: [
-        Icon(
-          icon,
-          size: 16,
-          color:
-              Colors.grey.shade500,
-        ),
+        Icon(icon, size: 16, color: Colors.grey.shade500),
 
         const SizedBox(width: 7),
 
@@ -924,14 +783,8 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
           child: Text(
             text,
             maxLines: 1,
-            overflow:
-                TextOverflow.ellipsis,
-            style:
-                const TextStyle(
-              fontSize: 12,
-              color:
-                  AppColors.textLight,
-            ),
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontSize: 12, color: AppColors.textLight),
           ),
         ),
       ],
@@ -944,18 +797,14 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
 
   Widget _buildEmptyState() {
     return Padding(
-      padding:
-          const EdgeInsets.symmetric(
-        vertical: 60,
-      ),
+      padding: const EdgeInsets.symmetric(vertical: 60),
       child: Center(
         child: Column(
           children: [
             Icon(
               Icons.search_off_rounded,
               size: 52,
-              color:
-                  Colors.grey.shade400,
+              color: Colors.grey.shade400,
             ),
 
             const SizedBox(height: 14),
@@ -964,10 +813,8 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
               'No projects found',
               style: TextStyle(
                 fontSize: 18,
-                fontWeight:
-                    FontWeight.bold,
-                color:
-                    AppColors.textDark,
+                fontWeight: FontWeight.bold,
+                color: AppColors.textDark,
               ),
             ),
 
@@ -975,10 +822,7 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
 
             const Text(
               'Try changing your search or filter.',
-              style: TextStyle(
-                color:
-                    AppColors.textLight,
-              ),
+              style: TextStyle(color: AppColors.textLight),
             ),
           ],
         ),
@@ -990,12 +834,9 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
   // OPEN PROJECT
   // ================================================================
 
-  void _openProject(
-    ProjectModel project,
-  ) {
-    context.push(
-      '/projects/${project.code}',
-    );
+  void _openProject(ProjectModel project) {
+    final identifier = _apiMode ? project.id : project.code;
+    context.push('/projects/${Uri.encodeComponent(identifier)}');
   }
 }
 

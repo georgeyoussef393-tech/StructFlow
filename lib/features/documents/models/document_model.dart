@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:structflow/core/utils/material_icon_registry.dart';
 
 class DocumentModel {
   // ==============================================================
@@ -163,59 +164,33 @@ class DocumentModel {
   }) {
     return DocumentModel(
       id: id ?? this.id,
-      documentNumber:
-          documentNumber ?? this.documentNumber,
+      documentNumber: documentNumber ?? this.documentNumber,
       title: title ?? this.title,
-      projectCode:
-          projectCode ?? this.projectCode,
-      projectName:
-          projectName ?? this.projectName,
-      category:
-          category ?? this.category,
-      subCategory:
-          subCategory ?? this.subCategory,
-      documentType:
-          documentType ?? this.documentType,
-      discipline:
-          discipline ?? this.discipline,
-      revision:
-          revision ?? this.revision,
-      status:
-          status ?? this.status,
-      from:
-          from ?? this.from,
-      to:
-          to ?? this.to,
-      cc:
-          cc ?? this.cc,
-      submittedBy:
-          submittedBy ?? this.submittedBy,
-      recipient:
-          recipient ?? this.recipient,
-      date:
-          date ?? this.date,
-      createdBy:
-          createdBy ?? this.createdBy,
-      createdDate:
-          createdDate ?? this.createdDate,
-      submittedDate:
-          submittedDate ?? this.submittedDate,
-      dueDate:
-          dueDate ?? this.dueDate,
-      responseDate:
-          responseDate ?? this.responseDate,
-      priority:
-          priority ?? this.priority,
-      confidentiality:
-          confidentiality ?? this.confidentiality,
-      description:
-          description ?? this.description,
-      attachments:
-          attachments ?? this.attachments,
-      color:
-          color ?? this.color,
-      icon:
-          icon ?? this.icon,
+      projectCode: projectCode ?? this.projectCode,
+      projectName: projectName ?? this.projectName,
+      category: category ?? this.category,
+      subCategory: subCategory ?? this.subCategory,
+      documentType: documentType ?? this.documentType,
+      discipline: discipline ?? this.discipline,
+      revision: revision ?? this.revision,
+      status: status ?? this.status,
+      from: from ?? this.from,
+      to: to ?? this.to,
+      cc: cc ?? this.cc,
+      submittedBy: submittedBy ?? this.submittedBy,
+      recipient: recipient ?? this.recipient,
+      date: date ?? this.date,
+      createdBy: createdBy ?? this.createdBy,
+      createdDate: createdDate ?? this.createdDate,
+      submittedDate: submittedDate ?? this.submittedDate,
+      dueDate: dueDate ?? this.dueDate,
+      responseDate: responseDate ?? this.responseDate,
+      priority: priority ?? this.priority,
+      confidentiality: confidentiality ?? this.confidentiality,
+      description: description ?? this.description,
+      attachments: attachments ?? this.attachments,
+      color: color ?? this.color,
+      icon: icon ?? this.icon,
     );
   }
 
@@ -253,19 +228,14 @@ class DocumentModel {
 
       // Creation
       'createdBy': createdBy,
-      'createdDate':
-          createdDate.toIso8601String(),
-      'submittedDate':
-          submittedDate?.toIso8601String(),
-      'dueDate':
-          dueDate?.toIso8601String(),
-      'responseDate':
-          responseDate?.toIso8601String(),
+      'createdDate': createdDate.toIso8601String(),
+      'submittedDate': submittedDate?.toIso8601String(),
+      'dueDate': dueDate?.toIso8601String(),
+      'responseDate': responseDate?.toIso8601String(),
 
       // Priority
       'priority': priority,
-      'confidentiality':
-          confidentiality,
+      'confidentiality': confidentiality,
 
       // Content
       'description': description,
@@ -281,171 +251,109 @@ class DocumentModel {
   // FROM JSON
   // ==============================================================
 
-  factory DocumentModel.fromJson(
-    Map<String, dynamic> json,
-  ) {
+  factory DocumentModel.fromJson(Map<String, dynamic> json) {
     final DateTime parsedDate =
         _parseDate(json['date']) ??
         _parseDate(json['createdDate']) ??
         DateTime.now();
 
     final DateTime parsedCreatedDate =
-        _parseDate(json['createdDate']) ??
-        parsedDate;
+        _parseDate(json['createdDate']) ?? parsedDate;
 
     final int colorValue =
-        (json['color'] as num?)?.toInt() ??
-        Colors.blue.toARGB32();
+        (json['color'] as num?)?.toInt() ?? Colors.blue.toARGB32();
 
     final int iconCodePoint =
-        (json['iconCodePoint'] as num?)?.toInt() ??
-        Icons.description.codePoint;
+        (json['iconCodePoint'] as num?)?.toInt() ?? Icons.description.codePoint;
 
     return DocumentModel(
       // ------------------------------------------------------------
       // Basic
       // ------------------------------------------------------------
+      id: json['id'] as String? ?? '',
 
-      id:
-          json['id'] as String? ?? '',
+      documentNumber: json['documentNumber'] as String? ?? '',
 
-      documentNumber:
-          json['documentNumber'] as String? ?? '',
+      title: json['title'] as String? ?? '',
 
-      title:
-          json['title'] as String? ?? '',
+      projectCode: json['projectCode'] as String? ?? '',
 
-      projectCode:
-          json['projectCode'] as String? ?? '',
-
-      projectName:
-          json['projectName'] as String? ?? '',
+      projectName: json['projectName'] as String? ?? '',
 
       // ------------------------------------------------------------
       // Classification
       // ------------------------------------------------------------
+      category: json['category'] as String? ?? 'General',
 
-      category:
-          json['category'] as String? ??
-          'General',
+      subCategory: json['subCategory'] as String? ?? 'General',
 
-      subCategory:
-          json['subCategory'] as String? ??
-          'General',
+      documentType: json['documentType'] as String? ?? 'General',
 
-      documentType:
-          json['documentType'] as String? ??
-          'General',
-
-      discipline:
-          json['discipline'] as String? ??
-          'General',
+      discipline: json['discipline'] as String? ?? 'General',
 
       // ------------------------------------------------------------
       // Revision / status
       // ------------------------------------------------------------
+      revision: json['revision'] as String? ?? 'Rev. 00',
 
-      revision:
-          json['revision'] as String? ??
-          'Rev. 00',
-
-      status:
-          json['status'] as String? ??
-          'Draft',
+      status: json['status'] as String? ?? 'Draft',
 
       // ------------------------------------------------------------
       // Communication
       // ------------------------------------------------------------
+      from: json['from'] as String? ?? '',
 
-      from:
-          json['from'] as String? ?? '',
+      to: json['to'] as String? ?? '',
 
-      to:
-          json['to'] as String? ?? '',
-
-      cc:
-          json['cc'] as String? ?? '',
+      cc: json['cc'] as String? ?? '',
 
       // ------------------------------------------------------------
       // Compatibility
       // ------------------------------------------------------------
-
       submittedBy:
-          json['submittedBy'] as String? ??
-          json['from'] as String? ??
-          '',
+          json['submittedBy'] as String? ?? json['from'] as String? ?? '',
 
-      recipient:
-          json['recipient'] as String? ??
-          json['to'] as String? ??
-          '',
+      recipient: json['recipient'] as String? ?? json['to'] as String? ?? '',
 
       date: parsedDate,
 
       // ------------------------------------------------------------
       // Creation
       // ------------------------------------------------------------
-
       createdBy:
           json['createdBy'] as String? ??
           json['submittedBy'] as String? ??
           json['from'] as String? ??
           '',
 
-      createdDate:
-          parsedCreatedDate,
+      createdDate: parsedCreatedDate,
 
-      submittedDate:
-          _parseDate(
-        json['submittedDate'],
-      ),
+      submittedDate: _parseDate(json['submittedDate']),
 
-      dueDate:
-          _parseDate(
-        json['dueDate'],
-      ),
+      dueDate: _parseDate(json['dueDate']),
 
-      responseDate:
-          _parseDate(
-        json['responseDate'],
-      ),
+      responseDate: _parseDate(json['responseDate']),
 
       // ------------------------------------------------------------
       // Priority
       // ------------------------------------------------------------
+      priority: json['priority'] as String? ?? 'Normal',
 
-      priority:
-          json['priority'] as String? ??
-          'Normal',
-
-      confidentiality:
-          json['confidentiality'] as String? ??
-          'Internal',
+      confidentiality: json['confidentiality'] as String? ?? 'Internal',
 
       // ------------------------------------------------------------
       // Content
       // ------------------------------------------------------------
+      description: json['description'] as String? ?? '',
 
-      description:
-          json['description'] as String? ??
-          '',
-
-      attachments:
-          _parseAttachments(
-        json['attachments'],
-      ),
+      attachments: _parseAttachments(json['attachments']),
 
       // ------------------------------------------------------------
       // UI
       // ------------------------------------------------------------
+      color: Color(colorValue),
 
-      color:
-          Color(colorValue),
-
-      icon:
-          _iconFromCodePoint(
-        iconCodePoint,
-      ),
+      icon: _iconFromCodePoint(iconCodePoint),
     );
   }
 
@@ -453,25 +361,15 @@ class DocumentModel {
   // ICON PARSER
   // ==============================================================
 
-  static IconData _iconFromCodePoint(
-    int codePoint,
-  ) {
-    return IconData(
-      // The icon code point comes from persisted JSON data,
-      // so it cannot be a compile-time constant.
-      // ignore: non_const_argument_for_const_parameter
-      codePoint,
-      fontFamily: 'MaterialIcons',
-    );
+  static IconData _iconFromCodePoint(int codePoint) {
+    return materialIconFromCodePoint(codePoint, fallback: Icons.description);
   }
 
   // ==============================================================
   // DATE PARSER
   // ==============================================================
 
-  static DateTime? _parseDate(
-    dynamic value,
-  ) {
+  static DateTime? _parseDate(dynamic value) {
     if (value == null) {
       return null;
     }
@@ -485,9 +383,7 @@ class DocumentModel {
     }
 
     if (value is int) {
-      return DateTime.fromMillisecondsSinceEpoch(
-        value,
-      );
+      return DateTime.fromMillisecondsSinceEpoch(value);
     }
 
     return null;
@@ -497,15 +393,11 @@ class DocumentModel {
   // ATTACHMENTS PARSER
   // ==============================================================
 
-  static List<String> _parseAttachments(
-    dynamic value,
-  ) {
+  static List<String> _parseAttachments(dynamic value) {
     if (value is! List) {
       return const [];
     }
 
-    return value
-        .whereType<String>()
-        .toList();
+    return value.whereType<String>().toList();
   }
 }

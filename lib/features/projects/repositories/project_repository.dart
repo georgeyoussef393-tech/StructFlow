@@ -3,14 +3,15 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../../core/network/api_auth_client.dart';
+import '../../auth/repositories/auth_repository.dart';
 import 'package:structflow/features/projects/models/project_model.dart';
 
 class ProjectRepository extends ChangeNotifier {
   static const _storageKey = 'structflow_projects';
   ProjectRepository._internal();
 
-  static final ProjectRepository instance =
-      ProjectRepository._internal();
+  static final ProjectRepository instance = ProjectRepository._internal();
 
   final List<ProjectModel> _projects = [
     const ProjectModel(
@@ -101,6 +102,31 @@ class ProjectRepository extends ChangeNotifier {
   }
 
   Future<void> loadProjects() async {
+    if (AuthRepository.instance.usesApiAuth) {
+      _projects.clear();
+      notifyListeners();
+      final user = AuthRepository.instance.currentUser;
+      if (user == null || user.organizationId.isEmpty) {
+        throw StateError('An authenticated company is required.');
+      }
+      late final List<ProjectModel> loadedProjects;
+      try {
+        loadedProjects = await ApiAuthClient.configured.listProjects(
+          organizationId: user.organizationId,
+        );
+      } on AuthApiException catch (error) {
+        if (error.statusCode == 401) {
+          await AuthRepository.instance.signOut();
+        }
+        rethrow;
+      }
+      _projects
+        ..clear()
+        ..addAll(loadedProjects);
+      notifyListeners();
+      return;
+    }
+
     final preferences = await SharedPreferences.getInstance();
     final savedProjects = preferences.getString(_storageKey);
 
@@ -128,6 +154,66 @@ class ProjectRepository extends ChangeNotifier {
     }
   }
 
+  Future<ProjectModel> createProject(ProjectModel project) async {
+    if (AuthRepository.instance.usesApiAuth) {
+      final user = AuthRepository.instance.currentUser;
+      if (user == null || user.organizationId.isEmpty) {
+        throw StateError('An authenticated company is required.');
+      }
+      late final ProjectModel createdProject;
+      try {
+        createdProject = await ApiAuthClient.configured.createProject(
+          organizationId: user.organizationId,
+          project: project,
+        );
+      } on AuthApiException catch (error) {
+        if (error.statusCode == 401) {
+          await AuthRepository.instance.signOut();
+        }
+        rethrow;
+      }
+      _projects.insert(0, createdProject);
+      notifyListeners();
+      return createdProject;
+    }
+
+    addProject(project);
+    return project;
+  }
+
+  Future<ProjectModel> loadProject(String projectIdentifier) async {
+    if (!AuthRepository.instance.usesApiAuth) {
+      ProjectModel? project;
+      for (final candidate in _projects) {
+        if (candidate.code == projectIdentifier ||
+            candidate.id == projectIdentifier) {
+          project = candidate;
+          break;
+        }
+      }
+      if (project == null) {
+        throw StateError('Project not found.');
+      }
+      return project;
+    }
+
+    final user = AuthRepository.instance.currentUser;
+    if (user == null || user.organizationId.isEmpty) {
+      throw StateError('An authenticated company is required.');
+    }
+    try {
+      return await ApiAuthClient.configured.getProject(
+        organizationId: user.organizationId,
+        projectIdentifier: projectIdentifier,
+      );
+    } on AuthApiException catch (error) {
+      if (error.statusCode == 401) {
+        await AuthRepository.instance.signOut();
+      }
+      rethrow;
+    }
+  }
+
   Future<void> _saveProjects() async {
     final preferences = await SharedPreferences.getInstance();
     final encodedProjects = jsonEncode(
@@ -141,13 +227,9 @@ class ProjectRepository extends ChangeNotifier {
   // GET PROJECT BY CODE
   // ================================================================
 
-  ProjectModel? getProjectByCode(
-    String code,
-  ) {
+  ProjectModel? getProjectByCode(String code) {
     try {
-      return _projects.firstWhere(
-        (project) => project.code == code,
-      );
+      return _projects.firstWhere((project) => project.code == code);
     } catch (_) {
       return null;
     }
@@ -157,9 +239,7 @@ class ProjectRepository extends ChangeNotifier {
   // ADD PROJECT
   // ================================================================
 
-  void addProject(
-    ProjectModel project,
-  ) {
+  void addProject(ProjectModel project) {
     _projects.add(project);
 
     _saveProjects();
@@ -170,34 +250,54 @@ class ProjectRepository extends ChangeNotifier {
   // UPDATE PROJECT
   // ================================================================
 
-  void updateProject(
-    ProjectModel updatedProject,
-  ) {
+  Future<ProjectModel?> updateProject(ProjectModel updatedProject) async {
+    if (AuthRepository.instance.usesApiAuth) {
+      final user = AuthRepository.instance.currentUser;
+      if (user == null || user.organizationId.isEmpty) {
+        throw StateError('An authenticated company is required.');
+      }
+      try {
+        final savedProject = await ApiAuthClient.configured.updateProject(
+          organizationId: user.organizationId,
+          project: updatedProject,
+        );
+        final index = _projects.indexWhere(
+          (project) => project.id == savedProject.id,
+        );
+        if (index != -1) {
+          _projects[index] = savedProject;
+          notifyListeners();
+        }
+        return savedProject;
+      } on AuthApiException catch (error) {
+        if (error.statusCode == 401) {
+          await AuthRepository.instance.signOut();
+        }
+        rethrow;
+      }
+    }
+
     final index = _projects.indexWhere(
-      (project) =>
-          project.code == updatedProject.code,
+      (project) => project.code == updatedProject.code,
     );
 
     if (index == -1) {
-      return;
+      return null;
     }
 
     _projects[index] = updatedProject;
 
     _saveProjects();
     notifyListeners();
+    return updatedProject;
   }
 
   // ================================================================
   // DELETE PROJECT
   // ================================================================
 
-  void deleteProject(
-    String code,
-  ) {
-    _projects.removeWhere(
-      (project) => project.code == code,
-    );
+  void deleteProject(String code) {
+    _projects.removeWhere((project) => project.code == code);
 
     _saveProjects();
     notifyListeners();
@@ -207,12 +307,8 @@ class ProjectRepository extends ChangeNotifier {
   // CHECK PROJECT CODE
   // ================================================================
 
-  bool codeExists(
-    String code,
-  ) {
-    return _projects.any(
-      (project) => project.code == code,
-    );
+  bool codeExists(String code) {
+    return _projects.any((project) => project.code == code);
   }
 
   // ================================================================
@@ -228,12 +324,7 @@ class ProjectRepository extends ChangeNotifier {
   // ================================================================
 
   int get activeProjectCount {
-    return _projects
-        .where(
-          (project) =>
-              project.status == 'Active',
-        )
-        .length;
+    return _projects.where((project) => project.status == 'Active').length;
   }
 
   // ================================================================
@@ -241,12 +332,7 @@ class ProjectRepository extends ChangeNotifier {
   // ================================================================
 
   int get planningProjectCount {
-    return _projects
-        .where(
-          (project) =>
-              project.status == 'Planning',
-        )
-        .length;
+    return _projects.where((project) => project.status == 'Planning').length;
   }
 
   // ================================================================
@@ -254,11 +340,6 @@ class ProjectRepository extends ChangeNotifier {
   // ================================================================
 
   int get onHoldProjectCount {
-    return _projects
-        .where(
-          (project) =>
-              project.status == 'On Hold',
-        )
-        .length;
+    return _projects.where((project) => project.status == 'On Hold').length;
   }
 }

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:structflow/core/utils/material_icon_registry.dart';
 
 class ProjectModel {
   // ==============================================================
@@ -31,6 +32,9 @@ class ProjectModel {
   final double progress;
   final String budget;
   final int team;
+  final DateTime? plannedStartDate;
+  final DateTime? plannedEndDate;
+  final int version;
 
   // ==============================================================
   // UI
@@ -51,6 +55,9 @@ class ProjectModel {
     required this.progress,
     required this.budget,
     required this.team,
+    this.plannedStartDate,
+    this.plannedEndDate,
+    this.version = 1,
     required this.color,
     required this.icon,
   });
@@ -71,6 +78,9 @@ class ProjectModel {
     double? progress,
     String? budget,
     int? team,
+    DateTime? plannedStartDate,
+    DateTime? plannedEndDate,
+    int? version,
     Color? color,
     IconData? icon,
   }) {
@@ -78,16 +88,17 @@ class ProjectModel {
       id: id ?? this.id,
       name: name ?? this.name,
       code: code ?? this.code,
-      organizationId:
-          organizationId ?? this.organizationId,
-      projectType:
-          projectType ?? this.projectType,
+      organizationId: organizationId ?? this.organizationId,
+      projectType: projectType ?? this.projectType,
       client: client ?? this.client,
       location: location ?? this.location,
       status: status ?? this.status,
       progress: progress ?? this.progress,
       budget: budget ?? this.budget,
       team: team ?? this.team,
+      plannedStartDate: plannedStartDate ?? this.plannedStartDate,
+      plannedEndDate: plannedEndDate ?? this.plannedEndDate,
+      version: version ?? this.version,
       color: color ?? this.color,
       icon: icon ?? this.icon,
     );
@@ -110,6 +121,9 @@ class ProjectModel {
       'progress': progress,
       'budget': budget,
       'team': team,
+      'plannedStartDate': plannedStartDate?.toIso8601String(),
+      'plannedEndDate': plannedEndDate?.toIso8601String(),
+      'version': version,
       'color': color.toARGB32(),
       'iconCodePoint': icon.codePoint,
     };
@@ -119,50 +133,30 @@ class ProjectModel {
   // FROM JSON
   // ==============================================================
 
-  factory ProjectModel.fromJson(
-    Map<String, dynamic> json,
-  ) {
+  factory ProjectModel.fromJson(Map<String, dynamic> json) {
     final int iconCodePoint =
-        (json['iconCodePoint'] as num?)?.toInt() ??
-        Icons.apartment.codePoint;
+        (json['iconCodePoint'] as num?)?.toInt() ?? Icons.apartment.codePoint;
 
     final int colorValue =
-        (json['color'] as num?)?.toInt() ??
-        Colors.blue.toARGB32();
+        (json['color'] as num?)?.toInt() ?? Colors.blue.toARGB32();
 
     return ProjectModel(
-      id:
-          json['id'] as String? ?? '',
-      name:
-          json['name'] as String? ?? '',
-      code:
-          json['code'] as String? ?? '',
-      organizationId:
-          json['organizationId'] as String? ?? '',
-      projectType:
-          json['projectType'] as String? ??
-          'Internal',
-      client:
-          json['client'] as String? ?? '',
-      location:
-          json['location'] as String? ?? '',
-      status:
-          json['status'] as String? ??
-          'Planning',
-      progress:
-          (json['progress'] as num?)?.toDouble() ??
-          0.0,
-      budget:
-          json['budget'] as String? ?? '',
-      team:
-          (json['team'] as num?)?.toInt() ??
-          0,
-      color:
-          Color(colorValue),
-      icon:
-          _iconFromCodePoint(
-        iconCodePoint,
-      ),
+      id: json['id'] as String? ?? '',
+      name: json['name'] as String? ?? '',
+      code: json['code'] as String? ?? '',
+      organizationId: json['organizationId'] as String? ?? '',
+      projectType: json['projectType'] as String? ?? 'Internal',
+      client: json['client'] as String? ?? '',
+      location: json['location'] as String? ?? '',
+      status: json['status'] as String? ?? 'Planning',
+      progress: (json['progress'] as num?)?.toDouble() ?? 0.0,
+      budget: json['budget'] as String? ?? '',
+      team: (json['team'] as num?)?.toInt() ?? 0,
+      plannedStartDate: _parseDate(json['plannedStartDate']),
+      plannedEndDate: _parseDate(json['plannedEndDate']),
+      version: (json['version'] as num?)?.toInt() ?? 1,
+      color: Color(colorValue),
+      icon: _iconFromCodePoint(iconCodePoint),
     );
   }
 
@@ -170,14 +164,15 @@ class ProjectModel {
   // ICON PARSER
   // ==============================================================
 
-  static IconData _iconFromCodePoint(
-    int codePoint,
-  ) {
-    return IconData(
-      // Icon code point is loaded dynamically from JSON.
-      // ignore: non_const_argument_for_const_parameter
+  static IconData _iconFromCodePoint(int codePoint) {
+    return materialIconFromCodePoint(
       codePoint,
-      fontFamily: 'MaterialIcons',
+      fallback: Icons.apartment_rounded,
     );
+  }
+
+  static DateTime? _parseDate(Object? value) {
+    if (value is! String || value.isEmpty) return null;
+    return DateTime.tryParse(value);
   }
 }

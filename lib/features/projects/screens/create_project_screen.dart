@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:structflow/core/theme/app_colors.dart';
+import 'package:structflow/core/network/api_auth_client.dart';
+import 'package:structflow/features/auth/repositories/auth_repository.dart';
 import 'package:structflow/features/projects/models/project_model.dart';
 import 'package:structflow/features/projects/repositories/project_repository.dart';
 
@@ -9,12 +11,10 @@ class CreateProjectScreen extends StatefulWidget {
   const CreateProjectScreen({super.key});
 
   @override
-  State<CreateProjectScreen> createState() =>
-      _CreateProjectScreenState();
+  State<CreateProjectScreen> createState() => _CreateProjectScreenState();
 }
 
-class _CreateProjectScreenState
-    extends State<CreateProjectScreen> {
+class _CreateProjectScreenState extends State<CreateProjectScreen> {
   final _formKey = GlobalKey<FormState>();
 
   final _nameController = TextEditingController();
@@ -24,10 +24,14 @@ class _CreateProjectScreenState
   final _budgetController = TextEditingController();
   final _managerController = TextEditingController();
 
-  final ProjectRepository _repository =
-      ProjectRepository.instance;
+  final ProjectRepository _repository = ProjectRepository.instance;
 
   String _projectType = 'Commercial';
+  String _projectStatus = 'Planning';
+  String _budgetCurrency = 'USD';
+  bool _saving = false;
+
+  bool get _apiMode => AuthRepository.instance.usesApiAuth;
 
   DateTime? _startDate;
   DateTime? _endDate;
@@ -48,9 +52,7 @@ class _CreateProjectScreenState
   // SELECT DATE
   // ================================================================
 
-  Future<void> _selectDate({
-    required bool isStartDate,
-  }) async {
+  Future<void> _selectDate({required bool isStartDate}) async {
     final now = DateTime.now();
 
     final initialDate = isStartDate
@@ -72,8 +74,7 @@ class _CreateProjectScreenState
       if (isStartDate) {
         _startDate = selected;
 
-        if (_endDate != null &&
-            _endDate!.isBefore(selected)) {
+        if (_endDate != null && _endDate!.isBefore(selected)) {
           _endDate = null;
         }
       } else {
@@ -86,59 +87,49 @@ class _CreateProjectScreenState
   // CREATE PROJECT
   // ================================================================
 
-  void _createProject() {
+  Future<void> _createProject() async {
+    if (_saving) return;
     FocusScope.of(context).unfocus();
 
     if (!_formKey.currentState!.validate()) {
       return;
     }
 
-    if (_startDate == null) {
-      _showMessage(
-        'Please select the project start date.',
-      );
+    if (_startDate != null &&
+        _endDate != null &&
+        _endDate!.isBefore(_startDate!)) {
+      _showMessage('End date cannot be before start date.');
       return;
     }
 
-    if (_endDate == null) {
-      _showMessage(
-        'Please select the expected end date.',
-      );
+    if (!_apiMode && _startDate == null) {
+      _showMessage('Please select the project start date.');
       return;
     }
 
-    if (_endDate!.isBefore(_startDate!)) {
-      _showMessage(
-        'End date cannot be before start date.',
-      );
+    if (!_apiMode && _endDate == null) {
+      _showMessage('Please select the expected end date.');
       return;
     }
 
     final name = _nameController.text.trim();
 
-    final code =
-        _codeController.text.trim().toUpperCase();
+    final code = _codeController.text.trim().toUpperCase();
 
-    final client =
-        _clientController.text.trim();
+    final client = _clientController.text.trim();
 
-    final location =
-        _locationController.text.trim();
+    final location = _locationController.text.trim();
 
-    final budget =
-        _budgetController.text.trim();
+    final budget = _budgetController.text.trim();
 
-    final manager =
-        _managerController.text.trim();
+    final manager = _apiMode ? '' : _managerController.text.trim();
 
     // ============================================================
     // CHECK DUPLICATE PROJECT CODE
     // ============================================================
 
-    if (_repository.codeExists(code)) {
-      _showMessage(
-        'Project code $code already exists.',
-      );
+    if (!_apiMode && _repository.codeExists(code)) {
+      _showMessage('Project code $code already exists.');
       return;
     }
 
@@ -151,10 +142,17 @@ class _CreateProjectScreenState
       code: code,
       client: client,
       location: location,
-      status: 'Planning',
+      status: _apiMode ? _projectStatus : 'Planning',
       progress: 0.0,
-      budget: _formatBudget(budget),
-      team: 1,
+      budget: _apiMode
+          ? budget.isEmpty
+                ? ''
+                : '$_budgetCurrency ${budget.replaceAll(',', '')}'
+          : _formatBudget(budget),
+      team: _apiMode ? 0 : 1,
+      projectType: _projectType,
+      plannedStartDate: _startDate,
+      plannedEndDate: _endDate,
       color: _getProjectColor(_projectType),
       icon: _getProjectIcon(_projectType),
     );
@@ -163,16 +161,21 @@ class _CreateProjectScreenState
     // ADD TO REPOSITORY
     // ============================================================
 
-    _repository.addProject(newProject);
+    setState(() => _saving = true);
+    try {
+      final savedProject = await _repository.createProject(newProject);
 
-    // ============================================================
-    // SUCCESS DIALOG
-    // ============================================================
-
-    _showSuccessDialog(
-      newProject,
-      manager,
-    );
+      if (!mounted) return;
+      _showSuccessDialog(savedProject, manager);
+    } on Exception catch (error) {
+      if (!mounted) return;
+      final message = error is AuthApiException
+          ? error.message
+          : 'Could not save the project. Please try again.';
+      _showMessage(message);
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
   }
 
   // ================================================================
@@ -180,8 +183,7 @@ class _CreateProjectScreenState
   // ================================================================
 
   String _formatBudget(String value) {
-    final cleanValue =
-        value.replaceAll(',', '').trim();
+    final cleanValue = value.replaceAll(',', '').trim();
 
     if (cleanValue.isEmpty) {
       return '\$0';
@@ -248,18 +250,14 @@ class _CreateProjectScreenState
   // SUCCESS DIALOG
   // ================================================================
 
-  void _showSuccessDialog(
-    ProjectModel project,
-    String manager,
-  ) {
+  void _showSuccessDialog(ProjectModel project, String manager) {
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (dialogContext) {
         return AlertDialog(
           shape: RoundedRectangleBorder(
-            borderRadius:
-                BorderRadius.circular(20),
+            borderRadius: BorderRadius.circular(20),
           ),
           content: Column(
             mainAxisSize: MainAxisSize.min,
@@ -268,9 +266,7 @@ class _CreateProjectScreenState
                 width: 70,
                 height: 70,
                 decoration: BoxDecoration(
-                  color: Colors.green.withValues(
-                    alpha: .10,
-                  ),
+                  color: Colors.green.withValues(alpha: .10),
                   shape: BoxShape.circle,
                 ),
                 child: const Icon(
@@ -304,14 +300,15 @@ class _CreateProjectScreenState
 
               const SizedBox(height: 8),
 
-              Text(
-                'Manager: $manager',
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  fontSize: 12,
-                  color: AppColors.textLight,
+              if (manager.isNotEmpty)
+                Text(
+                  'Manager: $manager',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: AppColors.textLight,
+                  ),
                 ),
-              ),
 
               const SizedBox(height: 24),
 
@@ -323,26 +320,16 @@ class _CreateProjectScreenState
 
                     context.go('/projects');
                   },
-                  style:
-                      ElevatedButton.styleFrom(
-                    backgroundColor:
-                        AppColors.primary,
-                    foregroundColor:
-                        Colors.white,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
                     elevation: 0,
-                    padding:
-                        const EdgeInsets.symmetric(
-                      vertical: 14,
-                    ),
-                    shape:
-                        RoundedRectangleBorder(
-                      borderRadius:
-                          BorderRadius.circular(12),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
                     ),
                   ),
-                  child: const Text(
-                    'Go to Projects',
-                  ),
+                  child: const Text('Go to Projects'),
                 ),
               ),
             ],
@@ -358,11 +345,7 @@ class _CreateProjectScreenState
 
   void _showMessage(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        behavior:
-            SnackBarBehavior.floating,
-      ),
+      SnackBar(content: Text(message), behavior: SnackBarBehavior.floating),
     );
   }
 
@@ -373,27 +356,19 @@ class _CreateProjectScreenState
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor:
-          const Color(0xffF5F7FB),
+      backgroundColor: const Color(0xffF5F7FB),
       body: SafeArea(
         child: LayoutBuilder(
           builder: (context, constraints) {
-            final isMobile =
-                constraints.maxWidth < 700;
+            final isMobile = constraints.maxWidth < 700;
 
             return SingleChildScrollView(
-              padding: EdgeInsets.all(
-                isMobile ? 16 : 30,
-              ),
+              padding: EdgeInsets.all(isMobile ? 16 : 30),
               child: Center(
                 child: ConstrainedBox(
-                  constraints:
-                      const BoxConstraints(
-                    maxWidth: 1100,
-                  ),
+                  constraints: const BoxConstraints(maxWidth: 1100),
                   child: Column(
-                    crossAxisAlignment:
-                        CrossAxisAlignment.start,
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       _buildHeader(),
 
@@ -417,19 +392,14 @@ class _CreateProjectScreenState
 
   Widget _buildHeader() {
     return Column(
-      crossAxisAlignment:
-          CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         TextButton.icon(
           onPressed: () {
             context.go('/projects');
           },
-          icon: const Icon(
-            Icons.arrow_back_rounded,
-          ),
-          label: const Text(
-            'Back to Projects',
-          ),
+          icon: const Icon(Icons.arrow_back_rounded),
+          label: const Text('Back to Projects'),
         ),
 
         const SizedBox(height: 10),
@@ -447,10 +417,7 @@ class _CreateProjectScreenState
 
         const Text(
           'Add the basic information for your construction project.',
-          style: TextStyle(
-            fontSize: 14,
-            color: AppColors.textLight,
-          ),
+          style: TextStyle(fontSize: 14, color: AppColors.textLight),
         ),
       ],
     );
@@ -460,18 +427,13 @@ class _CreateProjectScreenState
   // FORM CARD
   // ================================================================
 
-  Widget _buildFormCard(
-    bool isMobile,
-  ) {
+  Widget _buildFormCard(bool isMobile) {
     return Container(
       width: double.infinity,
-      padding: EdgeInsets.all(
-        isMobile ? 18 : 28,
-      ),
+      padding: EdgeInsets.all(isMobile ? 18 : 28),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius:
-            BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(20),
         boxShadow: const [
           BoxShadow(
             color: Colors.black12,
@@ -483,38 +445,24 @@ class _CreateProjectScreenState
       child: Form(
         key: _formKey,
         child: Column(
-          crossAxisAlignment:
-              CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _sectionTitle(
-              Icons.info_outline_rounded,
-              'Project Information',
-            ),
+            _sectionTitle(Icons.info_outline_rounded, 'Project Information'),
 
             const SizedBox(height: 20),
 
             _buildBasicFields(isMobile),
 
             const SizedBox(height: 30),
-
-            _sectionTitle(
-              Icons.calendar_month_rounded,
-              'Project Schedule',
-            ),
-
+            _sectionTitle(Icons.calendar_month_rounded, 'Project Schedule'),
             const SizedBox(height: 20),
-
             _buildDateFields(isMobile),
-
             const SizedBox(height: 30),
-
             _sectionTitle(
               Icons.account_balance_wallet_outlined,
-              'Financial & Management',
+              _apiMode ? 'Financial Information' : 'Financial & Management',
             ),
-
             const SizedBox(height: 20),
-
             _buildFinancialFields(isMobile),
 
             const SizedBox(height: 35),
@@ -534,9 +482,7 @@ class _CreateProjectScreenState
   // BASIC FIELDS
   // ================================================================
 
-  Widget _buildBasicFields(
-    bool isMobile,
-  ) {
+  Widget _buildBasicFields(bool isMobile) {
     final fields = [
       _textField(
         controller: _nameController,
@@ -557,6 +503,7 @@ class _CreateProjectScreenState
         label: 'Client',
         hint: 'Client / Company name',
         icon: Icons.person_outline_rounded,
+        required: !_apiMode,
       ),
 
       _textField(
@@ -579,6 +526,10 @@ class _CreateProjectScreenState
           fields[3],
           const SizedBox(height: 16),
           _projectTypeDropdown(),
+          if (_apiMode) ...[
+            const SizedBox(height: 16),
+            _projectStatusDropdown(),
+          ],
         ],
       );
     }
@@ -606,7 +557,30 @@ class _CreateProjectScreenState
         const SizedBox(height: 18),
 
         _projectTypeDropdown(),
+        if (_apiMode) ...[const SizedBox(height: 18), _projectStatusDropdown()],
       ],
+    );
+  }
+
+  Widget _projectStatusDropdown() {
+    return DropdownButtonFormField<String>(
+      initialValue: _projectStatus,
+      decoration: _inputDecoration(
+        label: 'Project Status',
+        icon: Icons.flag_outlined,
+      ),
+      items: const [
+        DropdownMenuItem(value: 'Planning', child: Text('Planning')),
+        DropdownMenuItem(value: 'Active', child: Text('Active')),
+        DropdownMenuItem(value: 'On Hold', child: Text('On Hold')),
+        DropdownMenuItem(value: 'Completed', child: Text('Completed')),
+        DropdownMenuItem(value: 'Cancelled', child: Text('Cancelled')),
+      ],
+      onChanged: _saving
+          ? null
+          : (value) {
+              if (value != null) setState(() => _projectStatus = value);
+            },
     );
   }
 
@@ -624,30 +598,15 @@ class _CreateProjectScreenState
       ),
 
       items: const [
-        DropdownMenuItem(
-          value: 'Commercial',
-          child: Text('Commercial'),
-        ),
-        DropdownMenuItem(
-          value: 'Residential',
-          child: Text('Residential'),
-        ),
-        DropdownMenuItem(
-          value: 'Industrial',
-          child: Text('Industrial'),
-        ),
+        DropdownMenuItem(value: 'Commercial', child: Text('Commercial')),
+        DropdownMenuItem(value: 'Residential', child: Text('Residential')),
+        DropdownMenuItem(value: 'Industrial', child: Text('Industrial')),
         DropdownMenuItem(
           value: 'Infrastructure',
           child: Text('Infrastructure'),
         ),
-        DropdownMenuItem(
-          value: 'Hospitality',
-          child: Text('Hospitality'),
-        ),
-        DropdownMenuItem(
-          value: 'Healthcare',
-          child: Text('Healthcare'),
-        ),
+        DropdownMenuItem(value: 'Hospitality', child: Text('Hospitality')),
+        DropdownMenuItem(value: 'Healthcare', child: Text('Healthcare')),
       ],
 
       onChanged: (value) {
@@ -666,17 +625,13 @@ class _CreateProjectScreenState
   // DATE FIELDS
   // ================================================================
 
-  Widget _buildDateFields(
-    bool isMobile,
-  ) {
+  Widget _buildDateFields(bool isMobile) {
     final startField = _dateField(
       label: 'Start Date',
       date: _startDate,
       icon: Icons.play_arrow_rounded,
       onTap: () {
-        _selectDate(
-          isStartDate: true,
-        );
+        _selectDate(isStartDate: true);
       },
     );
 
@@ -685,19 +640,13 @@ class _CreateProjectScreenState
       date: _endDate,
       icon: Icons.flag_rounded,
       onTap: () {
-        _selectDate(
-          isStartDate: false,
-        );
+        _selectDate(isStartDate: false);
       },
     );
 
     if (isMobile) {
       return Column(
-        children: [
-          startField,
-          const SizedBox(height: 16),
-          endField,
-        ],
+        children: [startField, const SizedBox(height: 16), endField],
       );
     }
 
@@ -722,21 +671,13 @@ class _CreateProjectScreenState
   }) {
     return InkWell(
       onTap: onTap,
-      borderRadius:
-          BorderRadius.circular(12),
+      borderRadius: BorderRadius.circular(12),
       child: InputDecorator(
-        decoration: _inputDecoration(
-          label: label,
-          icon: icon,
-        ),
+        decoration: _inputDecoration(label: label, icon: icon),
         child: Text(
-          date == null
-              ? 'Select date'
-              : _formatDate(date),
+          date == null ? 'Select date' : _formatDate(date),
           style: TextStyle(
-            color: date == null
-                ? AppColors.textLight
-                : AppColors.textDark,
+            color: date == null ? AppColors.textLight : AppColors.textDark,
             fontSize: 14,
           ),
         ),
@@ -748,32 +689,59 @@ class _CreateProjectScreenState
   // FINANCIAL FIELDS
   // ================================================================
 
-  Widget _buildFinancialFields(
-    bool isMobile,
-  ) {
+  Widget _buildFinancialFields(bool isMobile) {
     final budgetField = _textField(
       controller: _budgetController,
       label: 'Budget',
       hint: 'e.g. 850000',
-      icon:
-          Icons.account_balance_wallet_outlined,
+      icon: Icons.account_balance_wallet_outlined,
       keyboardType: TextInputType.number,
+      required: !_apiMode,
     );
 
-    final managerField = _textField(
-      controller: _managerController,
-      label: 'Project Manager',
-      hint: 'Manager name',
-      icon: Icons.manage_accounts_outlined,
-    );
+    final managerField = _apiMode
+        ? null
+        : _textField(
+            controller: _managerController,
+            label: 'Project Manager',
+            hint: 'Manager name',
+            icon: Icons.manage_accounts_outlined,
+          );
 
-    if (isMobile) {
+    if (_apiMode) {
       return Column(
         children: [
           budgetField,
           const SizedBox(height: 16),
-          managerField,
+          DropdownButtonFormField<String>(
+            initialValue: _budgetCurrency,
+            decoration: _inputDecoration(
+              label: 'Budget Currency',
+              icon: Icons.currency_exchange_rounded,
+            ),
+            items: const [
+              DropdownMenuItem(value: 'USD', child: Text('USD')),
+              DropdownMenuItem(value: 'EUR', child: Text('EUR')),
+              DropdownMenuItem(value: 'GBP', child: Text('GBP')),
+              DropdownMenuItem(value: 'EGP', child: Text('EGP')),
+              DropdownMenuItem(value: 'SAR', child: Text('SAR')),
+              DropdownMenuItem(value: 'AED', child: Text('AED')),
+            ],
+            onChanged: _saving
+                ? null
+                : (value) {
+                    if (value != null) {
+                      setState(() => _budgetCurrency = value);
+                    }
+                  },
+          ),
         ],
+      );
+    }
+
+    if (isMobile) {
+      return Column(
+        children: [budgetField, const SizedBox(height: 16), managerField!],
       );
     }
 
@@ -781,7 +749,7 @@ class _CreateProjectScreenState
       children: [
         Expanded(child: budgetField),
         const SizedBox(width: 18),
-        Expanded(child: managerField),
+        Expanded(child: managerField!),
       ],
     );
   }
@@ -796,20 +764,16 @@ class _CreateProjectScreenState
     required String hint,
     required IconData icon,
     TextInputType? keyboardType,
+    bool required = true,
   }) {
     return TextFormField(
       controller: controller,
       keyboardType: keyboardType,
 
-      decoration: _inputDecoration(
-        label: label,
-        hint: hint,
-        icon: icon,
-      ),
+      decoration: _inputDecoration(label: label, hint: hint, icon: icon),
 
       validator: (value) {
-        if (value == null ||
-            value.trim().isEmpty) {
+        if (required && (value == null || value.trim().isEmpty)) {
           return 'Required';
         }
 
@@ -835,61 +799,36 @@ class _CreateProjectScreenState
 
       filled: true,
 
-      fillColor:
-          const Color(0xffF8FAFC),
+      fillColor: const Color(0xffF8FAFC),
 
       border: OutlineInputBorder(
-        borderRadius:
-            BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(12),
 
-        borderSide: BorderSide(
-          color: Colors.grey.shade200,
-        ),
+        borderSide: BorderSide(color: Colors.grey.shade200),
       ),
 
-      enabledBorder:
-          OutlineInputBorder(
-        borderRadius:
-            BorderRadius.circular(12),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
 
-        borderSide: BorderSide(
-          color: Colors.grey.shade200,
-        ),
+        borderSide: BorderSide(color: Colors.grey.shade200),
       ),
 
-      focusedBorder:
-          OutlineInputBorder(
-        borderRadius:
-            BorderRadius.circular(12),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
 
-        borderSide:
-            const BorderSide(
-          color: AppColors.primary,
-          width: 1.5,
-        ),
+        borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
       ),
 
-      errorBorder:
-          OutlineInputBorder(
-        borderRadius:
-            BorderRadius.circular(12),
+      errorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
 
-        borderSide:
-            const BorderSide(
-          color: Colors.red,
-        ),
+        borderSide: const BorderSide(color: Colors.red),
       ),
 
-      focusedErrorBorder:
-          OutlineInputBorder(
-        borderRadius:
-            BorderRadius.circular(12),
+      focusedErrorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
 
-        borderSide:
-            const BorderSide(
-          color: Colors.red,
-          width: 1.5,
-        ),
+        borderSide: const BorderSide(color: Colors.red, width: 1.5),
       ),
     );
   }
@@ -898,28 +837,17 @@ class _CreateProjectScreenState
   // SECTION TITLE
   // ================================================================
 
-  Widget _sectionTitle(
-    IconData icon,
-    String title,
-  ) {
+  Widget _sectionTitle(IconData icon, String title) {
     return Row(
       children: [
         Container(
           width: 40,
           height: 40,
           decoration: BoxDecoration(
-            color:
-                AppColors.primary.withValues(
-              alpha: .10,
-            ),
-            borderRadius:
-                BorderRadius.circular(12),
+            color: AppColors.primary.withValues(alpha: .10),
+            borderRadius: BorderRadius.circular(12),
           ),
-          child: Icon(
-            icon,
-            color: AppColors.primary,
-            size: 21,
-          ),
+          child: Icon(icon, color: AppColors.primary, size: 21),
         ),
 
         const SizedBox(width: 12),
@@ -940,33 +868,32 @@ class _CreateProjectScreenState
   // ACTIONS
   // ================================================================
 
-  Widget _buildActions(
-    bool isMobile,
-  ) {
-    final cancelButton =
-        OutlinedButton(
+  Widget _buildActions(bool isMobile) {
+    final cancelButton = OutlinedButton(
       onPressed: () {
         context.go('/projects');
       },
 
       style: _secondaryButtonStyle(),
 
-      child: const Text(
-        'Cancel',
-      ),
+      child: const Text('Cancel'),
     );
 
-    final createButton =
-        ElevatedButton.icon(
-      onPressed: _createProject,
+    final createButton = ElevatedButton.icon(
+      onPressed: _saving ? null : _createProject,
 
-      icon: const Icon(
-        Icons.add_rounded,
-      ),
+      icon: _saving
+          ? const SizedBox(
+              width: 18,
+              height: 18,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: Colors.white,
+              ),
+            )
+          : const Icon(Icons.add_rounded),
 
-      label: const Text(
-        'Create Project',
-      ),
+      label: Text(_saving ? 'Saving...' : 'Create Project'),
 
       style: _primaryButtonStyle(),
     );
@@ -974,31 +901,18 @@ class _CreateProjectScreenState
     if (isMobile) {
       return Column(
         children: [
-          SizedBox(
-            width: double.infinity,
-            child: createButton,
-          ),
+          SizedBox(width: double.infinity, child: createButton),
 
           const SizedBox(height: 10),
 
-          SizedBox(
-            width: double.infinity,
-            child: cancelButton,
-          ),
+          SizedBox(width: double.infinity, child: cancelButton),
         ],
       );
     }
 
     return Row(
-      mainAxisAlignment:
-          MainAxisAlignment.end,
-      children: [
-        cancelButton,
-
-        const SizedBox(width: 12),
-
-        createButton,
-      ],
+      mainAxisAlignment: MainAxisAlignment.end,
+      children: [cancelButton, const SizedBox(width: 12), createButton],
     );
   }
 
@@ -1008,47 +922,27 @@ class _CreateProjectScreenState
 
   ButtonStyle _primaryButtonStyle() {
     return ElevatedButton.styleFrom(
-      backgroundColor:
-          AppColors.primary,
+      backgroundColor: AppColors.primary,
 
       foregroundColor: Colors.white,
 
       elevation: 0,
 
-      padding:
-          const EdgeInsets.symmetric(
-        horizontal: 24,
-        vertical: 15,
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 15),
 
-      shape:
-          RoundedRectangleBorder(
-        borderRadius:
-            BorderRadius.circular(12),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
     );
   }
 
   ButtonStyle _secondaryButtonStyle() {
     return OutlinedButton.styleFrom(
-      foregroundColor:
-          AppColors.textDark,
+      foregroundColor: AppColors.textDark,
 
-      padding:
-          const EdgeInsets.symmetric(
-        horizontal: 24,
-        vertical: 15,
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 15),
 
-      side: BorderSide(
-        color: Colors.grey.shade300,
-      ),
+      side: BorderSide(color: Colors.grey.shade300),
 
-      shape:
-          RoundedRectangleBorder(
-        borderRadius:
-            BorderRadius.circular(12),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
     );
   }
 
@@ -1056,14 +950,10 @@ class _CreateProjectScreenState
   // DATE FORMAT
   // ================================================================
 
-  String _formatDate(
-    DateTime date,
-  ) {
-    final day =
-        date.day.toString().padLeft(2, '0');
+  String _formatDate(DateTime date) {
+    final day = date.day.toString().padLeft(2, '0');
 
-    final month =
-        date.month.toString().padLeft(2, '0');
+    final month = date.month.toString().padLeft(2, '0');
 
     return '$day/$month/${date.year}';
   }
