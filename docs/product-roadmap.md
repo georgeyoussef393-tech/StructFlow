@@ -151,7 +151,11 @@ data modules. Company-scoped project listing and project creation use the API,
 including client, type, budget/currency, and schedule metadata. Project details
 are fetched with server-side tenant and membership checks. Owner/admin project
 metadata updates use version-based conflict detection and restricted update
-grants; project member administration remains unavailable in API mode.
+grants. Project task lists and creation now use tenant-scoped APIs. Creation is
+authorized for owners/admins and assigned project managers and is audited.
+Details and version-checked updates are available to those same authorized
+roles. Task assignment and project member administration remain unavailable in
+API mode.
 Roadmap items 11, 31, and 32 are therefore in progress, not complete.
 The remaining items are not represented as complete merely because they are
 listed here.

@@ -110,6 +110,9 @@ class ProjectAccessPolicy {
   static bool canCreateProject(String role) =>
       organizationWideRoles.contains(role);
 
+  static bool canCreateTaskAcrossOrganization(String role) =>
+      organizationWideRoles.contains(role);
+
   static bool canUpdateProject(String role) =>
       organizationWideRoles.contains(role);
 

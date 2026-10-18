@@ -59,4 +59,7 @@ jobs:
           psql -h localhost -U postgres -d structflow -v ON_ERROR_STOP=1 -f backend/migrations/002_runtime_grants.sql
           psql -h localhost -U postgres -d structflow -v ON_ERROR_STOP=1 -f backend/migrations/003_project_metadata.sql
           psql -h localhost -U postgres -d structflow -v ON_ERROR_STOP=1 -f backend/migrations/004_project_update_access.sql
+          psql -h localhost -U postgres -d structflow -v ON_ERROR_STOP=1 -f backend/migrations/005_project_tasks.sql
+          psql -h localhost -U postgres -d structflow -v ON_ERROR_STOP=1 -f backend/migrations/006_task_creation_access.sql
+          psql -h localhost -U postgres -d structflow -v ON_ERROR_STOP=1 -f backend/migrations/007_task_update_access.sql
           psql -h localhost -U postgres -d structflow -v ON_ERROR_STOP=1 -f backend/test/postgres_rls_integration.sql

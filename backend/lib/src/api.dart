@@ -37,7 +37,11 @@ class StructFlowApi {
       ..get('/v1/projects', _listProjects)
       ..get('/v1/projects/<projectIdentifier>', _getProject)
       ..patch('/v1/projects/<projectIdentifier>', _updateProject)
-      ..post('/v1/projects', _createProject);
+      ..post('/v1/projects', _createProject)
+      ..get('/v1/tasks', _listTasks)
+      ..post('/v1/tasks', _createTask)
+      ..get('/v1/tasks/<taskId>', _getTask)
+      ..patch('/v1/tasks/<taskId>', _updateTask);
 
     return Pipeline()
         .addMiddleware(_securityHeaders())
@@ -332,6 +336,402 @@ class StructFlowApi {
       'projects': projects
           .map((row) => _projectJson(row.toColumnMap()))
           .toList(),
+    });
+  }
+
+  Future<Response> _listTasks(Request request) async {
+    final access = await _organizationAccess(request);
+    if (access.response != null) return access.response!;
+    final projectCode = request.url.queryParameters['projectCode'];
+    if (projectCode != null &&
+        (projectCode.isEmpty || projectCode.length > 40)) {
+      return _json(400, {'error': 'Project code filter is invalid.'});
+    }
+
+    final rows = await database.pool.runTx((transaction) async {
+      await _setTenantContext(
+        transaction,
+        organizationId: access.organizationId!,
+        userId: access.userId!,
+      );
+      return transaction.execute(
+        Sql.named('''
+          SELECT t.id, t.title, t.description, t.status, t.priority,
+                 t.due_date, t.progress, t.version, p.code AS project_code,
+                 p.name AS project_name,
+                 COALESCE(u.full_name, 'Unassigned') AS assignee
+          FROM tasks t
+          JOIN projects p
+            ON p.organization_id = t.organization_id
+           AND p.id = t.project_id
+          LEFT JOIN users u ON u.id = t.assigned_user_id
+          WHERE t.organization_id = @organizationId
+            AND (CAST(@projectCode AS text) IS NULL OR p.code = @projectCode)
+          ORDER BY t.due_date NULLS LAST, t.created_at DESC
+          LIMIT 500
+        '''),
+        parameters: {
+          'organizationId': access.organizationId,
+          'projectCode': projectCode,
+        },
+      );
+    });
+
+    return _json(200, {
+      'tasks': rows.map((row) => _taskJson(row.toColumnMap())).toList(),
+    });
+  }
+
+  Future<Response> _getTask(Request request, String taskId) async {
+    final access = await _organizationAccess(request);
+    if (access.response != null) return access.response!;
+    if (!_isUuid(taskId)) {
+      return _json(400, {'error': 'Task identifier is invalid.'});
+    }
+
+    final rows = await database.pool.runTx((transaction) async {
+      await _setTenantContext(
+        transaction,
+        organizationId: access.organizationId!,
+        userId: access.userId!,
+      );
+      return transaction.execute(
+        Sql.named('''
+          SELECT t.id, t.title, t.description, t.status, t.priority,
+                 t.due_date, t.progress, t.version, p.code AS project_code,
+                 p.name AS project_name,
+                 COALESCE(u.full_name, 'Unassigned') AS assignee
+          FROM tasks t
+          JOIN projects p
+            ON p.organization_id = t.organization_id
+           AND p.id = t.project_id
+          LEFT JOIN users u ON u.id = t.assigned_user_id
+          WHERE t.organization_id = @organizationId
+            AND t.id = @taskId
+          LIMIT 1
+        '''),
+        parameters: {'organizationId': access.organizationId, 'taskId': taskId},
+      );
+    });
+    if (rows.isEmpty) return _json(404, {'error': 'Task not found.'});
+    return _json(200, {'task': _taskJson(rows.first.toColumnMap())});
+  }
+
+  Future<Response> _updateTask(Request request, String taskId) async {
+    final access = await _organizationAccess(request);
+    if (access.response != null) return access.response!;
+    if (!_isUuid(taskId)) {
+      return _json(400, {'error': 'Task identifier is invalid.'});
+    }
+
+    final body = await _readJson(request);
+    final expectedVersion = body['expectedVersion'];
+    final title = _boundedString(body, 'title', minimum: 2, maximum: 200);
+    final description = _boundedString(
+      body,
+      'description',
+      minimum: 0,
+      maximum: 10000,
+    );
+    const statuses = {'todo', 'in_progress', 'review', 'done'};
+    const priorities = {'low', 'medium', 'high', 'urgent'};
+    final status = body['status'];
+    final priority = body['priority'];
+    final dueDate = _parseDateOnly(body['dueDate']);
+    final progressValue = body['progress'];
+    final progress = progressValue is num
+        ? progressValue.toDouble()
+        : double.tryParse('$progressValue');
+    if (expectedVersion is! int ||
+        expectedVersion < 1 ||
+        status is! String ||
+        !statuses.contains(status) ||
+        priority is! String ||
+        !priorities.contains(priority) ||
+        dueDate == null ||
+        progress == null ||
+        !progress.isFinite ||
+        progress < 0 ||
+        progress > 1) {
+      return _json(400, {'error': 'Task fields are invalid.'});
+    }
+
+    final outcome = await database.pool.runTx((transaction) async {
+      await _setTenantContext(
+        transaction,
+        organizationId: access.organizationId!,
+        userId: access.userId!,
+      );
+      final rows = await transaction.execute(
+        Sql.named('''
+          SELECT t.id, t.project_id, t.version,
+                 (
+                   @organizationWide OR EXISTS (
+                     SELECT 1
+                     FROM project_memberships pm
+                     WHERE pm.organization_id = t.organization_id
+                       AND pm.project_id = t.project_id
+                       AND pm.user_id = @userId
+                       AND pm.role = 'project_manager'
+                       AND pm.status = 'active'
+                   )
+                 ) AS can_update
+          FROM tasks t
+          WHERE t.organization_id = @organizationId
+            AND t.id = @taskId
+          FOR UPDATE
+        '''),
+        parameters: {
+          'organizationId': access.organizationId,
+          'taskId': taskId,
+          'userId': access.userId,
+          'organizationWide':
+              ProjectAccessPolicy.canCreateTaskAcrossOrganization(access.role!),
+        },
+      );
+      if (rows.isEmpty) return {'kind': 'not_found'};
+      final current = rows.first.toColumnMap();
+      if (current['can_update'] != true) return {'kind': 'forbidden'};
+      final version = current['version'] as int;
+      if (version != expectedVersion) {
+        return {'kind': 'conflict', 'currentVersion': version};
+      }
+
+      final updatedRows = await transaction.execute(
+        Sql.named('''
+          UPDATE tasks
+          SET title = @title,
+              description = @description,
+              status = @status,
+              priority = @priority,
+              due_date = CAST(@dueDate AS date),
+              progress = @progress,
+              version = version + 1,
+              updated_at = now()
+          WHERE organization_id = @organizationId
+            AND id = @taskId
+            AND version = @expectedVersion
+          RETURNING id
+        '''),
+        parameters: {
+          'organizationId': access.organizationId,
+          'taskId': taskId,
+          'expectedVersion': expectedVersion,
+          'title': title.trim(),
+          'description': description.trim(),
+          'status': status,
+          'priority': priority,
+          'dueDate': _dateOnly(dueDate),
+          'progress': progress,
+        },
+      );
+      if (updatedRows.isEmpty) {
+        return {'kind': 'conflict', 'currentVersion': version};
+      }
+      await _insertAuditEvent(
+        transaction,
+        organizationId: access.organizationId!,
+        actorUserId: access.userId!,
+        action: 'task.updated',
+        entityType: 'task',
+        entityId: taskId,
+        metadata: {'previousVersion': version, 'version': version + 1},
+      );
+      final taskRows = await transaction.execute(
+        Sql.named('''
+          SELECT t.id, t.title, t.description, t.status, t.priority,
+                 t.due_date, t.progress, t.version, p.code AS project_code,
+                 p.name AS project_name,
+                 COALESCE(u.full_name, 'Unassigned') AS assignee
+          FROM tasks t
+          JOIN projects p
+            ON p.organization_id = t.organization_id
+           AND p.id = t.project_id
+          LEFT JOIN users u ON u.id = t.assigned_user_id
+          WHERE t.organization_id = @organizationId
+            AND t.id = @taskId
+          LIMIT 1
+        '''),
+        parameters: {'organizationId': access.organizationId, 'taskId': taskId},
+      );
+      if (taskRows.isEmpty) {
+        throw StateError('Updated task was not visible to its editor.');
+      }
+      return {'kind': 'updated', 'task': taskRows.first.toColumnMap()};
+    });
+
+    return switch (outcome['kind']) {
+      'not_found' => _json(404, {'error': 'Task not found.'}),
+      'forbidden' => _json(403, {'error': 'Insufficient permissions.'}),
+      'conflict' => _json(409, {
+        'error': 'Task was changed by another user. Reload before saving.',
+        'currentVersion': outcome['currentVersion'],
+      }),
+      'updated' => _json(200, {
+        'task': _taskJson(outcome['task'] as Map<String, dynamic>),
+      }),
+      _ => throw StateError('Unexpected task update result.'),
+    };
+  }
+
+  Map<String, Object?> _taskJson(Map<String, dynamic> row) => {
+    'id': '${row['id']}',
+    'title': '${row['title']}',
+    'description': '${row['description']}',
+    'projectCode': '${row['project_code']}',
+    'projectName': '${row['project_name']}',
+    'assignee': '${row['assignee']}',
+    'status': '${row['status']}',
+    'priority': '${row['priority']}',
+    'dueDate': _dateOnly(row['due_date']),
+    'progress': row['progress']?.toString(),
+    'version': row['version'],
+  };
+
+  static bool _isUuid(String value) => RegExp(
+    r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$',
+  ).hasMatch(value);
+
+  Future<Response> _createTask(Request request) async {
+    final access = await _organizationAccess(request);
+    if (access.response != null) return access.response!;
+
+    final body = await _readJson(request);
+    final projectCode = _boundedString(
+      body,
+      'projectCode',
+      minimum: 1,
+      maximum: 40,
+    );
+    final title = _boundedString(body, 'title', minimum: 2, maximum: 200);
+    final description = _boundedString(
+      body,
+      'description',
+      minimum: 0,
+      maximum: 10000,
+    );
+    final priority = body['priority'] ?? 'medium';
+    final dueDate = _parseDateOnly(body['dueDate']);
+    if (priority is! String ||
+        !{'low', 'medium', 'high', 'urgent'}.contains(priority) ||
+        dueDate == null) {
+      return _json(400, {'error': 'Task fields are invalid.'});
+    }
+
+    final outcome = await database.pool.runTx((transaction) async {
+      await _setTenantContext(
+        transaction,
+        organizationId: access.organizationId!,
+        userId: access.userId!,
+      );
+      final projects = await transaction.execute(
+        Sql.named('''
+          SELECT p.id
+          FROM projects p
+          WHERE p.organization_id = @organizationId
+            AND p.code = @projectCode
+            AND (
+              @organizationWide OR EXISTS (
+                SELECT 1
+                FROM project_memberships pm
+                WHERE pm.organization_id = p.organization_id
+                  AND pm.project_id = p.id
+                  AND pm.user_id = @userId
+                  AND pm.role = 'project_manager'
+                  AND pm.status = 'active'
+              )
+            )
+          LIMIT 1
+        '''),
+        parameters: {
+          'organizationId': access.organizationId,
+          'projectCode': projectCode,
+          'userId': access.userId,
+          'organizationWide':
+              ProjectAccessPolicy.canCreateTaskAcrossOrganization(access.role!),
+        },
+      );
+      if (projects.isEmpty) return {'kind': 'not_found'};
+
+      final projectId = projects.first.toColumnMap()['id'];
+      final created = await transaction.execute(
+        Sql.named('''
+          INSERT INTO tasks (
+            organization_id, project_id, title, description, status, priority,
+            due_date, progress, created_by
+          )
+          VALUES (
+            @organizationId, @projectId, @title, @description, 'todo',
+            @priority, CAST(@dueDate AS date), 0, @userId
+          )
+          RETURNING id, title, description, status, priority, due_date, progress,
+                    version
+        '''),
+        parameters: {
+          'organizationId': access.organizationId,
+          'projectId': projectId,
+          'title': title.trim(),
+          'description': description.trim(),
+          'priority': priority,
+          'dueDate': _dateOnly(dueDate),
+          'userId': access.userId,
+        },
+      );
+      final task = created.first.toColumnMap();
+      await _insertAuditEvent(
+        transaction,
+        organizationId: access.organizationId!,
+        actorUserId: access.userId!,
+        action: 'task.created',
+        entityType: 'task',
+        entityId: '${task['id']}',
+        metadata: {'projectCode': projectCode, 'priority': priority},
+      );
+      final taskRows = await transaction.execute(
+        Sql.named('''
+          SELECT t.id, t.title, t.description, t.status, t.priority,
+                 t.due_date, t.progress, t.version, p.code AS project_code,
+                 p.name AS project_name, 'Unassigned' AS assignee
+          FROM tasks t
+          JOIN projects p
+            ON p.organization_id = t.organization_id
+           AND p.id = t.project_id
+          WHERE t.organization_id = @organizationId
+            AND t.id = @taskId
+          LIMIT 1
+        '''),
+        parameters: {
+          'organizationId': access.organizationId,
+          'taskId': task['id'],
+        },
+      );
+      if (taskRows.isEmpty) {
+        throw StateError('Created task was not visible to its creator.');
+      }
+      return {'kind': 'created', 'task': taskRows.first.toColumnMap()};
+    });
+    if (outcome['kind'] == 'not_found') {
+      return _json(404, {'error': 'Project not found or access denied.'});
+    }
+    if (outcome['kind'] != 'created') {
+      throw StateError('Unexpected task creation result.');
+    }
+
+    final row = outcome['task'] as Map<String, dynamic>;
+    return _json(201, {
+      'task': {
+        'id': '${row['id']}',
+        'title': '${row['title']}',
+        'description': '${row['description']}',
+        'projectCode': '${row['project_code']}',
+        'projectName': '${row['project_name']}',
+        'assignee': '${row['assignee']}',
+        'status': '${row['status']}',
+        'priority': '${row['priority']}',
+        'dueDate': _dateOnly(row['due_date']),
+        'progress': row['progress']?.toString(),
+        'version': row['version'],
+      },
     });
   }
 
@@ -928,7 +1328,7 @@ class StructFlowApi {
             204,
             headers: {
               'access-control-allow-origin': origin,
-              'access-control-allow-methods': 'GET, POST, OPTIONS',
+              'access-control-allow-methods': 'GET, POST, PATCH, OPTIONS',
               'access-control-allow-headers':
                   'authorization, content-type, x-organization-id',
               'access-control-max-age': '600',

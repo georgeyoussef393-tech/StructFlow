@@ -6,6 +6,7 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:structflow/core/network/api_auth_client.dart';
 import 'package:structflow/features/projects/models/project_model.dart';
+import 'package:structflow/features/tasks/models/task_model.dart';
 
 void main() {
   const token = 'secure-access-token';
@@ -252,6 +253,286 @@ void main() {
         ),
       );
     }
+  });
+
+  test('loads company-scoped tasks and filters by project code', () async {
+    final client = ApiAuthClient(
+      baseUri: Uri.parse('https://api.example.test'),
+      tokenStore: _MemoryTokenStore()..value = token,
+      httpClient: MockClient((request) async {
+        expect(request.url.path, '/v1/tasks');
+        expect(request.url.queryParameters, {'projectCode': 'CIVIL 001'});
+        expect(request.headers['x-organization-id'], organizationId);
+        return http.Response(
+          jsonEncode({
+            'tasks': [
+              {
+                'id': '40000000-0000-4000-8000-000000000001',
+                'title': 'Approve method statement',
+                'description': 'Review construction methodology.',
+                'projectCode': 'CIVIL 001',
+                'projectName': 'Regional Infrastructure',
+                'assignee': 'Unassigned',
+                'status': 'in_progress',
+                'priority': 'high',
+                'dueDate': '2026-11-20',
+                'progress': '0.5',
+                'version': 2,
+              },
+            ],
+          }),
+          200,
+        );
+      }),
+    );
+
+    final tasks = await client.listTasks(
+      organizationId: organizationId,
+      projectCode: 'CIVIL 001',
+    );
+
+    expect(tasks, hasLength(1));
+    expect(tasks.single, isA<TaskModel>());
+    expect(tasks.single.status, 'In Progress');
+    expect(tasks.single.priority, 'High');
+    expect(tasks.single.dueDate, DateTime(2026, 11, 20));
+    expect(tasks.single.version, 2);
+  });
+
+  test('rejects incomplete or unsupported API task responses', () async {
+    final client = ApiAuthClient(
+      baseUri: Uri.parse('https://api.example.test'),
+      tokenStore: _MemoryTokenStore()..value = token,
+      httpClient: MockClient(
+        (_) async => http.Response(
+          jsonEncode({
+            'tasks': [
+              {
+                'id': 'task-1',
+                'title': 'Unknown status',
+                'description': '',
+                'projectCode': 'PRJ',
+                'projectName': 'Project',
+                'assignee': 'Unassigned',
+                'status': 'blocked',
+                'priority': 'normal',
+                'dueDate': '2026-11-20',
+                'progress': '0',
+                'version': 1,
+              },
+            ],
+          }),
+          200,
+        ),
+      ),
+    );
+
+    await expectLater(
+      client.listTasks(organizationId: organizationId),
+      throwsA(isA<AuthApiException>()),
+    );
+  });
+
+  test('creates a task using the active company and project scope', () async {
+    final client = ApiAuthClient(
+      baseUri: Uri.parse('https://api.example.test'),
+      tokenStore: _MemoryTokenStore()..value = token,
+      httpClient: MockClient((request) async {
+        expect(request.method, 'POST');
+        expect(request.url.path, '/v1/tasks');
+        expect(request.headers['x-organization-id'], organizationId);
+        expect(jsonDecode(request.body), {
+          'projectCode': 'CIVIL-001',
+          'title': 'Inspect concrete pour',
+          'description': 'Verify the quality checklist.',
+          'priority': 'urgent',
+          'dueDate': '2026-11-20',
+        });
+        return http.Response(
+          jsonEncode({
+            'task': {
+              'id': '40000000-0000-4000-8000-000000000002',
+              'title': 'Inspect concrete pour',
+              'description': 'Verify the quality checklist.',
+              'projectCode': 'CIVIL-001',
+              'projectName': 'Regional Infrastructure',
+              'assignee': 'Unassigned',
+              'status': 'todo',
+              'priority': 'urgent',
+              'dueDate': '2026-11-20',
+              'progress': '0',
+              'version': 1,
+            },
+          }),
+          201,
+        );
+      }),
+    );
+
+    final task = await client.createTask(
+      organizationId: organizationId,
+      projectCode: 'CIVIL-001',
+      title: 'Inspect concrete pour',
+      description: 'Verify the quality checklist.',
+      priority: 'Urgent',
+      dueDate: DateTime(2026, 11, 20),
+    );
+
+    expect(task.id, '40000000-0000-4000-8000-000000000002');
+    expect(task.status, 'To Do');
+    expect(task.priority, 'Urgent');
+  });
+
+  test('loads a task detail in the active company scope', () async {
+    final client = ApiAuthClient(
+      baseUri: Uri.parse('https://api.example.test'),
+      tokenStore: _MemoryTokenStore()..value = token,
+      httpClient: MockClient((request) async {
+        expect(request.method, 'GET');
+        expect(
+          request.url.path,
+          '/v1/tasks/40000000-0000-4000-8000-000000000003',
+        );
+        expect(request.headers['x-organization-id'], organizationId);
+        return http.Response(
+          jsonEncode({
+            'task': {
+              'id': '40000000-0000-4000-8000-000000000003',
+              'title': 'Review shop drawings',
+              'description': 'Review latest revisions.',
+              'projectCode': 'CIVIL-001',
+              'projectName': 'Regional Infrastructure',
+              'assignee': 'Unassigned',
+              'status': 'review',
+              'priority': 'medium',
+              'dueDate': '2026-11-22',
+              'progress': '0.8',
+              'version': 3,
+            },
+          }),
+          200,
+        );
+      }),
+    );
+
+    final task = await client.getTask(
+      organizationId: organizationId,
+      taskId: '40000000-0000-4000-8000-000000000003',
+    );
+
+    expect(task.title, 'Review shop drawings');
+    expect(task.status, 'Review');
+    expect(task.version, 3);
+  });
+
+  test('updates a task with optimistic version and server response', () async {
+    final client = ApiAuthClient(
+      baseUri: Uri.parse('https://api.example.test'),
+      tokenStore: _MemoryTokenStore()..value = token,
+      httpClient: MockClient((request) async {
+        expect(request.method, 'PATCH');
+        expect(
+          request.url.path,
+          '/v1/tasks/40000000-0000-4000-8000-000000000003',
+        );
+        expect(request.headers['x-organization-id'], organizationId);
+        expect(jsonDecode(request.body), {
+          'expectedVersion': 3,
+          'title': 'Approved shop drawings',
+          'description': 'Approved for consultant review.',
+          'status': 'done',
+          'priority': 'high',
+          'dueDate': '2026-11-24',
+          'progress': 1,
+        });
+        return http.Response(
+          jsonEncode({
+            'task': {
+              'id': '40000000-0000-4000-8000-000000000003',
+              'title': 'Approved shop drawings',
+              'description': 'Approved for consultant review.',
+              'projectCode': 'CIVIL-001',
+              'projectName': 'Regional Infrastructure',
+              'assignee': 'Unassigned',
+              'status': 'done',
+              'priority': 'high',
+              'dueDate': '2026-11-24',
+              'progress': '1',
+              'version': 4,
+            },
+          }),
+          200,
+        );
+      }),
+    );
+
+    final updated = await client.updateTask(
+      organizationId: organizationId,
+      task: TaskModel(
+        id: '40000000-0000-4000-8000-000000000003',
+        title: 'Approved shop drawings',
+        description: 'Approved for consultant review.',
+        projectCode: 'CIVIL-001',
+        projectName: 'Regional Infrastructure',
+        assignee: 'Unassigned',
+        status: 'Done',
+        priority: 'High',
+        dueDate: DateTime(2026, 11, 24),
+        progress: 1,
+        version: 3,
+        color: Colors.blue,
+      ),
+    );
+
+    expect(updated.version, 4);
+    expect(updated.status, 'Done');
+    expect(updated.title, 'Approved shop drawings');
+  });
+
+  test('surfaces task version conflicts without retrying the update', () async {
+    var requestCount = 0;
+    final client = ApiAuthClient(
+      baseUri: Uri.parse('https://api.example.test'),
+      tokenStore: _MemoryTokenStore()..value = token,
+      httpClient: MockClient((_) async {
+        requestCount++;
+        return http.Response(
+          jsonEncode({
+            'error': 'Task was changed by another user.',
+            'currentVersion': 4,
+          }),
+          409,
+        );
+      }),
+    );
+
+    await expectLater(
+      client.updateTask(
+        organizationId: organizationId,
+        task: TaskModel(
+          id: '40000000-0000-4000-8000-000000000003',
+          title: 'Approved shop drawings',
+          description: '',
+          projectCode: 'CIVIL-001',
+          projectName: 'Regional Infrastructure',
+          assignee: 'Unassigned',
+          status: 'Done',
+          priority: 'High',
+          dueDate: DateTime(2026, 11, 24),
+          progress: 1,
+          version: 3,
+          color: Colors.blue,
+        ),
+      ),
+      throwsA(
+        isA<AuthApiException>().having(
+          (error) => error.statusCode,
+          'statusCode',
+          409,
+        ),
+      ),
+    );
+    expect(requestCount, 1);
   });
 
   test(

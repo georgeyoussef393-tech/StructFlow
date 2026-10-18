@@ -16,6 +16,7 @@ class TaskModel {
   final DateTime dueDate;
 
   final double progress;
+  final int version;
 
   final Color color;
 
@@ -31,6 +32,7 @@ class TaskModel {
     required this.dueDate,
     required this.progress,
     required this.color,
+    this.version = 1,
   });
 
   // ================================================================
@@ -49,6 +51,7 @@ class TaskModel {
     DateTime? dueDate,
     double? progress,
     Color? color,
+    int? version,
   }) {
     return TaskModel(
       id: id ?? this.id,
@@ -62,6 +65,7 @@ class TaskModel {
       dueDate: dueDate ?? this.dueDate,
       progress: progress ?? this.progress,
       color: color ?? this.color,
+      version: version ?? this.version,
     );
   }
 
@@ -81,6 +85,7 @@ class TaskModel {
       'priority': priority,
       'dueDate': dueDate.toIso8601String(),
       'progress': progress,
+      'version': version,
 
       // Flutter current API.
       'color': color.toARGB32(),
@@ -91,9 +96,7 @@ class TaskModel {
   // FROM JSON
   // ================================================================
 
-  factory TaskModel.fromJson(
-    Map<String, dynamic> json,
-  ) {
+  factory TaskModel.fromJson(Map<String, dynamic> json) {
     return TaskModel(
       id: json['id'] as String,
       title: json['title'] as String,
@@ -104,15 +107,12 @@ class TaskModel {
       status: json['status'] as String,
       priority: json['priority'] as String,
 
-      dueDate: DateTime.parse(
-        json['dueDate'] as String,
-      ),
+      dueDate: DateTime.parse(json['dueDate'] as String),
 
       progress: (json['progress'] as num).toDouble(),
+      version: (json['version'] as num?)?.toInt() ?? 1,
 
-      color: Color(
-        (json['color'] as num).toInt(),
-      ),
+      color: Color((json['color'] as num).toInt()),
     );
   }
 }

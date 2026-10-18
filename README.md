@@ -3,8 +3,8 @@
 StructFlow is a Flutter construction project-management application and an
 early multi-tenant backend foundation. The Flutter client includes project,
 task, team, calendar, document, attendance, and user-management screens. The
-separate Dart API currently provides PostgreSQL-backed authentication,
-organization membership, project access, and audit events.
+separate Dart API provides PostgreSQL-backed authentication, organization
+membership, project access, task reading and creation, and audit events.
 
 ## Run the Flutter client
 
@@ -42,9 +42,9 @@ dart test
 ## Product and security status
 
 **StructFlow is not ready for production or real company data.** The Flutter
-client has not yet been migrated to the API and continues to use local demo
-repositories. The backend is an initial foundation—not a complete product or
-security certification. Self-service organization signup is intentionally
+client is only partially migrated to the API and continues to use local demo
+repositories for most features. The backend is an initial foundation—not a
+complete product or security certification. Self-service organization signup is intentionally
 disabled in production until verified invitations/onboarding exist. Flutter
 release builds are currently blocked with a readiness screen so the local
 plaintext-password demo cannot be shipped accidentally.
@@ -63,6 +63,11 @@ the session token in platform secure storage. After login the company-scoped
 project list is loaded from the API, and company owners/admins can create
 projects with client, type, budget/currency, and planned schedule metadata.
 Project details are also fetched from the server; owners/admins can edit
-project metadata with stale-version conflict protection. Other unfinished
-modules remain unavailable in API mode. See
+project metadata with stale-version conflict protection. Project task lists are
+loaded from the tenant-scoped API, and permitted users can create unassigned
+tasks through the API. Assigned project managers and company owners/admins can
+edit task details through version-checked API updates. Task assignment is not
+connected yet.
+Other unfinished modules remain unavailable in API mode.
+See
 [backend/README.md](./backend/README.md) for details.

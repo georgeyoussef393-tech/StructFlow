@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import 'package:structflow/core/network/api_auth_client.dart';
 import 'package:structflow/core/theme/app_colors.dart';
+import 'package:structflow/features/auth/repositories/auth_repository.dart';
 import 'package:structflow/features/projects/models/project_model.dart';
 import 'package:structflow/features/projects/repositories/project_repository.dart';
 import 'package:structflow/features/tasks/models/task_model.dart';
@@ -11,36 +13,24 @@ class CreateTaskScreen extends StatefulWidget {
   final String? taskId;
   final String? initialProjectCode;
 
-  const CreateTaskScreen({
-    super.key,
-    this.taskId,
-    this.initialProjectCode,
-  });
+  const CreateTaskScreen({super.key, this.taskId, this.initialProjectCode});
 
   @override
-  State<CreateTaskScreen> createState() =>
-      _CreateTaskScreenState();
+  State<CreateTaskScreen> createState() => _CreateTaskScreenState();
 }
 
-class _CreateTaskScreenState
-    extends State<CreateTaskScreen> {
-  final _formKey =
-      GlobalKey<FormState>();
+class _CreateTaskScreenState extends State<CreateTaskScreen> {
+  final _formKey = GlobalKey<FormState>();
 
-  final _titleController =
-      TextEditingController();
+  final _titleController = TextEditingController();
 
-  final _descriptionController =
-      TextEditingController();
+  final _descriptionController = TextEditingController();
 
-  final _assigneeController =
-      TextEditingController();
+  final _assigneeController = TextEditingController();
 
-  final TaskRepository _taskRepository =
-      TaskRepository.instance;
+  final TaskRepository _taskRepository = TaskRepository.instance;
 
-  final ProjectRepository _projectRepository =
-      ProjectRepository.instance;
+  final ProjectRepository _projectRepository = ProjectRepository.instance;
 
   ProjectModel? _selectedProject;
 
@@ -49,14 +39,15 @@ class _CreateTaskScreenState
   String _priority = 'Medium';
 
   double _progress = 0.0;
+  bool _saving = false;
+  bool _loadingTask = false;
+  String? _loadError;
 
-  DateTime _dueDate =
-      DateTime.now().add(
-    const Duration(days: 7),
-  );
+  DateTime _dueDate = DateTime.now().add(const Duration(days: 7));
 
-  bool get _isEditing =>
-      widget.taskId != null;
+  bool get _isEditing => widget.taskId != null;
+
+  bool get _apiMode => AuthRepository.instance.usesApiAuth;
 
   // ================================================================
   // INIT
@@ -69,50 +60,55 @@ class _CreateTaskScreenState
     final taskId = widget.taskId;
 
     if (taskId == null) {
-      _selectedProject =
-          _projectRepository.getProjectByCode(
+      _selectedProject = _projectRepository.getProjectByCode(
         widget.initialProjectCode ?? '',
       );
 
       return;
     }
 
-    final task =
-        _taskRepository.getTaskById(
-      taskId,
-    );
-
-    if (task == null) {
+    if (_apiMode) {
+      _loadingTask = true;
+      _loadTask(taskId);
       return;
     }
 
-    _titleController.text =
-        task.title;
+    _initializeTask(_taskRepository.getTaskById(taskId));
+  }
 
-    _descriptionController.text =
-        task.description;
+  Future<void> _loadTask(String taskId) async {
+    try {
+      _initializeTask(await _taskRepository.loadTask(taskId));
+    } on AuthApiException catch (error) {
+      _loadError = error.message;
+    } on Exception {
+      _loadError = 'Could not load the task.';
+    } finally {
+      if (mounted) {
+        setState(() => _loadingTask = false);
+      }
+    }
+  }
 
-    _assigneeController.text =
-        task.assignee == 'Unassigned'
-            ? ''
-            : task.assignee;
+  void _initializeTask(TaskModel? task) {
+    if (task == null) return;
+    _titleController.text = task.title;
 
-    _selectedProject =
-        _projectRepository.getProjectByCode(
-      task.projectCode,
-    );
+    _descriptionController.text = task.description;
 
-    _status =
-        task.status;
+    _assigneeController.text = task.assignee == 'Unassigned'
+        ? ''
+        : task.assignee;
 
-    _priority =
-        task.priority;
+    _selectedProject = _projectRepository.getProjectByCode(task.projectCode);
 
-    _progress =
-        task.progress;
+    _status = task.status;
 
-    _dueDate =
-        task.dueDate;
+    _priority = task.priority;
+
+    _progress = task.progress;
+
+    _dueDate = task.dueDate;
   }
 
   // ================================================================
@@ -133,53 +129,56 @@ class _CreateTaskScreenState
   // ================================================================
 
   @override
-  Widget build(
-    BuildContext context,
-  ) {
+  Widget build(BuildContext context) {
+    if (_loadingTask) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+    if (_loadError != null) {
+      return Scaffold(
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(_loadError!, textAlign: TextAlign.center),
+                const SizedBox(height: 16),
+                OutlinedButton(
+                  onPressed: () => context.go('/tasks'),
+                  child: const Text('Back to tasks'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
     return Scaffold(
-      backgroundColor:
-          const Color(0xffF5F7FB),
+      backgroundColor: const Color(0xffF5F7FB),
 
       body: SafeArea(
         child: LayoutBuilder(
-          builder:
-              (context, constraints) {
-            final width =
-                constraints.maxWidth;
+          builder: (context, constraints) {
+            final width = constraints.maxWidth;
 
-            final isMobile =
-                width < 700;
+            final isMobile = width < 700;
 
             return SingleChildScrollView(
-              padding:
-                  EdgeInsets.all(
-                isMobile
-                    ? 16
-                    : 30,
-              ),
+              padding: EdgeInsets.all(isMobile ? 16 : 30),
 
               child: Center(
                 child: ConstrainedBox(
-                  constraints:
-                      const BoxConstraints(
-                    maxWidth: 1000,
-                  ),
+                  constraints: const BoxConstraints(maxWidth: 1000),
 
                   child: Column(
-                    crossAxisAlignment:
-                        CrossAxisAlignment
-                            .start,
+                    crossAxisAlignment: CrossAxisAlignment.start,
 
                     children: [
                       _buildHeader(),
 
-                      const SizedBox(
-                        height: 24,
-                      ),
+                      const SizedBox(height: 24),
 
-                      _buildFormCard(
-                        isMobile,
-                      ),
+                      _buildFormCard(isMobile),
                     ],
                   ),
                 ),
@@ -203,51 +202,36 @@ class _CreateTaskScreenState
             context.pop();
           },
           tooltip: 'Back',
-          icon: const Icon(
-            Icons.arrow_back_rounded,
-          ),
+          icon: const Icon(Icons.arrow_back_rounded),
         ),
 
-        const SizedBox(
-          width: 8,
-        ),
+        const SizedBox(width: 8),
 
         Expanded(
           child: Column(
-            crossAxisAlignment:
-                CrossAxisAlignment
-                    .start,
+            crossAxisAlignment: CrossAxisAlignment.start,
 
             children: [
               Text(
-                _isEditing
-                    ? 'Edit Task'
-                    : 'Create New Task',
+                _isEditing ? 'Edit Task' : 'Create New Task',
 
-                style:
-                    const TextStyle(
+                style: const TextStyle(
                   fontSize: 30,
-                  fontWeight:
-                      FontWeight.bold,
-                  color:
-                      AppColors.textDark,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.textDark,
                 ),
               ),
 
-              const SizedBox(
-                height: 5,
-              ),
+              const SizedBox(height: 5),
 
               Text(
                 _isEditing
                     ? 'Update the task information and save your changes.'
                     : 'Create and assign a new task to your project team.',
 
-                style:
-                    const TextStyle(
+                style: const TextStyle(
                   fontSize: 14,
-                  color:
-                      AppColors.textLight,
+                  color: AppColors.textLight,
                 ),
               ),
             ],
@@ -261,122 +245,90 @@ class _CreateTaskScreenState
   // FORM CARD
   // ================================================================
 
-  Widget _buildFormCard(
-    bool isMobile,
-  ) {
+  Widget _buildFormCard(bool isMobile) {
     return Container(
-      width:
-          double.infinity,
+      width: double.infinity,
 
-      padding:
-          EdgeInsets.all(
-        isMobile
-            ? 18
-            : 28,
-      ),
+      padding: EdgeInsets.all(isMobile ? 18 : 28),
 
-      decoration:
-          BoxDecoration(
-        color:
-            Colors.white,
+      decoration: BoxDecoration(
+        color: Colors.white,
 
-        borderRadius:
-            BorderRadius.circular(
-          20,
-        ),
+        borderRadius: BorderRadius.circular(20),
 
         boxShadow: const [
           BoxShadow(
-            color:
-                Colors.black12,
-            blurRadius:
-                14,
-            offset:
-                Offset(0, 5),
+            color: Colors.black12,
+            blurRadius: 14,
+            offset: Offset(0, 5),
           ),
         ],
       ),
 
       child: Form(
-        key:
-            _formKey,
+        key: _formKey,
 
         child: Column(
-          crossAxisAlignment:
-              CrossAxisAlignment
-                  .start,
+          crossAxisAlignment: CrossAxisAlignment.start,
 
           children: [
             const Text(
               'Task Information',
-              style:
-                  TextStyle(
+              style: TextStyle(
                 fontSize: 20,
-                fontWeight:
-                    FontWeight.bold,
-                color:
-                    AppColors.textDark,
+                fontWeight: FontWeight.bold,
+                color: AppColors.textDark,
               ),
             ),
 
-            const SizedBox(
-              height: 22,
-            ),
+            const SizedBox(height: 22),
 
             _buildTextField(
-              controller:
-                  _titleController,
-              label:
-                  'Task Title',
-              hint:
-                  'Enter task title',
-              icon:
-                  Icons.task_alt_rounded,
-              requiredField:
-                  true,
+              controller: _titleController,
+              label: 'Task Title',
+              hint: 'Enter task title',
+              icon: Icons.task_alt_rounded,
+              requiredField: true,
             ),
 
-            const SizedBox(
-              height: 18,
-            ),
+            const SizedBox(height: 18),
 
             _buildTextField(
-              controller:
-                  _descriptionController,
-              label:
-                  'Description',
-              hint:
-                  'Describe the task...',
-              icon:
-                  Icons.description_outlined,
-              maxLines:
-                  4,
+              controller: _descriptionController,
+              label: 'Description',
+              hint: 'Describe the task...',
+              icon: Icons.description_outlined,
+              maxLines: 4,
             ),
 
-            const SizedBox(
-              height: 18,
-            ),
+            const SizedBox(height: 18),
 
-            _buildProjectDropdown(),
+            if (!_apiMode || !_isEditing) _buildProjectDropdown(),
 
-            const SizedBox(
-              height: 18,
-            ),
+            const SizedBox(height: 18),
 
-            if (isMobile)
+            if (_apiMode)
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildPriorityDropdown(),
+                  const SizedBox(height: 12),
+                  const Text(
+                    'API-created tasks start unassigned and in To Do.',
+                    style: TextStyle(color: AppColors.textLight, fontSize: 13),
+                  ),
+                ],
+              )
+            else if (isMobile)
               Column(
                 children: [
                   _buildAssigneeField(),
 
-                  const SizedBox(
-                    height: 18,
-                  ),
+                  const SizedBox(height: 18),
 
                   _buildStatusDropdown(),
 
-                  const SizedBox(
-                    height: 18,
-                  ),
+                  const SizedBox(height: 18),
 
                   _buildPriorityDropdown(),
                 ],
@@ -384,58 +336,36 @@ class _CreateTaskScreenState
             else
               Row(
                 children: [
-                  Expanded(
-                    child:
-                        _buildAssigneeField(),
-                  ),
+                  Expanded(child: _buildAssigneeField()),
 
-                  const SizedBox(
-                    width: 14,
-                  ),
+                  const SizedBox(width: 14),
 
-                  Expanded(
-                    child:
-                        _buildStatusDropdown(),
-                  ),
+                  Expanded(child: _buildStatusDropdown()),
 
-                  const SizedBox(
-                    width: 14,
-                  ),
+                  const SizedBox(width: 14),
 
-                  Expanded(
-                    child:
-                        _buildPriorityDropdown(),
-                  ),
+                  Expanded(child: _buildPriorityDropdown()),
                 ],
               ),
 
-            const SizedBox(
-              height: 18,
-            ),
+            const SizedBox(height: 18),
 
             _buildDueDateField(),
 
             if (_isEditing) ...[
-              const SizedBox(
-                height: 18,
-              ),
+              const SizedBox(height: 18),
 
               _buildProgressField(),
             ],
 
-            const SizedBox(
-              height: 30,
-            ),
+            const SizedBox(height: 30),
 
             const Divider(),
 
-            const SizedBox(
-              height: 22,
-            ),
+            const SizedBox(height: 22),
 
             Row(
-              mainAxisAlignment:
-                  MainAxisAlignment.end,
+              mainAxisAlignment: MainAxisAlignment.end,
 
               children: [
                 OutlinedButton(
@@ -443,80 +373,49 @@ class _CreateTaskScreenState
                     context.pop();
                   },
 
-                  style:
-                      OutlinedButton.styleFrom(
-                    padding:
-                        const EdgeInsets
-                            .symmetric(
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(
                       horizontal: 24,
                       vertical: 15,
                     ),
 
-                    shape:
-                        RoundedRectangleBorder(
-                      borderRadius:
-                          BorderRadius
-                              .circular(
-                        12,
-                      ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
                     ),
                   ),
 
-                  child:
-                      const Text(
-                    'Cancel',
-                  ),
+                  child: const Text('Cancel'),
                 ),
 
-                const SizedBox(
-                  width: 12,
-                ),
+                const SizedBox(width: 12),
 
                 ElevatedButton.icon(
-                  onPressed:
-                      _isEditing
-                          ? _updateTask
-                          : _createTask,
+                  onPressed: _saving
+                      ? null
+                      : _isEditing
+                      ? _updateTask
+                      : _createTask,
 
-                  icon:
-                      Icon(
-                    _isEditing
-                        ? Icons.save_rounded
-                        : Icons.add_task_rounded,
+                  icon: Icon(
+                    _isEditing ? Icons.save_rounded : Icons.add_task_rounded,
                   ),
 
-                  label:
-                      Text(
-                    _isEditing
-                        ? 'Save Changes'
-                        : 'Create Task',
-                  ),
+                  label: Text(_isEditing ? 'Save Changes' : 'Create Task'),
 
-                  style:
-                      ElevatedButton.styleFrom(
-                    backgroundColor:
-                        AppColors.primary,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
 
-                    foregroundColor:
-                        Colors.white,
+                    foregroundColor: Colors.white,
 
-                    elevation:
-                        0,
+                    elevation: 0,
 
-                    padding:
-                        const EdgeInsets
-                            .symmetric(
+                    padding: const EdgeInsets.symmetric(
                       horizontal: 24,
                       vertical: 15,
                     ),
 
-                    shape:
-                        RoundedRectangleBorder(
-                      borderRadius:
-                          BorderRadius
-                              .circular(
-                        12,
-                      ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
                     ),
                   ),
                 ),
@@ -533,96 +432,55 @@ class _CreateTaskScreenState
   // ================================================================
 
   Widget _buildTextField({
-    required TextEditingController
-        controller,
+    required TextEditingController controller,
     required String label,
     required String hint,
     required IconData icon,
-    bool requiredField =
-        false,
+    bool requiredField = false,
     int maxLines = 1,
   }) {
     return TextFormField(
-      controller:
-          controller,
+      controller: controller,
 
-      maxLines:
-          maxLines,
+      maxLines: maxLines,
 
-      validator:
-          requiredField
-              ? (value) {
-                  if (value ==
-                          null ||
-                      value
-                          .trim()
-                          .isEmpty) {
-                    return '$label is required';
-                  }
+      validator: requiredField
+          ? (value) {
+              if (value == null || value.trim().isEmpty) {
+                return '$label is required';
+              }
 
-                  return null;
-                }
-              : null,
+              return null;
+            }
+          : null,
 
-      decoration:
-          InputDecoration(
-        labelText:
-            label,
+      decoration: InputDecoration(
+        labelText: label,
 
-        hintText:
-            hint,
+        hintText: hint,
 
-        prefixIcon:
-            Icon(icon),
+        prefixIcon: Icon(icon),
 
-        filled:
-            true,
+        filled: true,
 
-        fillColor:
-            const Color(
-          0xffFAFBFD,
+        fillColor: const Color(0xffFAFBFD),
+
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+
+          borderSide: BorderSide(color: Colors.grey.shade200),
         ),
 
-        border:
-            OutlineInputBorder(
-          borderRadius:
-              BorderRadius.circular(
-            14,
-          ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
 
-          borderSide:
-              BorderSide(
-            color:
-                Colors.grey.shade200,
-          ),
+          borderSide: BorderSide(color: Colors.grey.shade200),
         ),
 
-        enabledBorder:
-            OutlineInputBorder(
-          borderRadius:
-              BorderRadius.circular(
-            14,
-          ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
 
-          borderSide:
-              BorderSide(
-            color:
-                Colors.grey.shade200,
-          ),
-        ),
-
-        focusedBorder:
-            OutlineInputBorder(
-          borderRadius:
-              BorderRadius.circular(
-            14,
-          ),
-
-          borderSide:
-              const BorderSide(
-            color:
-                AppColors.primary,
-          ),
+          borderSide: const BorderSide(color: AppColors.primary),
         ),
       ),
     );
@@ -634,14 +492,10 @@ class _CreateTaskScreenState
 
   Widget _buildAssigneeField() {
     return _buildTextField(
-      controller:
-          _assigneeController,
-      label:
-          'Assignee',
-      hint:
-          'Engineer / team member',
-      icon:
-          Icons.person_outline_rounded,
+      controller: _assigneeController,
+      label: 'Assignee',
+      hint: 'Engineer / team member',
+      icon: Icons.person_outline_rounded,
     );
   }
 
@@ -650,105 +504,58 @@ class _CreateTaskScreenState
   // ================================================================
 
   Widget _buildProjectDropdown() {
-    final projects =
-        _projectRepository.projects;
+    final projects = _projectRepository.projects;
 
-    return DropdownButtonFormField<
-        ProjectModel>(
-      initialValue:
-          _selectedProject,
+    return DropdownButtonFormField<ProjectModel>(
+      initialValue: _selectedProject,
 
-      decoration:
-          InputDecoration(
-        labelText:
-            'Project',
+      decoration: InputDecoration(
+        labelText: 'Project',
 
-        prefixIcon:
-            const Icon(
-          Icons.folder_outlined,
+        prefixIcon: const Icon(Icons.folder_outlined),
+
+        filled: true,
+
+        fillColor: const Color(0xffFAFBFD),
+
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+
+          borderSide: BorderSide(color: Colors.grey.shade200),
         ),
 
-        filled:
-            true,
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
 
-        fillColor:
-            const Color(
-          0xffFAFBFD,
+          borderSide: BorderSide(color: Colors.grey.shade200),
         ),
 
-        border:
-            OutlineInputBorder(
-          borderRadius:
-              BorderRadius.circular(
-            14,
-          ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
 
-          borderSide:
-              BorderSide(
-            color:
-                Colors.grey.shade200,
-          ),
-        ),
-
-        enabledBorder:
-            OutlineInputBorder(
-          borderRadius:
-              BorderRadius.circular(
-            14,
-          ),
-
-          borderSide:
-              BorderSide(
-            color:
-                Colors.grey.shade200,
-          ),
-        ),
-
-        focusedBorder:
-            OutlineInputBorder(
-          borderRadius:
-              BorderRadius.circular(
-            14,
-          ),
-
-          borderSide:
-              const BorderSide(
-            color:
-                AppColors.primary,
-          ),
+          borderSide: const BorderSide(color: AppColors.primary),
         ),
       ),
 
-      items:
-          projects.map(
-        (project) {
-          return DropdownMenuItem<
-              ProjectModel>(
-            value:
-                project,
+      items: projects.map((project) {
+        return DropdownMenuItem<ProjectModel>(
+          value: project,
 
-            child:
-                Text(
-              '${project.code} • ${project.name}',
-              overflow:
-                  TextOverflow.ellipsis,
-            ),
-          );
-        },
-      ).toList(),
+          child: Text(
+            '${project.code} • ${project.name}',
+            overflow: TextOverflow.ellipsis,
+          ),
+        );
+      }).toList(),
 
-      onChanged:
-          (value) {
+      onChanged: (value) {
         setState(() {
-          _selectedProject =
-              value;
+          _selectedProject = value;
         });
       },
 
-      validator:
-          (value) {
-        if (value ==
-            null) {
+      validator: (value) {
+        if (value == null) {
           return 'Please select a project';
         }
 
@@ -762,62 +569,31 @@ class _CreateTaskScreenState
   // ================================================================
 
   Widget _buildStatusDropdown() {
-    return DropdownButtonFormField<
-        String>(
-      initialValue:
-          _status,
+    return DropdownButtonFormField<String>(
+      initialValue: _status,
 
-      decoration:
-          _dropdownDecoration(
-        'Status',
-        Icons.flag_outlined,
-      ),
+      decoration: _dropdownDecoration('Status', Icons.flag_outlined),
 
       items: const [
-        DropdownMenuItem(
-          value:
-              'To Do',
-          child:
-              Text('To Do'),
-        ),
+        DropdownMenuItem(value: 'To Do', child: Text('To Do')),
 
-        DropdownMenuItem(
-          value:
-              'In Progress',
-          child:
-              Text('In Progress'),
-        ),
+        DropdownMenuItem(value: 'In Progress', child: Text('In Progress')),
 
-        DropdownMenuItem(
-          value:
-              'Review',
-          child:
-              Text('Review'),
-        ),
+        DropdownMenuItem(value: 'Review', child: Text('Review')),
 
-        DropdownMenuItem(
-          value:
-              'Done',
-          child:
-              Text('Done'),
-        ),
+        DropdownMenuItem(value: 'Done', child: Text('Done')),
       ],
 
-      onChanged:
-          (value) {
-        if (value ==
-            null) {
+      onChanged: (value) {
+        if (value == null) {
           return;
         }
 
         setState(() {
-          _status =
-              value;
+          _status = value;
 
-          if (value ==
-              'Done') {
-            _progress =
-                1.0;
+          if (value == 'Done') {
+            _progress = 1.0;
           }
         });
       },
@@ -829,57 +605,28 @@ class _CreateTaskScreenState
   // ================================================================
 
   Widget _buildPriorityDropdown() {
-    return DropdownButtonFormField<
-        String>(
-      initialValue:
-          _priority,
+    return DropdownButtonFormField<String>(
+      initialValue: _priority,
 
-      decoration:
-          _dropdownDecoration(
-        'Priority',
-        Icons.priority_high_rounded,
-      ),
+      decoration: _dropdownDecoration('Priority', Icons.priority_high_rounded),
 
       items: const [
-        DropdownMenuItem(
-          value:
-              'Low',
-          child:
-              Text('Low'),
-        ),
+        DropdownMenuItem(value: 'Low', child: Text('Low')),
 
-        DropdownMenuItem(
-          value:
-              'Medium',
-          child:
-              Text('Medium'),
-        ),
+        DropdownMenuItem(value: 'Medium', child: Text('Medium')),
 
-        DropdownMenuItem(
-          value:
-              'High',
-          child:
-              Text('High'),
-        ),
+        DropdownMenuItem(value: 'High', child: Text('High')),
 
-        DropdownMenuItem(
-          value:
-              'Urgent',
-          child:
-              Text('Urgent'),
-        ),
+        DropdownMenuItem(value: 'Urgent', child: Text('Urgent')),
       ],
 
-      onChanged:
-          (value) {
-        if (value ==
-            null) {
+      onChanged: (value) {
+        if (value == null) {
           return;
         }
 
         setState(() {
-          _priority =
-              value;
+          _priority = value;
         });
       },
     );
@@ -889,65 +636,32 @@ class _CreateTaskScreenState
   // DROPDOWN DECORATION
   // ================================================================
 
-  InputDecoration _dropdownDecoration(
-    String label,
-    IconData icon,
-  ) {
+  InputDecoration _dropdownDecoration(String label, IconData icon) {
     return InputDecoration(
-      labelText:
-          label,
+      labelText: label,
 
-      prefixIcon:
-          Icon(icon),
+      prefixIcon: Icon(icon),
 
-      filled:
-          true,
+      filled: true,
 
-      fillColor:
-          const Color(
-        0xffFAFBFD,
+      fillColor: const Color(0xffFAFBFD),
+
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(14),
+
+        borderSide: BorderSide(color: Colors.grey.shade200),
       ),
 
-      border:
-          OutlineInputBorder(
-        borderRadius:
-            BorderRadius.circular(
-          14,
-        ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(14),
 
-        borderSide:
-            BorderSide(
-          color:
-              Colors.grey.shade200,
-        ),
+        borderSide: BorderSide(color: Colors.grey.shade200),
       ),
 
-      enabledBorder:
-          OutlineInputBorder(
-        borderRadius:
-            BorderRadius.circular(
-          14,
-        ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(14),
 
-        borderSide:
-            BorderSide(
-          color:
-              Colors.grey.shade200,
-        ),
-      ),
-
-      focusedBorder:
-          OutlineInputBorder(
-        borderRadius:
-            BorderRadius.circular(
-          14,
-        ),
-
-        borderSide:
-            const BorderSide(
-          color:
-              AppColors.primary,
-        ),
+        borderSide: const BorderSide(color: AppColors.primary),
       ),
     );
   }
@@ -958,34 +672,20 @@ class _CreateTaskScreenState
 
   Widget _buildDueDateField() {
     return InkWell(
-      onTap:
-          _selectDueDate,
+      onTap: _selectDueDate,
 
-      borderRadius:
-          BorderRadius.circular(
-        14,
-      ),
+      borderRadius: BorderRadius.circular(14),
 
-      child:
-          InputDecorator(
-        decoration:
-            _dropdownDecoration(
+      child: InputDecorator(
+        decoration: _dropdownDecoration(
           'Due Date',
           Icons.calendar_today_outlined,
         ),
 
-        child:
-            Text(
-          _formatDate(
-            _dueDate,
-          ),
+        child: Text(
+          _formatDate(_dueDate),
 
-          style:
-              const TextStyle(
-            fontSize: 14,
-            color:
-                AppColors.textDark,
-          ),
+          style: const TextStyle(fontSize: 14, color: AppColors.textDark),
         ),
       ),
     );
@@ -996,125 +696,75 @@ class _CreateTaskScreenState
   // ================================================================
 
   Widget _buildProgressField() {
-    final percentage =
-        (_progress * 100)
-            .round();
+    final percentage = (_progress * 100).round();
 
-    final isCompleted =
-        _status == 'Done';
+    final isCompleted = _status == 'Done';
 
     return Container(
-      padding:
-          const EdgeInsets.fromLTRB(
-        16,
-        14,
-        16,
-        10,
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
+
+      decoration: BoxDecoration(
+        color: const Color(0xffFAFBFD),
+
+        borderRadius: BorderRadius.circular(14),
+
+        border: Border.all(color: Colors.grey.shade200),
       ),
 
-      decoration:
-          BoxDecoration(
-        color:
-            const Color(
-          0xffFAFBFD,
-        ),
-
-        borderRadius:
-            BorderRadius.circular(
-          14,
-        ),
-
-        border:
-            Border.all(
-          color:
-              Colors.grey.shade200,
-        ),
-      ),
-
-      child:
-          Column(
-        crossAxisAlignment:
-            CrossAxisAlignment
-                .start,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
 
         children: [
           Row(
             children: [
-              const Icon(
-                Icons.trending_up_rounded,
-                color:
-                    AppColors.primary,
-              ),
+              const Icon(Icons.trending_up_rounded, color: AppColors.primary),
 
-              const SizedBox(
-                width: 10,
-              ),
+              const SizedBox(width: 10),
 
               const Expanded(
-                child:
-                    Text(
+                child: Text(
                   'Progress',
-                  style:
-                      TextStyle(
+                  style: TextStyle(
                     fontSize: 14,
-                    fontWeight:
-                        FontWeight.w600,
-                    color:
-                        AppColors.textDark,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textDark,
                   ),
                 ),
               ),
 
               Text(
                 '$percentage%',
-                style:
-                    const TextStyle(
+                style: const TextStyle(
                   fontSize: 14,
-                  fontWeight:
-                      FontWeight.bold,
-                  color:
-                      AppColors.primary,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.primary,
                 ),
               ),
             ],
           ),
 
           Slider(
-            value:
-                _progress
-                    .clamp(
-                      0.0,
-                      1.0,
-                    )
-                    .toDouble(),
+            value: _progress.clamp(0.0, 1.0).toDouble(),
 
-            min:
-                0,
+            min: 0,
 
-            max:
-                1,
+            max: 1,
 
-            divisions:
-                100,
+            divisions: 100,
 
-            label:
-                '$percentage%',
+            label: '$percentage%',
 
-            onChanged:
-                isCompleted
-                    ? null
-                    : (value) {
-                        setState(() {
-                          _progress =
-                              value;
+            onChanged: isCompleted
+                ? null
+                : (value) {
+                    setState(() {
+                      _progress = value;
 
-                          if (value ==
-                              1.0) {
-                            _status =
-                                'Done';
-                          }
-                        });
-                      },
+                      if (value == 1.0) {
+                        _status = 'Done';
+                      }
+                    });
+                  },
           ),
 
           Text(
@@ -1122,12 +772,7 @@ class _CreateTaskScreenState
                 ? 'Completed tasks are automatically set to 100%.'
                 : 'Drag the slider to update completion progress.',
 
-            style:
-                TextStyle(
-              fontSize: 12,
-              color:
-                  Colors.grey.shade600,
-            ),
+            style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
           ),
         ],
       ),
@@ -1138,45 +783,27 @@ class _CreateTaskScreenState
   // DATE PICKER
   // ================================================================
 
-  Future<void>
-      _selectDueDate() async {
-    final today =
-        DateTime.now();
+  Future<void> _selectDueDate() async {
+    final today = DateTime.now();
 
-    final firstDate =
-        DateTime(
-      today.year,
-      today.month,
-      today.day,
+    final firstDate = DateTime(today.year, today.month, today.day);
+
+    final selected = await showDatePicker(
+      context: context,
+
+      initialDate: _dueDate.isBefore(firstDate) ? firstDate : _dueDate,
+
+      firstDate: firstDate,
+
+      lastDate: DateTime(2100),
     );
 
-    final selected =
-        await showDatePicker(
-      context:
-          context,
-
-      initialDate:
-          _dueDate.isBefore(
-        firstDate,
-      )
-              ? firstDate
-              : _dueDate,
-
-      firstDate:
-          firstDate,
-
-      lastDate:
-          DateTime(2100),
-    );
-
-    if (selected ==
-        null) {
+    if (selected == null) {
       return;
     }
 
     setState(() {
-      _dueDate =
-          selected;
+      _dueDate = selected;
     });
   }
 
@@ -1184,220 +811,156 @@ class _CreateTaskScreenState
   // CREATE TASK
   // ================================================================
 
-  void _createTask() {
-    if (!_formKey
-        .currentState!
-        .validate()) {
+  Future<void> _createTask() async {
+    if (!_formKey.currentState!.validate()) {
       return;
     }
 
-    if (_selectedProject ==
-        null) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(
+    if (_selectedProject == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text(
-            'Please select a project before creating the task.',
-          ),
-          behavior:
-              SnackBarBehavior.floating,
+          content: Text('Please select a project before creating the task.'),
+          behavior: SnackBarBehavior.floating,
         ),
       );
 
       return;
     }
 
-    final id =
-        _taskRepository.nextTaskId;
+    final newTask = TaskModel(
+      id: _apiMode ? '' : _taskRepository.nextTaskId,
 
-    final newTask =
-        TaskModel(
-      id:
-          id,
+      title: _titleController.text.trim(),
 
-      title:
-          _titleController
-              .text
-              .trim(),
+      description: _descriptionController.text.trim(),
 
-      description:
-          _descriptionController
-              .text
-              .trim(),
+      projectCode: _selectedProject!.code,
 
-      projectCode:
-          _selectedProject!
-              .code,
+      projectName: _selectedProject!.name,
 
-      projectName:
-          _selectedProject!
-              .name,
+      assignee: _apiMode || _assigneeController.text.trim().isEmpty
+          ? 'Unassigned'
+          : _assigneeController.text.trim(),
 
-      assignee:
-          _assigneeController
-                  .text
-                  .trim()
-                  .isEmpty
-              ? 'Unassigned'
-              : _assigneeController
-                  .text
-                  .trim(),
+      status: _apiMode ? 'To Do' : _status,
 
-      status:
-          _status,
+      priority: _priority,
 
-      priority:
-          _priority,
+      dueDate: _dueDate,
 
-      dueDate:
-          _dueDate,
+      progress: !_apiMode && _status == 'Done' ? 1.0 : 0.0,
 
-      progress:
-          _status == 'Done'
-              ? 1.0
-              : 0.0,
-
-      color:
-          _priorityColor(
-        _priority,
-      ),
+      color: _priorityColor(_priority),
     );
 
-    _taskRepository
-        .addTask(
-      newTask,
-    );
-
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(
-      const SnackBar(
-        content:
-            Text(
-          'Task created successfully.',
+    setState(() => _saving = true);
+    try {
+      await _taskRepository.createTask(newTask);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Task created successfully.'),
+          behavior: SnackBarBehavior.floating,
         ),
-        behavior:
-            SnackBarBehavior.floating,
-      ),
-    );
-
-    context.pop();
+      );
+      context.pop();
+    } on AuthApiException catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(error.message),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } on Exception {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Could not create the task. Please try again.'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
   }
 
   // ================================================================
   // UPDATE TASK
   // ================================================================
 
-  void _updateTask() {
-    if (!_formKey
-        .currentState!
-        .validate()) {
+  Future<void> _updateTask() async {
+    if (!_formKey.currentState!.validate()) {
       return;
     }
 
-    if (_selectedProject ==
-            null ||
-        widget.taskId ==
-            null) {
+    if ((!_apiMode && _selectedProject == null) || widget.taskId == null) {
       return;
     }
 
-    final existingTask =
-        _taskRepository
-            .getTaskById(
-      widget.taskId!,
-    );
+    final existingTask = _taskRepository.getTaskById(widget.taskId!);
 
-    if (existingTask ==
-        null) {
-      context.go(
-        '/tasks',
-      );
+    if (existingTask == null) {
+      context.go('/tasks');
 
       return;
     }
 
-    final updatedTask =
-        existingTask.copyWith(
-      title:
-          _titleController
-              .text
-              .trim(),
+    final updatedTask = existingTask.copyWith(
+      title: _titleController.text.trim(),
 
-      description:
-          _descriptionController
-              .text
-              .trim(),
+      description: _descriptionController.text.trim(),
 
-      projectCode:
-          _selectedProject!
-              .code,
+      projectCode: _selectedProject?.code ?? existingTask.projectCode,
 
-      projectName:
-          _selectedProject!
-              .name,
+      projectName: _selectedProject?.name ?? existingTask.projectName,
 
-      assignee:
-          _assigneeController
-                  .text
-                  .trim()
-                  .isEmpty
-              ? 'Unassigned'
-              : _assigneeController
-                  .text
-                  .trim(),
+      assignee: _apiMode || _assigneeController.text.trim().isEmpty
+          ? 'Unassigned'
+          : _assigneeController.text.trim(),
 
-      status:
-          _status,
+      status: _status,
 
-      priority:
-          _priority,
+      priority: _priority,
 
-      dueDate:
-          _dueDate,
+      dueDate: _dueDate,
 
-      progress:
-          _status == 'Done'
-              ? 1.0
-              : _progress,
+      progress: _status == 'Done' ? 1.0 : _progress,
 
-      color:
-          _priorityColor(
-        _priority,
-      ),
+      color: _priorityColor(_priority),
     );
 
-    _taskRepository
-        .updateTask(
-      updatedTask,
-    );
-
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(
-      const SnackBar(
-        content:
-            Text(
-          'Task updated successfully.',
+    setState(() => _saving = true);
+    try {
+      final savedTask = await _taskRepository.saveTask(updatedTask);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Task updated successfully.'),
+          behavior: SnackBarBehavior.floating,
         ),
-        behavior:
-            SnackBarBehavior.floating,
-      ),
-    );
-
-    context.go(
-      '/tasks/${updatedTask.id}',
-    );
+      );
+      context.go('/tasks/${savedTask.id}');
+    } on AuthApiException catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error.message)));
+    } on Exception {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not update the task.')),
+      );
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
   }
 
   // ================================================================
   // PRIORITY COLOR
   // ================================================================
 
-  Color _priorityColor(
-    String priority,
-  ) {
+  Color _priorityColor(String priority) {
     switch (priority) {
       case 'Urgent':
         return Colors.red;
@@ -1420,24 +983,10 @@ class _CreateTaskScreenState
   // DATE FORMAT
   // ================================================================
 
-  String _formatDate(
-    DateTime date,
-  ) {
-    final day =
-        date.day
-            .toString()
-            .padLeft(
-              2,
-              '0',
-            );
+  String _formatDate(DateTime date) {
+    final day = date.day.toString().padLeft(2, '0');
 
-    final month =
-        date.month
-            .toString()
-            .padLeft(
-              2,
-              '0',
-            );
+    final month = date.month.toString().padLeft(2, '0');
 
     return '$day/$month/${date.year}';
   }

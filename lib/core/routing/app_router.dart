@@ -56,6 +56,18 @@ final GoRouter appRouter = GoRouter(
 
     if (AuthRepository.instance.usesApiAuth) {
       if (path == '/api-readiness' || path == '/projects') return null;
+      if (path == '/tasks') return null;
+      if (path.startsWith('/tasks/')) {
+        final segments = path.split('/');
+        if (segments.length == 3 ||
+            (segments.length == 4 && segments.last == 'edit')) {
+          return null;
+        }
+      }
+      if (path == '/create-task' &&
+          state.uri.queryParameters['taskId'] == null) {
+        return null;
+      }
       if (path.startsWith('/projects/') && path.endsWith('/edit')) {
         return AuthRepository.instance.currentUser?.isOwner == true
             ? null
@@ -298,7 +310,9 @@ final GoRouter appRouter = GoRouter(
     GoRoute(
       path: '/tasks',
       builder: (context, state) {
-        return const TasksScreen();
+        return TasksScreen(
+          projectCode: state.uri.queryParameters['projectCode'],
+        );
       },
       routes: [
         GoRoute(

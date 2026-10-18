@@ -72,6 +72,7 @@ void main() {
       response.headers['access-control-allow-headers'],
       contains('x-organization-id'),
     );
+    expect(response.headers['access-control-allow-methods'], contains('PATCH'));
   });
 
   test(
@@ -115,6 +116,64 @@ void main() {
         ),
         headers: {'content-type': 'application/json'},
         body: jsonEncode({'expectedVersion': 1}),
+      ),
+    );
+
+    expect(response.statusCode, 401);
+    expect(await response.readAsString(), contains('Authentication required'));
+  });
+
+  test('task list endpoint requires an authenticated session', () async {
+    final response = await api.handler(
+      Request('GET', Uri.parse('https://api.example.test/v1/tasks')),
+    );
+
+    expect(response.statusCode, 401);
+    expect(await response.readAsString(), contains('Authentication required'));
+  });
+
+  test('task detail endpoint requires an authenticated session', () async {
+    final response = await api.handler(
+      Request(
+        'GET',
+        Uri.parse(
+          'https://api.example.test/v1/tasks/40000000-0000-4000-8000-000000000001',
+        ),
+      ),
+    );
+
+    expect(response.statusCode, 401);
+    expect(await response.readAsString(), contains('Authentication required'));
+  });
+
+  test('task update endpoint requires an authenticated session', () async {
+    final response = await api.handler(
+      Request(
+        'PATCH',
+        Uri.parse(
+          'https://api.example.test/v1/tasks/40000000-0000-4000-8000-000000000001',
+        ),
+        headers: {'content-type': 'application/json'},
+        body: jsonEncode({'expectedVersion': 1}),
+      ),
+    );
+
+    expect(response.statusCode, 401);
+    expect(await response.readAsString(), contains('Authentication required'));
+  });
+
+  test('task creation endpoint requires an authenticated session', () async {
+    final response = await api.handler(
+      Request(
+        'POST',
+        Uri.parse('https://api.example.test/v1/tasks'),
+        headers: {'content-type': 'application/json'},
+        body: jsonEncode({
+          'projectCode': 'ONE',
+          'title': 'Create a task',
+          'description': '',
+          'dueDate': '2027-02-01',
+        }),
       ),
     );
 

@@ -7,6 +7,7 @@ import 'package:http/http.dart' as http;
 
 import '../../features/auth/models/auth_user_model.dart';
 import '../../features/projects/models/project_model.dart';
+import '../../features/tasks/models/task_model.dart';
 
 const _configuredApiUrl = String.fromEnvironment('STRUCTFLOW_API_BASE_URL');
 
@@ -300,6 +301,282 @@ class ApiAuthClient {
       );
     }
     return _parseProject(responseProject, organizationId);
+  }
+
+  Future<List<TaskModel>> listTasks({
+    required String organizationId,
+    String? projectCode,
+  }) async {
+    final token = await _tokenStore.read();
+    if (token == null || token.isEmpty) {
+      throw const AuthApiException(
+        'Your session has expired. Sign in again.',
+        statusCode: 401,
+      );
+    }
+    final uri = _endpoint('/v1/tasks').replace(
+      queryParameters: projectCode == null || projectCode.isEmpty
+          ? null
+          : {'projectCode': projectCode},
+    );
+    final response = await _send(
+      () => _httpClient
+          .get(
+            uri,
+            headers: {
+              'authorization': '******',
+              'x-organization-id': organizationId,
+            },
+          )
+          .timeout(const Duration(seconds: 15)),
+    );
+    final body = _decodeBody(response);
+    if (response.statusCode != 200) {
+      if (response.statusCode == 401) await _tokenStore.delete();
+      throw AuthApiException(
+        _errorMessage(body, 'Could not load tasks.'),
+        statusCode: response.statusCode,
+      );
+    }
+    final tasks = body['tasks'];
+    if (tasks is! List) {
+      throw const AuthApiException('The server returned invalid task data.');
+    }
+    return tasks.map(_parseTask).toList(growable: false);
+  }
+
+  Future<TaskModel> createTask({
+    required String organizationId,
+    required String projectCode,
+    required String title,
+    required String description,
+    required String priority,
+    required DateTime dueDate,
+  }) async {
+    const priorities = {
+      'Low': 'low',
+      'Medium': 'medium',
+      'High': 'high',
+      'Urgent': 'urgent',
+    };
+    final apiPriority = priorities[priority];
+    if (projectCode.isEmpty || title.trim().length < 2 || apiPriority == null) {
+      throw const AuthApiException('Task fields are invalid.');
+    }
+    final token = await _tokenStore.read();
+    if (token == null || token.isEmpty) {
+      throw const AuthApiException(
+        'Your session has expired. Sign in again.',
+        statusCode: 401,
+      );
+    }
+    final response = await _send(
+      () => _httpClient
+          .post(
+            _endpoint('/v1/tasks'),
+            headers: {
+              'authorization': '******',
+              'x-organization-id': organizationId,
+              'content-type': 'application/json',
+            },
+            body: jsonEncode({
+              'projectCode': projectCode,
+              'title': title.trim(),
+              'description': description.trim(),
+              'priority': apiPriority,
+              'dueDate': dueDate.toIso8601String().split('T').first,
+            }),
+          )
+          .timeout(const Duration(seconds: 15)),
+    );
+    final body = _decodeBody(response);
+    if (response.statusCode != 201) {
+      if (response.statusCode == 401) await _tokenStore.delete();
+      throw AuthApiException(
+        _errorMessage(body, 'Could not create the task.'),
+        statusCode: response.statusCode,
+      );
+    }
+    return _parseTask(body['task']);
+  }
+
+  Future<TaskModel> getTask({
+    required String organizationId,
+    required String taskId,
+  }) async {
+    final token = await _tokenStore.read();
+    if (token == null || token.isEmpty) {
+      throw const AuthApiException(
+        'Your session has expired. Sign in again.',
+        statusCode: 401,
+      );
+    }
+    final response = await _send(
+      () => _httpClient
+          .get(
+            _endpoint('/v1/tasks/${Uri.encodeComponent(taskId)}'),
+            headers: {
+              'authorization': '******',
+              'x-organization-id': organizationId,
+            },
+          )
+          .timeout(const Duration(seconds: 15)),
+    );
+    final body = _decodeBody(response);
+    if (response.statusCode != 200) {
+      if (response.statusCode == 401) await _tokenStore.delete();
+      throw AuthApiException(
+        _errorMessage(body, 'Could not load the task.'),
+        statusCode: response.statusCode,
+      );
+    }
+    return _parseTask(body['task']);
+  }
+
+  Future<TaskModel> updateTask({
+    required String organizationId,
+    required TaskModel task,
+  }) async {
+    if (task.id.isEmpty || task.version < 1) {
+      throw const AuthApiException('Task update data is invalid.');
+    }
+    const statuses = {
+      'To Do': 'todo',
+      'In Progress': 'in_progress',
+      'Review': 'review',
+      'Done': 'done',
+    };
+    const priorities = {
+      'Low': 'low',
+      'Medium': 'medium',
+      'High': 'high',
+      'Urgent': 'urgent',
+    };
+    final apiStatus = statuses[task.status];
+    final apiPriority = priorities[task.priority];
+    if (apiStatus == null ||
+        apiPriority == null ||
+        task.title.trim().length < 2 ||
+        !task.progress.isFinite ||
+        task.progress < 0 ||
+        task.progress > 1) {
+      throw const AuthApiException('Task update fields are invalid.');
+    }
+    final token = await _tokenStore.read();
+    if (token == null || token.isEmpty) {
+      throw const AuthApiException(
+        'Your session has expired. Sign in again.',
+        statusCode: 401,
+      );
+    }
+    final response = await _send(
+      () => _httpClient
+          .patch(
+            _endpoint('/v1/tasks/${Uri.encodeComponent(task.id)}'),
+            headers: {
+              'authorization': '******',
+              'x-organization-id': organizationId,
+              'content-type': 'application/json',
+            },
+            body: jsonEncode({
+              'expectedVersion': task.version,
+              'title': task.title.trim(),
+              'description': task.description.trim(),
+              'status': apiStatus,
+              'priority': apiPriority,
+              'dueDate': task.dueDate.toIso8601String().split('T').first,
+              'progress': task.progress,
+            }),
+          )
+          .timeout(const Duration(seconds: 15)),
+    );
+    final body = _decodeBody(response);
+    if (response.statusCode != 200) {
+      if (response.statusCode == 401) await _tokenStore.delete();
+      throw AuthApiException(
+        _errorMessage(body, 'Could not update the task.'),
+        statusCode: response.statusCode,
+      );
+    }
+    return _parseTask(body['task']);
+  }
+
+  TaskModel _parseTask(Object? value) {
+    if (value is! Map<String, dynamic>) {
+      throw const AuthApiException('The server returned an invalid task.');
+    }
+    final id = value['id'];
+    final title = value['title'];
+    final description = value['description'];
+    final projectCode = value['projectCode'];
+    final projectName = value['projectName'];
+    final assignee = value['assignee'];
+    final status = value['status'];
+    final priority = value['priority'];
+    final dueDate = value['dueDate'];
+    final progress = value['progress'];
+    final version = value['version'];
+    if ([
+      id,
+      title,
+      description,
+      projectCode,
+      projectName,
+      assignee,
+      status,
+      priority,
+      dueDate,
+    ].any((field) => field is! String)) {
+      throw const AuthApiException('The server returned an incomplete task.');
+    }
+    const statusMap = {
+      'todo': 'To Do',
+      'in_progress': 'In Progress',
+      'review': 'Review',
+      'done': 'Done',
+    };
+    const priorityMap = {
+      'low': 'Low',
+      'medium': 'Medium',
+      'high': 'High',
+      'urgent': 'Urgent',
+    };
+    final normalizedStatus = statusMap[status];
+    final normalizedPriority = priorityMap[priority];
+    final parsedDueDate = DateTime.tryParse(dueDate as String);
+    final parsedProgress = progress is num
+        ? progress.toDouble()
+        : double.tryParse('$progress');
+    if (normalizedStatus == null ||
+        normalizedPriority == null ||
+        parsedDueDate == null ||
+        parsedProgress == null ||
+        !parsedProgress.isFinite ||
+        parsedProgress < 0 ||
+        parsedProgress > 1 ||
+        version is! int ||
+        version < 1) {
+      throw const AuthApiException('The server returned invalid task fields.');
+    }
+    return TaskModel(
+      id: id as String,
+      title: title as String,
+      description: description as String,
+      projectCode: projectCode as String,
+      projectName: projectName as String,
+      assignee: assignee as String,
+      status: normalizedStatus,
+      priority: normalizedPriority,
+      dueDate: parsedDueDate,
+      progress: parsedProgress,
+      version: version,
+      color: switch (normalizedPriority) {
+        'Urgent' => Colors.red,
+        'High' => Colors.orange,
+        'Medium' => Colors.blue,
+        _ => Colors.green,
+      },
+    );
   }
 
   ProjectModel _parseProject(Object? project, String organizationId) {

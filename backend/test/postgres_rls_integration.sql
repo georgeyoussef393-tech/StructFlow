@@ -24,6 +24,23 @@ BEGIN
     ) THEN
         RAISE EXCEPTION 'runtime role has unsafe project update grants';
     END IF;
+    IF NOT has_table_privilege(
+        'structflow_runtime', 'tasks', 'SELECT'
+    ) OR NOT has_column_privilege(
+        'structflow_runtime', 'tasks', 'title', 'INSERT'
+    ) OR has_column_privilege(
+        'structflow_runtime', 'tasks', 'version', 'INSERT'
+    ) OR NOT has_column_privilege(
+        'structflow_runtime', 'tasks', 'title', 'UPDATE'
+    ) OR NOT has_column_privilege(
+        'structflow_runtime', 'tasks', 'version', 'UPDATE'
+    ) OR has_column_privilege(
+        'structflow_runtime', 'tasks', 'project_id', 'UPDATE'
+    ) OR has_table_privilege(
+        'structflow_runtime', 'tasks', 'UPDATE'
+    ) THEN
+        RAISE EXCEPTION 'runtime role has unexpected task permissions';
+    END IF;
 END;
 $$;
 
@@ -73,6 +90,13 @@ $$;
 INSERT INTO project_memberships (organization_id, project_id, user_id, role)
 VALUES ('10000000-0000-4000-8000-000000000001', '30000000-0000-4000-8000-000000000001', '20000000-0000-4000-8000-000000000001', 'contributor');
 
+INSERT INTO tasks (
+    organization_id, project_id, title, due_date, created_by
+)
+VALUES
+    ('10000000-0000-4000-8000-000000000001', '30000000-0000-4000-8000-000000000001', 'Tenant One Task', '2027-02-01', '20000000-0000-4000-8000-000000000001'),
+    ('10000000-0000-4000-8000-000000000002', '30000000-0000-4000-8000-000000000002', 'Tenant Two Task', '2027-02-01', '20000000-0000-4000-8000-000000000002');
+
 BEGIN;
 SET LOCAL ROLE structflow_runtime;
 SELECT set_config('app.organization_id', '10000000-0000-4000-8000-000000000001', true);
@@ -88,6 +112,35 @@ BEGIN
     END IF;
     IF (SELECT count(*) FROM project_memberships) <> 1 THEN
         RAISE EXCEPTION 'tenant user must only see their own project assignment';
+    END IF;
+    IF (SELECT count(*) FROM tasks) <> 1 OR NOT EXISTS (
+        SELECT 1 FROM tasks t JOIN projects p
+          ON p.organization_id = t.organization_id AND p.id = t.project_id
+        WHERE t.title = 'Tenant One Task' AND p.code = 'ONE'
+    ) THEN
+        RAISE EXCEPTION 'tenant user must only see tasks in assigned projects';
+    END IF;
+    BEGIN
+        INSERT INTO tasks (
+            organization_id, project_id, title, due_date, created_by
+        )
+        VALUES (
+            '10000000-0000-4000-8000-000000000001',
+            '30000000-0000-4000-8000-000000000001',
+            'Contributor cannot create tasks', '2027-02-02',
+            '20000000-0000-4000-8000-000000000001'
+        );
+        RAISE EXCEPTION 'project contributor unexpectedly created a task';
+    EXCEPTION
+        WHEN insufficient_privilege THEN NULL;
+    END;
+    UPDATE tasks
+    SET title = 'Contributor cannot update tasks', version = version + 1
+    WHERE title = 'Tenant One Task';
+    IF EXISTS (
+        SELECT 1 FROM tasks WHERE title = 'Contributor cannot update tasks'
+    ) THEN
+        RAISE EXCEPTION 'project contributor unexpectedly updated a task';
     END IF;
     IF NOT EXISTS (
         SELECT 1 FROM projects
@@ -145,12 +198,65 @@ END;
 $$;
 COMMIT;
 
+UPDATE project_memberships
+SET role = 'project_manager'
+WHERE organization_id = '10000000-0000-4000-8000-000000000001'
+  AND project_id = '30000000-0000-4000-8000-000000000001'
+  AND user_id = '20000000-0000-4000-8000-000000000001';
+
+BEGIN;
+SET LOCAL ROLE structflow_runtime;
+SELECT set_config('app.organization_id', '10000000-0000-4000-8000-000000000001', true);
+SELECT set_config('app.user_id', '20000000-0000-4000-8000-000000000001', true);
+INSERT INTO tasks (
+    organization_id, project_id, title, due_date, created_by
+)
+VALUES (
+    '10000000-0000-4000-8000-000000000001',
+    '30000000-0000-4000-8000-000000000001',
+    'Project manager task', '2027-02-03',
+    '20000000-0000-4000-8000-000000000001'
+);
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM tasks WHERE title = 'Project manager task'
+    ) THEN
+        RAISE EXCEPTION 'assigned project manager should be allowed to create tasks';
+    END IF;
+END;
+$$;
+UPDATE tasks
+SET title = 'Project manager updated task',
+    status = 'in_progress',
+    progress = 0.5,
+    version = version + 1,
+    updated_at = now()
+WHERE title = 'Project manager task';
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM tasks
+        WHERE title = 'Project manager updated task'
+          AND status = 'in_progress'
+          AND progress = 0.5
+          AND version = 2
+    ) THEN
+        RAISE EXCEPTION 'assigned project manager should be allowed to update tasks';
+    END IF;
+END;
+$$;
+ROLLBACK;
+
 BEGIN;
 SET LOCAL ROLE structflow_runtime;
 DO $$
 BEGIN
     IF EXISTS (SELECT 1 FROM projects) THEN
         RAISE EXCEPTION 'projects must be hidden without tenant context';
+    END IF;
+    IF EXISTS (SELECT 1 FROM tasks) THEN
+        RAISE EXCEPTION 'tasks must be hidden without tenant context';
     END IF;
     BEGIN
         INSERT INTO audit_events (
@@ -207,6 +313,9 @@ BEGIN
     IF EXISTS (SELECT 1 FROM projects) THEN
         RAISE EXCEPTION 'suspended organization member must not see projects';
     END IF;
+    IF EXISTS (SELECT 1 FROM tasks) THEN
+        RAISE EXCEPTION 'suspended organization member must not see tasks';
+    END IF;
     BEGIN
         INSERT INTO audit_events (
             organization_id, actor_user_id, action, entity_type, entity_id
@@ -236,6 +345,9 @@ DO $$
 BEGIN
     IF EXISTS (SELECT 1 FROM projects) THEN
         RAISE EXCEPTION 'suspended organization member must not see projects';
+    END IF;
+    IF EXISTS (SELECT 1 FROM tasks) THEN
+        RAISE EXCEPTION 'suspended organization member must not see tasks';
     END IF;
     BEGIN
         INSERT INTO audit_events (

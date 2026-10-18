@@ -56,6 +56,25 @@ void main() {
     expect(ProjectAccessPolicy.canCreateProject('member'), isFalse);
   });
 
+  test('only owners and admins can create tasks across an organization', () {
+    expect(
+      ProjectAccessPolicy.canCreateTaskAcrossOrganization('owner'),
+      isTrue,
+    );
+    expect(
+      ProjectAccessPolicy.canCreateTaskAcrossOrganization('admin'),
+      isTrue,
+    );
+    expect(
+      ProjectAccessPolicy.canCreateTaskAcrossOrganization('project_manager'),
+      isFalse,
+    );
+    expect(
+      ProjectAccessPolicy.canCreateTaskAcrossOrganization('member'),
+      isFalse,
+    );
+  });
+
   test('only owners and organization admins can update projects', () {
     expect(ProjectAccessPolicy.canUpdateProject('owner'), isTrue);
     expect(ProjectAccessPolicy.canUpdateProject('admin'), isTrue);

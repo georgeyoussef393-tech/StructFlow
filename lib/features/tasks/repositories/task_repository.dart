@@ -3,14 +3,15 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:structflow/core/network/api_auth_client.dart';
+import 'package:structflow/features/auth/repositories/auth_repository.dart';
 import 'package:structflow/features/tasks/models/task_model.dart';
 
 class TaskRepository extends ChangeNotifier {
   static const _storageKey = 'structflow_tasks';
   TaskRepository._();
 
-  static final TaskRepository instance =
-      TaskRepository._();
+  static final TaskRepository instance = TaskRepository._();
 
   final List<TaskModel> _tasks = [
     TaskModel(
@@ -31,8 +32,7 @@ class TaskRepository extends ChangeNotifier {
     TaskModel(
       id: 'TSK-002',
       title: 'Approve BOQ',
-      description:
-          'Review and approve the updated bill of quantities.',
+      description: 'Review and approve the updated bill of quantities.',
       projectCode: 'PRJ-002',
       projectName: 'Cairo Business Park',
       assignee: 'Michael George',
@@ -76,8 +76,7 @@ class TaskRepository extends ChangeNotifier {
     TaskModel(
       id: 'TSK-005',
       title: 'Prepare RFI Response',
-      description:
-          'Prepare the consultant response for the outstanding RFI.',
+      description: 'Prepare the consultant response for the outstanding RFI.',
       projectCode: 'PRJ-003',
       projectName: 'Smart Village',
       assignee: 'John Mark',
@@ -105,7 +104,35 @@ class TaskRepository extends ChangeNotifier {
     return _tasks.length;
   }
 
-  Future<void> loadTasks() async {
+  Future<void> loadTasks({String? projectCode}) async {
+    if (AuthRepository.instance.usesApiAuth) {
+      _tasks.clear();
+      notifyListeners();
+      final user = AuthRepository.instance.currentUser;
+      if (user == null || user.organizationId.isEmpty) {
+        throw const AuthApiException(
+          'An authenticated company is required.',
+          statusCode: 401,
+        );
+      }
+      try {
+        final loadedTasks = await ApiAuthClient.configured.listTasks(
+          organizationId: user.organizationId,
+          projectCode: projectCode,
+        );
+        _tasks
+          ..clear()
+          ..addAll(loadedTasks);
+        notifyListeners();
+        return;
+      } on AuthApiException catch (error) {
+        if (error.statusCode == 401) {
+          await AuthRepository.instance.signOut();
+        }
+        rethrow;
+      }
+    }
+
     final preferences = await SharedPreferences.getInstance();
     final savedTasks = preferences.getString(_storageKey);
 
@@ -117,9 +144,8 @@ class TaskRepository extends ChangeNotifier {
       final decoded = jsonDecode(savedTasks) as List<dynamic>;
       final restoredTasks = decoded
           .map(
-            (task) => TaskModel.fromJson(
-              Map<String, dynamic>.from(task as Map),
-            ),
+            (task) =>
+                TaskModel.fromJson(Map<String, dynamic>.from(task as Map)),
           )
           .toList();
 
@@ -131,6 +157,106 @@ class TaskRepository extends ChangeNotifier {
     } catch (_) {
       // Keep the bundled sample tasks if saved data cannot be restored.
     }
+  }
+
+  Future<void> createTask(TaskModel task) async {
+    if (AuthRepository.instance.usesApiAuth) {
+      final user = AuthRepository.instance.currentUser;
+      if (user == null || user.organizationId.isEmpty) {
+        throw const AuthApiException(
+          'An authenticated company is required.',
+          statusCode: 401,
+        );
+      }
+      late final TaskModel created;
+      try {
+        created = await ApiAuthClient.configured.createTask(
+          organizationId: user.organizationId,
+          projectCode: task.projectCode,
+          title: task.title,
+          description: task.description,
+          priority: task.priority,
+          dueDate: task.dueDate,
+        );
+      } on AuthApiException catch (error) {
+        if (error.statusCode == 401) {
+          await AuthRepository.instance.signOut();
+        }
+        rethrow;
+      }
+      _tasks.removeWhere((existing) => existing.id == created.id);
+      _tasks.add(created);
+      notifyListeners();
+      return;
+    }
+    addTask(task);
+  }
+
+  Future<TaskModel> loadTask(String id) async {
+    if (!AuthRepository.instance.usesApiAuth) {
+      final task = getTaskById(id);
+      if (task == null) {
+        throw const AuthApiException('Task not found.', statusCode: 404);
+      }
+      return task;
+    }
+    final user = AuthRepository.instance.currentUser;
+    if (user == null || user.organizationId.isEmpty) {
+      throw const AuthApiException(
+        'An authenticated company is required.',
+        statusCode: 401,
+      );
+    }
+    try {
+      final task = await ApiAuthClient.configured.getTask(
+        organizationId: user.organizationId,
+        taskId: id,
+      );
+      _replaceTask(task);
+      return task;
+    } on AuthApiException catch (error) {
+      if (error.statusCode == 401) {
+        await AuthRepository.instance.signOut();
+      }
+      rethrow;
+    }
+  }
+
+  Future<TaskModel> saveTask(TaskModel task) async {
+    if (!AuthRepository.instance.usesApiAuth) {
+      updateTask(task);
+      return task;
+    }
+    final user = AuthRepository.instance.currentUser;
+    if (user == null || user.organizationId.isEmpty) {
+      throw const AuthApiException(
+        'An authenticated company is required.',
+        statusCode: 401,
+      );
+    }
+    try {
+      final updated = await ApiAuthClient.configured.updateTask(
+        organizationId: user.organizationId,
+        task: task,
+      );
+      _replaceTask(updated);
+      return updated;
+    } on AuthApiException catch (error) {
+      if (error.statusCode == 401) {
+        await AuthRepository.instance.signOut();
+      }
+      rethrow;
+    }
+  }
+
+  void _replaceTask(TaskModel task) {
+    final index = _tasks.indexWhere((existing) => existing.id == task.id);
+    if (index == -1) {
+      _tasks.add(task);
+    } else {
+      _tasks[index] = task;
+    }
+    notifyListeners();
   }
 
   Future<void> _saveTasks() async {
@@ -158,52 +284,30 @@ class TaskRepository extends ChangeNotifier {
   }
 
   int get toDoCount {
-    return _tasks
-        .where(
-          (task) => task.status == 'To Do',
-        )
-        .length;
+    return _tasks.where((task) => task.status == 'To Do').length;
   }
 
   int get inProgressCount {
-    return _tasks
-        .where(
-          (task) => task.status == 'In Progress',
-        )
-        .length;
+    return _tasks.where((task) => task.status == 'In Progress').length;
   }
 
   int get reviewCount {
-    return _tasks
-        .where(
-          (task) => task.status == 'Review',
-        )
-        .length;
+    return _tasks.where((task) => task.status == 'Review').length;
   }
 
   int get completedCount {
-    return _tasks
-        .where(
-          (task) => task.status == 'Done',
-        )
-        .length;
+    return _tasks.where((task) => task.status == 'Done').length;
   }
 
   int get urgentCount {
-    return _tasks
-        .where(
-          (task) => task.priority == 'Urgent',
-        )
-        .length;
+    return _tasks.where((task) => task.priority == 'Urgent').length;
   }
 
   // ================================================================
   // GET TASK
   // ================================================================
 
-  TaskModel? getTaskById(
-    String id,
-  ) {
+  TaskModel? getTaskById(String id) {
     for (final task in _tasks) {
       if (task.id == id) {
         return task;
@@ -217,9 +321,7 @@ class TaskRepository extends ChangeNotifier {
   // ADD TASK
   // ================================================================
 
-  void addTask(
-    TaskModel task,
-  ) {
+  void addTask(TaskModel task) {
     _tasks.add(task);
 
     _saveTasks();
@@ -230,12 +332,8 @@ class TaskRepository extends ChangeNotifier {
   // UPDATE TASK
   // ================================================================
 
-  void updateTask(
-    TaskModel updatedTask,
-  ) {
-    final index = _tasks.indexWhere(
-      (task) => task.id == updatedTask.id,
-    );
+  void updateTask(TaskModel updatedTask) {
+    final index = _tasks.indexWhere((task) => task.id == updatedTask.id);
 
     if (index == -1) {
       return;
@@ -251,12 +349,8 @@ class TaskRepository extends ChangeNotifier {
   // DELETE TASK
   // ================================================================
 
-  void deleteTask(
-    String id,
-  ) {
-    _tasks.removeWhere(
-      (task) => task.id == id,
-    );
+  void deleteTask(String id) {
+    _tasks.removeWhere((task) => task.id == id);
 
     _saveTasks();
     notifyListeners();
@@ -266,42 +360,23 @@ class TaskRepository extends ChangeNotifier {
   // TASKS BY PROJECT
   // ================================================================
 
-  List<TaskModel> getTasksByProject(
-    String projectCode,
-  ) {
-    return _tasks
-        .where(
-          (task) =>
-              task.projectCode == projectCode,
-        )
-        .toList();
+  List<TaskModel> getTasksByProject(String projectCode) {
+    return _tasks.where((task) => task.projectCode == projectCode).toList();
   }
 
   // ================================================================
   // TASKS BY STATUS
   // ================================================================
 
-  List<TaskModel> getTasksByStatus(
-    String status,
-  ) {
-    return _tasks
-        .where(
-          (task) => task.status == status,
-        )
-        .toList();
+  List<TaskModel> getTasksByStatus(String status) {
+    return _tasks.where((task) => task.status == status).toList();
   }
 
   // ================================================================
   // TASKS BY PRIORITY
   // ================================================================
 
-  List<TaskModel> getTasksByPriority(
-    String priority,
-  ) {
-    return _tasks
-        .where(
-          (task) => task.priority == priority,
-        )
-        .toList();
+  List<TaskModel> getTasksByPriority(String priority) {
+    return _tasks.where((task) => task.priority == priority).toList();
   }
 }

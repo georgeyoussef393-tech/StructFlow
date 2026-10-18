@@ -56,9 +56,9 @@ class _ApiReadinessScreenState extends State<ApiReadinessScreen> {
                 const SizedBox(height: 12),
                 const Text(
                   'Authentication, company project listing, and project '
-                  'creation use the API. '
-                  'Project details, tasks, documents, '
-                  'workforce, and attendance are not yet migrated to '
+                  'creation use the API. Project details and project-task '
+                  'listing are also server-backed. Task creation/editing, '
+                  'documents, workforce, and attendance still need '
                   'tenant-scoped APIs, so demo data stays blocked.',
                   textAlign: TextAlign.center,
                 ),
@@ -90,6 +90,12 @@ class _ApiReadinessScreenState extends State<ApiReadinessScreen> {
                     onPressed: () => context.go('/projects'),
                     icon: const Icon(Icons.folder_outlined),
                     label: const Text('View company projects'),
+                  ),
+                if (user != null)
+                  TextButton.icon(
+                    onPressed: () => context.go('/tasks'),
+                    icon: const Icon(Icons.task_outlined),
+                    label: const Text('View company tasks'),
                   ),
                 TextButton(
                   onPressed: () => context.go('/login'),

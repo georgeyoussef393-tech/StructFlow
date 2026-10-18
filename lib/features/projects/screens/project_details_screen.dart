@@ -464,7 +464,22 @@ class _ProjectDetailsScreenState extends State<ProjectDetailsScreen> {
 
   Widget _buildMainContent(ProjectModel project, double width) {
     if (_apiMode) {
-      return _buildProjectInformation(project);
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _buildProjectInformation(project),
+          const SizedBox(height: 16),
+          OutlinedButton.icon(
+            onPressed: () {
+              context.push(
+                '/tasks?projectCode=${Uri.encodeComponent(project.code)}',
+              );
+            },
+            icon: const Icon(Icons.task_alt_rounded),
+            label: const Text('View project tasks'),
+          ),
+        ],
+      );
     }
     final isMobile = width < 900;
 
