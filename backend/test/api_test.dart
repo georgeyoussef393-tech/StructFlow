@@ -181,6 +181,18 @@ void main() {
     expect(await response.readAsString(), contains('Authentication required'));
   });
 
+  test('project member endpoint requires an authenticated session', () async {
+    final response = await api.handler(
+      Request(
+        'GET',
+        Uri.parse('https://api.example.test/v1/projects/CIVIL-001/members'),
+      ),
+    );
+
+    expect(response.statusCode, 401);
+    expect(await response.readAsString(), contains('Authentication required'));
+  });
+
   test(
     'rejects oversized authentication request bodies before parsing',
     () async {

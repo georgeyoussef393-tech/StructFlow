@@ -34,12 +34,25 @@ BEGIN
         'structflow_runtime', 'tasks', 'title', 'UPDATE'
     ) OR NOT has_column_privilege(
         'structflow_runtime', 'tasks', 'version', 'UPDATE'
+    ) OR NOT has_column_privilege(
+        'structflow_runtime', 'tasks', 'assigned_user_id', 'INSERT'
+    ) OR NOT has_column_privilege(
+        'structflow_runtime', 'tasks', 'assigned_user_id', 'UPDATE'
     ) OR has_column_privilege(
         'structflow_runtime', 'tasks', 'project_id', 'UPDATE'
     ) OR has_table_privilege(
         'structflow_runtime', 'tasks', 'UPDATE'
     ) THEN
         RAISE EXCEPTION 'runtime role has unexpected task permissions';
+    END IF;
+    IF has_table_privilege(
+        'structflow_runtime', 'project_manager_scopes', 'SELECT'
+    ) OR NOT has_function_privilege(
+        'structflow_runtime',
+        'app_is_active_project_manager(uuid, uuid)',
+        'EXECUTE'
+    ) THEN
+        RAISE EXCEPTION 'project manager scope helper is not safely exposed';
     END IF;
 END;
 $$;
@@ -52,11 +65,15 @@ VALUES
 INSERT INTO users (id, full_name, email, password_hash)
 VALUES
     ('20000000-0000-4000-8000-000000000001', 'Tenant One User', 'one@test.invalid', 'test-hash'),
-    ('20000000-0000-4000-8000-000000000002', 'Tenant Two User', 'two@test.invalid', 'test-hash');
+    ('20000000-0000-4000-8000-000000000002', 'Tenant Two User', 'two@test.invalid', 'test-hash'),
+    ('20000000-0000-4000-8000-000000000003', 'Project Contributor', 'contributor@test.invalid', 'test-hash'),
+    ('20000000-0000-4000-8000-000000000004', 'Project Viewer', 'viewer@test.invalid', 'test-hash');
 
 INSERT INTO memberships (organization_id, user_id, role)
 VALUES
     ('10000000-0000-4000-8000-000000000001', '20000000-0000-4000-8000-000000000001', 'member'),
+    ('10000000-0000-4000-8000-000000000001', '20000000-0000-4000-8000-000000000003', 'member'),
+    ('10000000-0000-4000-8000-000000000001', '20000000-0000-4000-8000-000000000004', 'member'),
     ('10000000-0000-4000-8000-000000000002', '20000000-0000-4000-8000-000000000002', 'member');
 
 INSERT INTO projects (
@@ -88,10 +105,13 @@ END;
 $$;
 
 INSERT INTO project_memberships (organization_id, project_id, user_id, role)
-VALUES ('10000000-0000-4000-8000-000000000001', '30000000-0000-4000-8000-000000000001', '20000000-0000-4000-8000-000000000001', 'contributor');
+VALUES
+    ('10000000-0000-4000-8000-000000000001', '30000000-0000-4000-8000-000000000001', '20000000-0000-4000-8000-000000000001', 'contributor'),
+    ('10000000-0000-4000-8000-000000000001', '30000000-0000-4000-8000-000000000001', '20000000-0000-4000-8000-000000000003', 'contributor'),
+    ('10000000-0000-4000-8000-000000000001', '30000000-0000-4000-8000-000000000001', '20000000-0000-4000-8000-000000000004', 'viewer');
 
 INSERT INTO tasks (
-    organization_id, project_id, title, due_date, created_by
+    organization_id, project_id, title, due_date, created_by, assigned_user_id
 )
 VALUES
     ('10000000-0000-4000-8000-000000000001', '30000000-0000-4000-8000-000000000001', 'Tenant One Task', '2027-02-01', '20000000-0000-4000-8000-000000000001'),
@@ -122,7 +142,7 @@ BEGIN
     END IF;
     BEGIN
         INSERT INTO tasks (
-            organization_id, project_id, title, due_date, created_by
+            organization_id, project_id, title, due_date, created_by, assigned_user_id
         )
         VALUES (
             '10000000-0000-4000-8000-000000000001',
@@ -208,22 +228,51 @@ BEGIN;
 SET LOCAL ROLE structflow_runtime;
 SELECT set_config('app.organization_id', '10000000-0000-4000-8000-000000000001', true);
 SELECT set_config('app.user_id', '20000000-0000-4000-8000-000000000001', true);
+DO $$
+BEGIN
+    IF (SELECT count(*) FROM project_memberships) <> 3 THEN
+        RAISE EXCEPTION 'assigned project manager should see only their project roster';
+    END IF;
+END;
+$$;
 INSERT INTO tasks (
-    organization_id, project_id, title, due_date, created_by
+    organization_id, project_id, title, due_date, created_by, assigned_user_id
 )
 VALUES (
     '10000000-0000-4000-8000-000000000001',
     '30000000-0000-4000-8000-000000000001',
     'Project manager task', '2027-02-03',
-    '20000000-0000-4000-8000-000000000001'
+    '20000000-0000-4000-8000-000000000001',
+    '20000000-0000-4000-8000-000000000003'
 );
 DO $$
 BEGIN
     IF NOT EXISTS (
         SELECT 1 FROM tasks WHERE title = 'Project manager task'
+          AND assigned_user_id = '20000000-0000-4000-8000-000000000003'
     ) THEN
         RAISE EXCEPTION 'assigned project manager should be allowed to create tasks';
     END IF;
+END;
+$$;
+DO $$
+BEGIN
+    BEGIN
+        INSERT INTO tasks (
+            organization_id, project_id, title, due_date, created_by,
+            assigned_user_id
+        )
+        VALUES (
+            '10000000-0000-4000-8000-000000000001',
+            '30000000-0000-4000-8000-000000000001',
+            'Viewer cannot receive task', '2027-02-04',
+            '20000000-0000-4000-8000-000000000001',
+            '20000000-0000-4000-8000-000000000004'
+        );
+        RAISE EXCEPTION 'task was unexpectedly assigned to a project viewer';
+    EXCEPTION
+        WHEN insufficient_privilege THEN NULL;
+    END;
 END;
 $$;
 UPDATE tasks

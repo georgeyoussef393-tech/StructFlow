@@ -56,6 +56,7 @@ class AttendancePermissionModel {
 
   static const modulePermissions = <String>[
     'projects',
+    'bim',
     'documents',
     'drawings',
     'tasks',
@@ -68,30 +69,23 @@ class AttendancePermissionModel {
   // ROLE CHECKS
   // ============================================================
 
-  bool get isOwner =>
-      role == 'Owner' || role == 'Super Admin';
+  bool get isOwner => role == 'Owner' || role == 'Super Admin';
 
   bool get isSuperAdmin => isOwner;
 
-  bool get isConsultantManager =>
-      role == 'Consultant Manager';
+  bool get isConsultantManager => role == 'Consultant Manager';
 
-  bool get isOwnerHrManager =>
-      role == 'Owner HR Manager';
+  bool get isOwnerHrManager => role == 'Owner HR Manager';
 
-  bool get isConsultantHrManager =>
-      role == 'Consultant HR Manager';
+  bool get isConsultantHrManager => role == 'Consultant HR Manager';
 
-  bool get isEmployee =>
-      role == 'Employee';
+  bool get isEmployee => role == 'Employee';
 
   // Legacy compatibility.
-  bool get isProjectManager =>
-      role == 'Project Manager';
+  bool get isProjectManager => role == 'Project Manager';
 
   // Legacy compatibility.
-  bool get isHrManager =>
-      role == 'HR Manager';
+  bool get isHrManager => role == 'HR Manager';
 
   bool get isManager =>
       isOwner ||
@@ -132,29 +126,21 @@ class AttendancePermissionModel {
 
   bool get canAccessAttendance => true;
 
-  bool get canAccessProjects =>
-      hasPermission('projects');
+  bool get canAccessProjects => hasPermission('projects');
 
-  bool get canAccessDocuments =>
-      hasPermission('documents');
+  bool get canAccessDocuments => hasPermission('documents');
 
-  bool get canAccessDrawings =>
-      hasPermission('drawings');
+  bool get canAccessDrawings => hasPermission('drawings');
 
-  bool get canAccessTasks =>
-      hasPermission('tasks');
+  bool get canAccessTasks => hasPermission('tasks');
 
-  bool get canAccessReports =>
-      hasPermission('reports');
+  bool get canAccessReports => hasPermission('reports');
 
-  bool get canAccessTeam =>
-      hasPermission('team');
+  bool get canAccessTeam => hasPermission('team');
 
-  bool get canAccessCalendar =>
-      hasPermission('calendar');
+  bool get canAccessCalendar => hasPermission('calendar');
 
-  bool get canManageUsers =>
-      isManager;
+  bool get canManageUsers => isManager;
 
   // ============================================================
   // OWNER / SUPER ADMIN FACTORY
@@ -216,25 +202,17 @@ class AttendancePermissionModel {
       userId: userId,
       role: role ?? this.role,
       locationAttendanceEnabled:
-          locationAttendanceEnabled ??
-          this.locationAttendanceEnabled,
+          locationAttendanceEnabled ?? this.locationAttendanceEnabled,
       canManageProjectGeofences:
-          canManageProjectGeofences ??
-          this.canManageProjectGeofences,
+          canManageProjectGeofences ?? this.canManageProjectGeofences,
       canViewProjectAttendance:
-          canViewProjectAttendance ??
-          this.canViewProjectAttendance,
+          canViewProjectAttendance ?? this.canViewProjectAttendance,
       canViewOrganizationAttendance:
-          canViewOrganizationAttendance ??
-          this.canViewOrganizationAttendance,
-      permissions:
-          permissions ?? this.permissions,
-      managedProjectIds:
-          managedProjectIds ?? this.managedProjectIds,
-      allowedProjectIds:
-          allowedProjectIds ?? this.allowedProjectIds,
-      updatedAt:
-          updatedAt ?? this.updatedAt,
+          canViewOrganizationAttendance ?? this.canViewOrganizationAttendance,
+      permissions: permissions ?? this.permissions,
+      managedProjectIds: managedProjectIds ?? this.managedProjectIds,
+      allowedProjectIds: allowedProjectIds ?? this.allowedProjectIds,
+      updatedAt: updatedAt ?? this.updatedAt,
     );
   }
 
@@ -248,14 +226,10 @@ class AttendancePermissionModel {
       'organizationId': organizationId,
       'userId': userId,
       'role': role,
-      'locationAttendanceEnabled':
-          locationAttendanceEnabled,
-      'canManageProjectGeofences':
-          canManageProjectGeofences,
-      'canViewProjectAttendance':
-          canViewProjectAttendance,
-      'canViewOrganizationAttendance':
-          canViewOrganizationAttendance,
+      'locationAttendanceEnabled': locationAttendanceEnabled,
+      'canManageProjectGeofences': canManageProjectGeofences,
+      'canViewProjectAttendance': canViewProjectAttendance,
+      'canViewOrganizationAttendance': canViewOrganizationAttendance,
       'permissions': permissions,
       'managedProjectIds': managedProjectIds,
       'allowedProjectIds': allowedProjectIds,
@@ -263,46 +237,32 @@ class AttendancePermissionModel {
     };
   }
 
-  factory AttendancePermissionModel.fromJson(
-    Map<String, dynamic> json,
-  ) {
+  factory AttendancePermissionModel.fromJson(Map<String, dynamic> json) {
     return AttendancePermissionModel(
       id: json['id'] as String? ?? '',
-      organizationId:
-          json['organizationId'] as String? ?? '',
-      userId:
-          json['userId'] as String? ?? '',
-      role:
-          json['role'] as String? ?? 'Employee',
+      organizationId: json['organizationId'] as String? ?? '',
+      userId: json['userId'] as String? ?? '',
+      role: json['role'] as String? ?? 'Employee',
       locationAttendanceEnabled:
-          json['locationAttendanceEnabled'] as bool? ??
-              false,
+          json['locationAttendanceEnabled'] as bool? ?? false,
       canManageProjectGeofences:
-          json['canManageProjectGeofences'] as bool? ??
-              false,
+          json['canManageProjectGeofences'] as bool? ?? false,
       canViewProjectAttendance:
-          json['canViewProjectAttendance'] as bool? ??
-              false,
+          json['canViewProjectAttendance'] as bool? ?? false,
       canViewOrganizationAttendance:
-          json['canViewOrganizationAttendance'] as bool? ??
-              false,
-      permissions:
-          (json['permissions'] as List<dynamic>? ?? [])
-              .whereType<String>()
-              .toList(),
-      managedProjectIds:
-          (json['managedProjectIds'] as List<dynamic>? ?? [])
-              .whereType<String>()
-              .toList(),
-      allowedProjectIds:
-          (json['allowedProjectIds'] as List<dynamic>? ?? [])
-              .whereType<String>()
-              .toList(),
+          json['canViewOrganizationAttendance'] as bool? ?? false,
+      permissions: (json['permissions'] as List<dynamic>? ?? [])
+          .whereType<String>()
+          .toList(),
+      managedProjectIds: (json['managedProjectIds'] as List<dynamic>? ?? [])
+          .whereType<String>()
+          .toList(),
+      allowedProjectIds: (json['allowedProjectIds'] as List<dynamic>? ?? [])
+          .whereType<String>()
+          .toList(),
       updatedAt:
-          DateTime.tryParse(
-                json['updatedAt'] as String? ?? '',
-              ) ??
-              DateTime.now(),
+          DateTime.tryParse(json['updatedAt'] as String? ?? '') ??
+          DateTime.now(),
     );
   }
 }

@@ -334,6 +334,7 @@ void main() {
   });
 
   test('creates a task using the active company and project scope', () async {
+    const assigneeId = '20000000-0000-4000-8000-000000000003';
     final client = ApiAuthClient(
       baseUri: Uri.parse('https://api.example.test'),
       tokenStore: _MemoryTokenStore()..value = token,
@@ -347,6 +348,7 @@ void main() {
           'description': 'Verify the quality checklist.',
           'priority': 'urgent',
           'dueDate': '2026-11-20',
+          'assignedUserId': assigneeId,
         });
         return http.Response(
           jsonEncode({
@@ -356,7 +358,8 @@ void main() {
               'description': 'Verify the quality checklist.',
               'projectCode': 'CIVIL-001',
               'projectName': 'Regional Infrastructure',
-              'assignee': 'Unassigned',
+              'assignee': 'Project Contributor',
+              'assignedUserId': assigneeId,
               'status': 'todo',
               'priority': 'urgent',
               'dueDate': '2026-11-20',
@@ -376,11 +379,52 @@ void main() {
       description: 'Verify the quality checklist.',
       priority: 'Urgent',
       dueDate: DateTime(2026, 11, 20),
+      assignedUserId: assigneeId,
     );
 
     expect(task.id, '40000000-0000-4000-8000-000000000002');
     expect(task.status, 'To Do');
     expect(task.priority, 'Urgent');
+    expect(task.assignedUserId, assigneeId);
+  });
+
+  test('loads active assignable members for an authorized project', () async {
+    final client = ApiAuthClient(
+      baseUri: Uri.parse('https://api.example.test'),
+      tokenStore: _MemoryTokenStore()..value = token,
+      httpClient: MockClient((request) async {
+        expect(request.method, 'GET');
+        expect(request.url.path, '/v1/projects/CIVIL%20001/members');
+        expect(request.headers['x-organization-id'], organizationId);
+        return http.Response(
+          jsonEncode({
+            'projectCode': 'CIVIL 001',
+            'members': [
+              {
+                'id': '20000000-0000-4000-8000-000000000003',
+                'name': 'Project Contributor',
+                'role': 'contributor',
+              },
+              {
+                'id': '20000000-0000-4000-8000-000000000004',
+                'name': 'Project Manager',
+                'role': 'project_manager',
+              },
+            ],
+          }),
+          200,
+        );
+      }),
+    );
+
+    final members = await client.listProjectMembers(
+      organizationId: organizationId,
+      projectIdentifier: 'CIVIL 001',
+    );
+
+    expect(members, hasLength(2));
+    expect(members.first.name, 'Project Contributor');
+    expect(members.first.role, 'contributor');
   });
 
   test('loads a task detail in the active company scope', () async {
@@ -444,6 +488,7 @@ void main() {
           'priority': 'high',
           'dueDate': '2026-11-24',
           'progress': 1,
+          'assignedUserId': null,
         });
         return http.Response(
           jsonEncode({

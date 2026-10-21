@@ -9,6 +9,7 @@ class TaskModel {
   final String projectName;
 
   final String assignee;
+  final String? assignedUserId;
 
   final String status;
   final String priority;
@@ -27,6 +28,7 @@ class TaskModel {
     required this.projectCode,
     required this.projectName,
     required this.assignee,
+    this.assignedUserId,
     required this.status,
     required this.priority,
     required this.dueDate,
@@ -46,6 +48,8 @@ class TaskModel {
     String? projectCode,
     String? projectName,
     String? assignee,
+    String? assignedUserId,
+    bool clearAssignedUserId = false,
     String? status,
     String? priority,
     DateTime? dueDate,
@@ -60,6 +64,9 @@ class TaskModel {
       projectCode: projectCode ?? this.projectCode,
       projectName: projectName ?? this.projectName,
       assignee: assignee ?? this.assignee,
+      assignedUserId: clearAssignedUserId
+          ? null
+          : assignedUserId ?? this.assignedUserId,
       status: status ?? this.status,
       priority: priority ?? this.priority,
       dueDate: dueDate ?? this.dueDate,
@@ -81,6 +88,7 @@ class TaskModel {
       'projectCode': projectCode,
       'projectName': projectName,
       'assignee': assignee,
+      'assignedUserId': assignedUserId,
       'status': status,
       'priority': priority,
       'dueDate': dueDate.toIso8601String(),
@@ -104,6 +112,7 @@ class TaskModel {
       projectCode: json['projectCode'] as String,
       projectName: json['projectName'] as String,
       assignee: json['assignee'] as String,
+      assignedUserId: json['assignedUserId'] as String?,
       status: json['status'] as String,
       priority: json['priority'] as String,
 

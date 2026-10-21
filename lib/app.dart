@@ -7,6 +7,7 @@ import 'package:structflow/core/localization/app_localizations.dart';
 import 'package:structflow/core/routing/app_router.dart';
 import 'package:structflow/core/settings/app_settings.dart';
 import 'package:structflow/features/calendar/repositories/calendar_repository.dart';
+import 'package:structflow/features/bim/repositories/bim_workspace_repository.dart';
 import 'package:structflow/features/documents/repositories/document_repository.dart';
 import 'package:structflow/features/auth/repositories/auth_repository.dart';
 import 'package:structflow/features/attendance/models/attendance_permission_model.dart';
@@ -53,6 +54,7 @@ class _StructFlowAppState extends State<StructFlowApp> {
       TeamRepository.instance.loadMembers(),
       DocumentRepository.instance.loadDocuments(),
       CalendarRepository.instance.loadEvents(),
+      BimWorkspaceRepository.instance.load(),
     ]);
 
     final user = AuthRepository.instance.currentUser;

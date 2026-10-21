@@ -11,17 +11,13 @@ class DashboardSidebar extends StatefulWidget {
   const DashboardSidebar({super.key});
 
   @override
-  State<DashboardSidebar> createState() =>
-      _DashboardSidebarState();
+  State<DashboardSidebar> createState() => _DashboardSidebarState();
 }
 
-class _DashboardSidebarState
-    extends State<DashboardSidebar> {
-  final _permissions =
-      AttendancePermissionRepository.instance;
+class _DashboardSidebarState extends State<DashboardSidebar> {
+  final _permissions = AttendancePermissionRepository.instance;
 
-  final _context =
-      AttendanceContextRepository.instance;
+  final _context = AttendanceContextRepository.instance;
 
   @override
   void initState() {
@@ -50,8 +46,7 @@ class _DashboardSidebarState
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
 
-    final currentPath =
-        GoRouterState.of(context).uri.path;
+    final currentPath = GoRouterState.of(context).uri.path;
 
     final session = _context.context;
     final currentUser = AuthRepository.instance.currentUser;
@@ -59,8 +54,8 @@ class _DashboardSidebarState
     final organizationId = session.organizationId.isNotEmpty
         ? session.organizationId
         : currentUser == null
-            ? ''
-            : 'ORG-${currentUser.organization.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), '-')}';
+        ? ''
+        : 'ORG-${currentUser.organization.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), '-')}';
     final userId = session.userId.isNotEmpty
         ? session.userId
         : currentUser?.id ?? '';
@@ -87,20 +82,15 @@ class _DashboardSidebarState
         return true;
       }
 
-      return permission?.hasPermission(key) ==
-          true;
+      return permission?.hasPermission(key) == true;
     }
 
-    final canManageAttendance =
-        unrestricted ||
-        permission?.isManager == true;
+    final canManageAttendance = unrestricted || permission?.isManager == true;
 
     return Container(
       width: 250,
 
-      decoration: const BoxDecoration(
-        color: AppColors.primary,
-      ),
+      decoration: const BoxDecoration(color: AppColors.primary),
 
       child: SafeArea(
         child: Column(
@@ -108,10 +98,7 @@ class _DashboardSidebarState
             const SizedBox(height: 20),
 
             Padding(
-              padding:
-                  const EdgeInsets.symmetric(
-                horizontal: 20,
-              ),
+              padding: const EdgeInsets.symmetric(horizontal: 20),
 
               child: Row(
                 children: [
@@ -119,16 +106,9 @@ class _DashboardSidebarState
                     width: 42,
                     height: 42,
 
-                    decoration:
-                        BoxDecoration(
-                      color: Colors.white
-                          .withValues(
-                        alpha: .14,
-                      ),
-                      borderRadius:
-                          BorderRadius.circular(
-                        12,
-                      ),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: .14),
+                      borderRadius: BorderRadius.circular(12),
                     ),
 
                     child: const Icon(
@@ -146,8 +126,7 @@ class _DashboardSidebarState
                       style: TextStyle(
                         color: Colors.white,
                         fontSize: 21,
-                        fontWeight:
-                            FontWeight.bold,
+                        fontWeight: FontWeight.bold,
                       ),
                     ),
                   ),
@@ -159,17 +138,13 @@ class _DashboardSidebarState
 
             Expanded(
               child: SingleChildScrollView(
-                padding:
-                    const EdgeInsets.symmetric(
-                  horizontal: 12,
-                ),
+                padding: const EdgeInsets.symmetric(horizontal: 12),
 
                 child: Column(
                   children: [
                     // ==================================================
                     // DASHBOARD
                     // ==================================================
-
                     _item(
                       context,
                       Icons.dashboard_rounded,
@@ -181,7 +156,6 @@ class _DashboardSidebarState
                     // ==================================================
                     // PROJECTS
                     // ==================================================
-
                     if (can('projects'))
                       _item(
                         context,
@@ -191,10 +165,18 @@ class _DashboardSidebarState
                         currentPath,
                       ),
 
+                    if (can('bim'))
+                      _item(
+                        context,
+                        Icons.view_in_ar_rounded,
+                        'BIM Coordination',
+                        '/bim',
+                        currentPath,
+                      ),
+
                     // ==================================================
                     // TASKS
                     // ==================================================
-
                     if (can('tasks'))
                       _item(
                         context,
@@ -207,7 +189,6 @@ class _DashboardSidebarState
                     // ==================================================
                     // TEAM
                     // ==================================================
-
                     if (can('team'))
                       _item(
                         context,
@@ -220,7 +201,6 @@ class _DashboardSidebarState
                     // ==================================================
                     // CALENDAR
                     // ==================================================
-
                     if (can('calendar'))
                       _item(
                         context,
@@ -233,7 +213,6 @@ class _DashboardSidebarState
                     // ==================================================
                     // DOCUMENTS
                     // ==================================================
-
                     if (can('documents'))
                       _item(
                         context,
@@ -248,7 +227,6 @@ class _DashboardSidebarState
                     //
                     // Always visible.
                     // ==================================================
-
                     _item(
                       context,
                       Icons.location_on_rounded,
@@ -261,7 +239,6 @@ class _DashboardSidebarState
                     // ATTENDANCE MANAGEMENT
                     // Managers only.
                     // ==================================================
-
                     if (canManageAttendance)
                       _item(
                         context,
@@ -286,19 +263,13 @@ class _DashboardSidebarState
 
                     const SizedBox(height: 15),
 
-                    Divider(
-                      color: Colors.white
-                          .withValues(
-                        alpha: .15,
-                      ),
-                    ),
+                    Divider(color: Colors.white.withValues(alpha: .15)),
 
                     const SizedBox(height: 15),
 
                     // ==================================================
                     // REPORTS
                     // ==================================================
-
                     if (can('reports'))
                       _item(
                         context,
@@ -311,7 +282,6 @@ class _DashboardSidebarState
                     // ==================================================
                     // AI
                     // ==================================================
-
                     _item(
                       context,
                       Icons.auto_awesome_rounded,
@@ -323,7 +293,6 @@ class _DashboardSidebarState
                     // ==================================================
                     // SETTINGS
                     // ==================================================
-
                     _item(
                       context,
                       Icons.settings_rounded,
@@ -337,18 +306,12 @@ class _DashboardSidebarState
             ),
 
             Padding(
-              padding:
-                  const EdgeInsets.only(
-                bottom: 16,
-              ),
+              padding: const EdgeInsets.only(bottom: 16),
 
               child: Text(
                 'StructFlow • v1.0',
                 style: TextStyle(
-                  color: Colors.white
-                      .withValues(
-                    alpha: .45,
-                  ),
+                  color: Colors.white.withValues(alpha: .45),
                   fontSize: 11,
                 ),
               ),
@@ -368,79 +331,42 @@ class _DashboardSidebarState
   ) {
     final selected =
         currentPath == route ||
-        (
-          route == '/projects' &&
-          currentPath.startsWith(
-            '/projects/',
-          )
-        ) ||
-        (
-          route == '/tasks' &&
-          currentPath.startsWith(
-            '/tasks/',
-          )
-        ) ||
-        (
-          route == '/documents' &&
-          currentPath.startsWith(
-            '/documents/',
-          )
-        ) ||
-        (
-          route == '/attendance' &&
-          currentPath.startsWith(
-            '/attendance',
-          )
-        );
+        (route == '/projects' && currentPath.startsWith('/projects/')) ||
+        (route == '/bim' && currentPath.startsWith('/bim')) ||
+        (route == '/tasks' && currentPath.startsWith('/tasks/')) ||
+        (route == '/documents' && currentPath.startsWith('/documents/')) ||
+        (route == '/attendance' && currentPath.startsWith('/attendance'));
 
     return Container(
       width: double.infinity,
 
-      margin:
-          const EdgeInsets.only(
-        bottom: 6,
-      ),
+      margin: const EdgeInsets.only(bottom: 6),
 
-      decoration:
-          BoxDecoration(
+      decoration: BoxDecoration(
         color: selected
-            ? Colors.white.withValues(
-                alpha: .15,
-              )
+            ? Colors.white.withValues(alpha: .15)
             : Colors.transparent,
-        borderRadius:
-            BorderRadius.circular(
-          12,
-        ),
+        borderRadius: BorderRadius.circular(12),
       ),
 
       child: Material(
         color: Colors.transparent,
 
-        borderRadius:
-            BorderRadius.circular(
-          12,
-        ),
+        borderRadius: BorderRadius.circular(12),
 
-        clipBehavior:
-            Clip.antiAlias,
+        clipBehavior: Clip.antiAlias,
 
         child: ListTile(
           dense: true,
 
-          leading: Icon(
-            icon,
-            color: Colors.white,
-            size: 21,
-          ),
+          leading: Icon(icon, color: Colors.white, size: 21),
 
           title: Text(
             title,
             style: const TextStyle(
               color: Colors.white,
               fontSize: 14,
-              fontWeight:
-                  FontWeight.w500,
+              fontWeight: FontWeight.w500,
             ),
           ),
 

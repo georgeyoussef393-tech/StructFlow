@@ -36,6 +36,7 @@ class StructFlowApi {
       ..get('/v1/me', _me)
       ..get('/v1/projects', _listProjects)
       ..get('/v1/projects/<projectIdentifier>', _getProject)
+      ..get('/v1/projects/<projectIdentifier>/members', _listProjectMembers)
       ..patch('/v1/projects/<projectIdentifier>', _updateProject)
       ..post('/v1/projects', _createProject)
       ..get('/v1/tasks', _listTasks)
@@ -357,6 +358,7 @@ class StructFlowApi {
       return transaction.execute(
         Sql.named('''
           SELECT t.id, t.title, t.description, t.status, t.priority,
+                 t.assigned_user_id,
                  t.due_date, t.progress, t.version, p.code AS project_code,
                  p.name AS project_name,
                  COALESCE(u.full_name, 'Unassigned') AS assignee
@@ -398,6 +400,7 @@ class StructFlowApi {
       return transaction.execute(
         Sql.named('''
           SELECT t.id, t.title, t.description, t.status, t.priority,
+                 t.assigned_user_id,
                  t.due_date, t.progress, t.version, p.code AS project_code,
                  p.name AS project_name,
                  COALESCE(u.full_name, 'Unassigned') AS assignee
@@ -426,6 +429,7 @@ class StructFlowApi {
 
     final body = await _readJson(request);
     final expectedVersion = body['expectedVersion'];
+    final assigneeInput = body['assignedUserId'];
     final title = _boundedString(body, 'title', minimum: 2, maximum: 200);
     final description = _boundedString(
       body,
@@ -444,6 +448,9 @@ class StructFlowApi {
         : double.tryParse('$progressValue');
     if (expectedVersion is! int ||
         expectedVersion < 1 ||
+        (body.containsKey('assignedUserId') &&
+            assigneeInput != null &&
+            (assigneeInput is! String || !_isUuid(assigneeInput))) ||
         status is! String ||
         !statuses.contains(status) ||
         priority is! String ||
@@ -464,7 +471,7 @@ class StructFlowApi {
       );
       final rows = await transaction.execute(
         Sql.named('''
-          SELECT t.id, t.project_id, t.version,
+          SELECT t.id, t.project_id, t.version, t.assigned_user_id,
                  (
                    @organizationWide OR EXISTS (
                      SELECT 1
@@ -496,6 +503,36 @@ class StructFlowApi {
       if (version != expectedVersion) {
         return {'kind': 'conflict', 'currentVersion': version};
       }
+      final assignedUserId = body.containsKey('assignedUserId')
+          ? assigneeInput as String?
+          : current['assigned_user_id']?.toString();
+      if (assignedUserId != null &&
+          assignedUserId != current['assigned_user_id']?.toString()) {
+        final assignees = await transaction.execute(
+          Sql.named('''
+            SELECT pm.user_id
+            FROM project_memberships pm
+            JOIN memberships m
+              ON m.organization_id = pm.organization_id
+             AND m.user_id = pm.user_id
+            JOIN users u ON u.id = pm.user_id
+            WHERE pm.organization_id = @organizationId
+              AND pm.project_id = @projectId
+              AND pm.user_id = @assignedUserId
+              AND pm.role IN ('project_manager', 'contributor')
+              AND pm.status = 'active'
+              AND m.status = 'active'
+              AND u.status = 'active'
+            LIMIT 1
+          '''),
+          parameters: {
+            'organizationId': access.organizationId,
+            'projectId': current['project_id'],
+            'assignedUserId': assignedUserId,
+          },
+        );
+        if (assignees.isEmpty) return {'kind': 'invalid_assignee'};
+      }
 
       final updatedRows = await transaction.execute(
         Sql.named('''
@@ -506,6 +543,7 @@ class StructFlowApi {
               priority = @priority,
               due_date = CAST(@dueDate AS date),
               progress = @progress,
+              assigned_user_id = CAST(@assignedUserId AS uuid),
               version = version + 1,
               updated_at = now()
           WHERE organization_id = @organizationId
@@ -523,6 +561,7 @@ class StructFlowApi {
           'priority': priority,
           'dueDate': _dateOnly(dueDate),
           'progress': progress,
+          'assignedUserId': assignedUserId,
         },
       );
       if (updatedRows.isEmpty) {
@@ -535,12 +574,18 @@ class StructFlowApi {
         action: 'task.updated',
         entityType: 'task',
         entityId: taskId,
-        metadata: {'previousVersion': version, 'version': version + 1},
+        metadata: {
+          'previousVersion': version,
+          'version': version + 1,
+          if (assignedUserId != current['assigned_user_id']?.toString())
+            'assignedUserId': assignedUserId,
+        },
       );
       final taskRows = await transaction.execute(
         Sql.named('''
           SELECT t.id, t.title, t.description, t.status, t.priority,
-                 t.due_date, t.progress, t.version, p.code AS project_code,
+                 t.assigned_user_id, t.due_date, t.progress, t.version,
+                 p.code AS project_code,
                  p.name AS project_name,
                  COALESCE(u.full_name, 'Unassigned') AS assignee
           FROM tasks t
@@ -563,6 +608,10 @@ class StructFlowApi {
     return switch (outcome['kind']) {
       'not_found' => _json(404, {'error': 'Task not found.'}),
       'forbidden' => _json(403, {'error': 'Insufficient permissions.'}),
+      'invalid_assignee' => _json(400, {
+        'error':
+            'Assignee must be an active non-viewer member of this project.',
+      }),
       'conflict' => _json(409, {
         'error': 'Task was changed by another user. Reload before saving.',
         'currentVersion': outcome['currentVersion'],
@@ -581,6 +630,7 @@ class StructFlowApi {
     'projectCode': '${row['project_code']}',
     'projectName': '${row['project_name']}',
     'assignee': '${row['assignee']}',
+    'assignedUserId': row['assigned_user_id']?.toString(),
     'status': '${row['status']}',
     'priority': '${row['priority']}',
     'dueDate': _dateOnly(row['due_date']),
@@ -612,9 +662,13 @@ class StructFlowApi {
     );
     final priority = body['priority'] ?? 'medium';
     final dueDate = _parseDateOnly(body['dueDate']);
+    final assigneeInput = body['assignedUserId'];
     if (priority is! String ||
         !{'low', 'medium', 'high', 'urgent'}.contains(priority) ||
-        dueDate == null) {
+        dueDate == null ||
+        (body.containsKey('assignedUserId') &&
+            assigneeInput != null &&
+            (assigneeInput is! String || !_isUuid(assigneeInput)))) {
       return _json(400, {'error': 'Task fields are invalid.'});
     }
 
@@ -654,15 +708,41 @@ class StructFlowApi {
       if (projects.isEmpty) return {'kind': 'not_found'};
 
       final projectId = projects.first.toColumnMap()['id'];
+      if (assigneeInput != null) {
+        final assignees = await transaction.execute(
+          Sql.named('''
+            SELECT pm.user_id
+            FROM project_memberships pm
+            JOIN memberships m
+              ON m.organization_id = pm.organization_id
+             AND m.user_id = pm.user_id
+            JOIN users u ON u.id = pm.user_id
+            WHERE pm.organization_id = @organizationId
+              AND pm.project_id = @projectId
+              AND pm.user_id = @assignedUserId
+              AND pm.role IN ('project_manager', 'contributor')
+              AND pm.status = 'active'
+              AND m.status = 'active'
+              AND u.status = 'active'
+            LIMIT 1
+          '''),
+          parameters: {
+            'organizationId': access.organizationId,
+            'projectId': projectId,
+            'assignedUserId': assigneeInput,
+          },
+        );
+        if (assignees.isEmpty) return {'kind': 'invalid_assignee'};
+      }
       final created = await transaction.execute(
         Sql.named('''
           INSERT INTO tasks (
             organization_id, project_id, title, description, status, priority,
-            due_date, progress, created_by
+            assigned_user_id, due_date, progress, created_by
           )
           VALUES (
             @organizationId, @projectId, @title, @description, 'todo',
-            @priority, CAST(@dueDate AS date), 0, @userId
+            @priority, @assignedUserId, CAST(@dueDate AS date), 0, @userId
           )
           RETURNING id, title, description, status, priority, due_date, progress,
                     version
@@ -673,6 +753,7 @@ class StructFlowApi {
           'title': title.trim(),
           'description': description.trim(),
           'priority': priority,
+          'assignedUserId': assigneeInput,
           'dueDate': _dateOnly(dueDate),
           'userId': access.userId,
         },
@@ -685,17 +766,23 @@ class StructFlowApi {
         action: 'task.created',
         entityType: 'task',
         entityId: '${task['id']}',
-        metadata: {'projectCode': projectCode, 'priority': priority},
+        metadata: {
+          'projectCode': projectCode,
+          'priority': priority,
+          'assignedUserId': assigneeInput,
+        },
       );
       final taskRows = await transaction.execute(
         Sql.named('''
           SELECT t.id, t.title, t.description, t.status, t.priority,
-                 t.due_date, t.progress, t.version, p.code AS project_code,
-                 p.name AS project_name, 'Unassigned' AS assignee
+                 t.assigned_user_id, t.due_date, t.progress, t.version,
+                 p.code AS project_code, p.name AS project_name,
+                 COALESCE(u.full_name, 'Unassigned') AS assignee
           FROM tasks t
           JOIN projects p
             ON p.organization_id = t.organization_id
            AND p.id = t.project_id
+          LEFT JOIN users u ON u.id = t.assigned_user_id
           WHERE t.organization_id = @organizationId
             AND t.id = @taskId
           LIMIT 1
@@ -710,6 +797,12 @@ class StructFlowApi {
       }
       return {'kind': 'created', 'task': taskRows.first.toColumnMap()};
     });
+    if (outcome['kind'] == 'invalid_assignee') {
+      return _json(400, {
+        'error':
+            'Assignee must be an active non-viewer member of this project.',
+      });
+    }
     if (outcome['kind'] == 'not_found') {
       return _json(404, {'error': 'Project not found or access denied.'});
     }
@@ -718,20 +811,92 @@ class StructFlowApi {
     }
 
     final row = outcome['task'] as Map<String, dynamic>;
-    return _json(201, {
-      'task': {
-        'id': '${row['id']}',
-        'title': '${row['title']}',
-        'description': '${row['description']}',
-        'projectCode': '${row['project_code']}',
-        'projectName': '${row['project_name']}',
-        'assignee': '${row['assignee']}',
-        'status': '${row['status']}',
-        'priority': '${row['priority']}',
-        'dueDate': _dateOnly(row['due_date']),
-        'progress': row['progress']?.toString(),
-        'version': row['version'],
-      },
+    return _json(201, {'task': _taskJson(row)});
+  }
+
+  Future<Response> _listProjectMembers(
+    Request request,
+    String projectIdentifier,
+  ) async {
+    final access = await _organizationAccess(request);
+    if (access.response != null) return access.response!;
+    if (projectIdentifier.isEmpty || projectIdentifier.length > 200) {
+      return _json(400, {'error': 'Project identifier is invalid.'});
+    }
+
+    final result = await database.pool.runTx((transaction) async {
+      await _setTenantContext(
+        transaction,
+        organizationId: access.organizationId!,
+        userId: access.userId!,
+      );
+      final projects = await transaction.execute(
+        Sql.named('''
+          SELECT p.id, p.code
+          FROM projects p
+          WHERE p.organization_id = @organizationId
+            AND (p.id::text = @identifier OR p.code = @identifier)
+            AND (
+              @organizationWide OR EXISTS (
+                SELECT 1
+                FROM project_memberships current_pm
+                WHERE current_pm.organization_id = p.organization_id
+                  AND current_pm.project_id = p.id
+                  AND current_pm.user_id = @userId
+                  AND current_pm.status = 'active'
+              )
+            )
+          LIMIT 1
+        '''),
+        parameters: {
+          'organizationId': access.organizationId,
+          'identifier': projectIdentifier,
+          'userId': access.userId,
+          'organizationWide': ProjectAccessPolicy.canListAllProjects(
+            access.role!,
+          ),
+        },
+      );
+      if (projects.isEmpty) return null;
+      final project = projects.first.toColumnMap();
+      final members = await transaction.execute(
+        Sql.named('''
+          SELECT pm.user_id, u.full_name, pm.role
+          FROM project_memberships pm
+          JOIN memberships m
+            ON m.organization_id = pm.organization_id
+           AND m.user_id = pm.user_id
+          JOIN users u ON u.id = pm.user_id
+          WHERE pm.organization_id = @organizationId
+            AND pm.project_id = @projectId
+            AND pm.role IN ('project_manager', 'contributor')
+            AND pm.status = 'active'
+            AND m.status = 'active'
+            AND u.status = 'active'
+          ORDER BY u.full_name, pm.user_id
+          LIMIT 500
+        '''),
+        parameters: {
+          'organizationId': access.organizationId,
+          'projectId': project['id'],
+        },
+      );
+      return {
+        'projectCode': '${project['code']}',
+        'members': members.map((member) {
+          final row = member.toColumnMap();
+          return {
+            'id': '${row['user_id']}',
+            'name': '${row['full_name']}',
+            'role': '${row['role']}',
+          };
+        }).toList(),
+      };
+    });
+    if (result == null) return _json(404, {'error': 'Project not found.'});
+    return _json(200, {
+      'projectCode': result['projectCode'],
+      'members': result['members'],
     });
   }
 

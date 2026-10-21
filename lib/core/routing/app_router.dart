@@ -14,6 +14,7 @@ import 'package:structflow/features/projects/screens/project_details_screen.dart
 import 'package:structflow/features/projects/screens/create_project_screen.dart';
 import 'package:structflow/features/projects/screens/edit_project_screen.dart';
 import 'package:structflow/features/projects/models/project_model.dart';
+import 'package:structflow/features/bim/screens/bim_coordination_screen.dart';
 
 import 'package:structflow/features/tasks/screens/tasks_screen.dart';
 import 'package:structflow/features/tasks/screens/create_task_screen.dart';
@@ -159,6 +160,10 @@ final GoRouter appRouter = GoRouter(
       return permission.canAccessProjects ? null : '/attendance';
     }
 
+    if (path == '/bim') {
+      return permission.hasPermission('bim') ? null : '/attendance';
+    }
+
     if (path.startsWith('/projects/')) {
       if (!permission.canAccessProjects) {
         return '/attendance';
@@ -263,6 +268,11 @@ final GoRouter appRouter = GoRouter(
       builder: (context, state) {
         return const DashboardScreen();
       },
+    ),
+
+    GoRoute(
+      path: '/bim',
+      builder: (context, state) => const BimCoordinationScreen(),
     ),
 
     // ==========================================================

@@ -57,13 +57,17 @@ and `sslmode=verify-full`.
   only, using `expectedVersion` for optimistic concurrency.
 - `GET /v1/tasks`: returns tasks scoped to projects accessible to the caller;
   accepts an optional `projectCode` filter.
-- `POST /v1/tasks`: creates unassigned tasks in `To Do` status for organization
-  owners/admins or an assigned project manager; project membership is checked
-  server-side and task creation is recorded in the audit log.
+- `POST /v1/tasks`: creates tasks in `To Do` status for organization owners/admins
+  or an assigned project manager, optionally assigning an active project member;
+  membership is checked server-side and creation is audited.
 - `GET /v1/tasks/{taskId}`: returns one task within the active company scope.
 - `PATCH /v1/tasks/{taskId}`: updates task text, status, priority, due date, and
   progress for owners/admins or the assigned project manager. Updates require
   `expectedVersion`, return `409` on conflicts, and are audited.
+- `GET /v1/projects/{projectId}/members`: returns active project managers and
+  contributors eligible for task assignment, scoped to projects the caller may
+  access. The server accepts member IDs only after checking active company and
+  project membership; display names are never used as authorization.
 
 For development, point the Flutter sign-in screen at the API with
 `flutter run --dart-define=STRUCTFLOW_API_BASE_URL=https://api.example.test`.
@@ -82,10 +86,10 @@ Project details are read from the API with tenant and project membership checks.
 Owners/admins can update project metadata through `PATCH /v1/projects/{id}`.
 Updates require the current project version and return `409` when another user
 has already changed it. Restricted column grants and an owner/admin-only RLS
-policy backstop the API permission check. Task lists, details, creation, and basic updates are connected to the API, but
-task assignment, documents, workforce, and attendance endpoints are not
-available; their local demo data is intentionally not loaded for API-authenticated
-accounts.
+policy backstop the API permission check. Task lists, details, creation, assignment, and basic updates are connected to
+the API. Documents, workforce, attendance, and project member administration
+are not available; their local demo data is intentionally not loaded for
+API-authenticated accounts.
 
 Every organization-scoped request must send `X-Organization-ID`; the server
 validates it against the bearer session's active membership. Tenant IDs and

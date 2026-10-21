@@ -600,6 +600,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
   }
 
   String _moduleName(String value) {
+    if (value == 'bim') return 'BIM Coordination';
     return value[0].toUpperCase() + value.substring(1);
   }
 

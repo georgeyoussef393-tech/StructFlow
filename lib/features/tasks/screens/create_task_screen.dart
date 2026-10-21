@@ -5,6 +5,7 @@ import 'package:structflow/core/network/api_auth_client.dart';
 import 'package:structflow/core/theme/app_colors.dart';
 import 'package:structflow/features/auth/repositories/auth_repository.dart';
 import 'package:structflow/features/projects/models/project_model.dart';
+import 'package:structflow/features/projects/models/project_member_model.dart';
 import 'package:structflow/features/projects/repositories/project_repository.dart';
 import 'package:structflow/features/tasks/models/task_model.dart';
 import 'package:structflow/features/tasks/repositories/task_repository.dart';
@@ -33,6 +34,10 @@ class _CreateTaskScreenState extends State<CreateTaskScreen> {
   final ProjectRepository _projectRepository = ProjectRepository.instance;
 
   ProjectModel? _selectedProject;
+  String? _selectedProjectCode;
+  List<ProjectMemberModel> _projectMembers = const [];
+  String _selectedAssigneeId = '';
+  String _currentAssigneeName = 'Unassigned';
 
   String _status = 'To Do';
 
@@ -41,7 +46,11 @@ class _CreateTaskScreenState extends State<CreateTaskScreen> {
   double _progress = 0.0;
   bool _saving = false;
   bool _loadingTask = false;
+  bool _loadingMembers = false;
+  bool _assigneeNeedsClear = false;
+  int _memberRequestGeneration = 0;
   String? _loadError;
+  String? _assigneeLoadError;
 
   DateTime _dueDate = DateTime.now().add(const Duration(days: 7));
 
@@ -63,7 +72,11 @@ class _CreateTaskScreenState extends State<CreateTaskScreen> {
       _selectedProject = _projectRepository.getProjectByCode(
         widget.initialProjectCode ?? '',
       );
-
+      _selectedProjectCode =
+          _selectedProject?.code ?? widget.initialProjectCode;
+      if (_apiMode && _selectedProject != null) {
+        _loadProjectMembers(_selectedProject!.code);
+      }
       return;
     }
 
@@ -99,8 +112,18 @@ class _CreateTaskScreenState extends State<CreateTaskScreen> {
     _assigneeController.text = task.assignee == 'Unassigned'
         ? ''
         : task.assignee;
+    _selectedAssigneeId = task.assignedUserId ?? '';
+    _currentAssigneeName = task.assignee;
 
     _selectedProject = _projectRepository.getProjectByCode(task.projectCode);
+    _selectedProjectCode = task.projectCode;
+    if (_apiMode) {
+      _loadProjectMembers(
+        task.projectCode,
+        currentAssigneeId: task.assignedUserId,
+        currentAssigneeName: task.assignee,
+      );
+    }
 
     _status = task.status;
 
@@ -109,6 +132,52 @@ class _CreateTaskScreenState extends State<CreateTaskScreen> {
     _progress = task.progress;
 
     _dueDate = task.dueDate;
+  }
+
+  Future<void> _loadProjectMembers(
+    String projectIdentifier, {
+    String? currentAssigneeId,
+    String? currentAssigneeName,
+  }) async {
+    if (projectIdentifier.isEmpty) return;
+    final generation = ++_memberRequestGeneration;
+    setState(() {
+      _loadingMembers = true;
+      _assigneeLoadError = null;
+      _selectedAssigneeId = currentAssigneeId ?? '';
+      _currentAssigneeName = currentAssigneeName ?? 'Unassigned';
+      _assigneeNeedsClear = false;
+    });
+    try {
+      final members = await _taskRepository.listProjectMembers(
+        projectIdentifier,
+      );
+      if (!mounted || generation != _memberRequestGeneration) return;
+      final currentAssigneeIsEligible =
+          currentAssigneeId == null ||
+          currentAssigneeId.isEmpty ||
+          members.any((member) => member.id == currentAssigneeId);
+      setState(() {
+        _projectMembers = members;
+        if (!currentAssigneeIsEligible) {
+          _selectedAssigneeId = '';
+          _currentAssigneeName = 'Unassigned';
+          _assigneeNeedsClear = true;
+        }
+      });
+    } on AuthApiException catch (error) {
+      if (mounted && generation == _memberRequestGeneration) {
+        setState(() => _assigneeLoadError = error.message);
+      }
+    } on Exception {
+      if (mounted && generation == _memberRequestGeneration) {
+        setState(() => _assigneeLoadError = 'Could not load project members.');
+      }
+    } finally {
+      if (mounted && generation == _memberRequestGeneration) {
+        setState(() => _loadingMembers = false);
+      }
+    }
   }
 
   // ================================================================
@@ -311,12 +380,20 @@ class _CreateTaskScreenState extends State<CreateTaskScreen> {
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _buildPriorityDropdown(),
+                  _buildApiAssigneeDropdown(),
+                  if (_assigneeNeedsClear) ...[
+                    const SizedBox(height: 6),
+                    const Text(
+                      'The previous assignee is no longer an active project member. Saving will leave this task unassigned.',
+                      style: TextStyle(color: Colors.deepOrange, fontSize: 12),
+                    ),
+                  ],
                   const SizedBox(height: 12),
-                  const Text(
-                    'API-created tasks start unassigned and in To Do.',
-                    style: TextStyle(color: AppColors.textLight, fontSize: 13),
-                  ),
+                  _buildPriorityDropdown(),
+                  if (_isEditing) ...[
+                    const SizedBox(height: 18),
+                    _buildStatusDropdown(),
+                  ],
                 ],
               )
             else if (isMobile)
@@ -550,8 +627,17 @@ class _CreateTaskScreenState extends State<CreateTaskScreen> {
 
       onChanged: (value) {
         setState(() {
+          _memberRequestGeneration++;
+          _loadingMembers = false;
+          _assigneeLoadError = null;
           _selectedProject = value;
+          _selectedProjectCode = value?.code;
+          _selectedAssigneeId = '';
+          _projectMembers = const [];
         });
+        if (_apiMode && value != null) {
+          _loadProjectMembers(value.code);
+        }
       },
 
       validator: (value) {
@@ -560,6 +646,66 @@ class _CreateTaskScreenState extends State<CreateTaskScreen> {
         }
 
         return null;
+      },
+    );
+  }
+
+  Widget _buildApiAssigneeDropdown() {
+    if (_loadingMembers) {
+      return const LinearProgressIndicator();
+    }
+    if (_assigneeLoadError != null) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(_assigneeLoadError!, style: const TextStyle(color: Colors.red)),
+          TextButton(
+            onPressed: _selectedProjectCode == null
+                ? null
+                : () => _loadProjectMembers(
+                    _selectedProjectCode!,
+                    currentAssigneeId: _selectedAssigneeId.isEmpty
+                        ? null
+                        : _selectedAssigneeId,
+                    currentAssigneeName: _currentAssigneeName,
+                  ),
+            child: const Text('Retry loading project members'),
+          ),
+        ],
+      );
+    }
+    return DropdownButtonFormField<String>(
+      initialValue: _selectedAssigneeId,
+      decoration: _dropdownDecoration(
+        'Assign to project member',
+        Icons.person_outline_rounded,
+      ),
+      items: [
+        const DropdownMenuItem(value: '', child: Text('Unassigned')),
+        ..._projectMembers.map(
+          (member) => DropdownMenuItem(
+            value: member.id,
+            child: Text(
+              member.role == 'inactive'
+                  ? '${member.name} (inactive)'
+                  : '${member.name} • ${member.role.replaceAll('_', ' ')}',
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ),
+      ],
+      onChanged: (value) {
+        setState(() {
+          _selectedAssigneeId = value ?? '';
+          ProjectMemberModel? member;
+          for (final candidate in _projectMembers) {
+            if (candidate.id == _selectedAssigneeId) {
+              member = candidate;
+              break;
+            }
+          }
+          _currentAssigneeName = member?.name ?? 'Unassigned';
+        });
       },
     );
   }
@@ -839,8 +985,9 @@ class _CreateTaskScreenState extends State<CreateTaskScreen> {
       projectName: _selectedProject!.name,
 
       assignee: _apiMode || _assigneeController.text.trim().isEmpty
-          ? 'Unassigned'
+          ? _currentAssigneeName
           : _assigneeController.text.trim(),
+      assignedUserId: _selectedAssigneeId.isEmpty ? null : _selectedAssigneeId,
 
       status: _apiMode ? 'To Do' : _status,
 
@@ -916,8 +1063,10 @@ class _CreateTaskScreenState extends State<CreateTaskScreen> {
       projectName: _selectedProject?.name ?? existingTask.projectName,
 
       assignee: _apiMode || _assigneeController.text.trim().isEmpty
-          ? 'Unassigned'
+          ? _currentAssigneeName
           : _assigneeController.text.trim(),
+      assignedUserId: _selectedAssigneeId.isEmpty ? null : _selectedAssigneeId,
+      clearAssignedUserId: _selectedAssigneeId.isEmpty,
 
       status: _status,
 

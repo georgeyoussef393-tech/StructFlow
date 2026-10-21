@@ -6,6 +6,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 
 import '../../features/auth/models/auth_user_model.dart';
+import '../../features/projects/models/project_member_model.dart';
 import '../../features/projects/models/project_model.dart';
 import '../../features/tasks/models/task_model.dart';
 
@@ -352,6 +353,7 @@ class ApiAuthClient {
     required String description,
     required String priority,
     required DateTime dueDate,
+    String? assignedUserId,
   }) async {
     const priorities = {
       'Low': 'low',
@@ -385,6 +387,7 @@ class ApiAuthClient {
               'description': description.trim(),
               'priority': apiPriority,
               'dueDate': dueDate.toIso8601String().split('T').first,
+              'assignedUserId': assignedUserId,
             }),
           )
           .timeout(const Duration(seconds: 15)),
@@ -398,6 +401,67 @@ class ApiAuthClient {
       );
     }
     return _parseTask(body['task']);
+  }
+
+  Future<List<ProjectMemberModel>> listProjectMembers({
+    required String organizationId,
+    required String projectIdentifier,
+  }) async {
+    if (projectIdentifier.isEmpty) {
+      throw const AuthApiException('A project identifier is required.');
+    }
+    final token = await _tokenStore.read();
+    if (token == null || token.isEmpty) {
+      throw const AuthApiException(
+        'Your session has expired. Sign in again.',
+        statusCode: 401,
+      );
+    }
+    final response = await _send(
+      () => _httpClient
+          .get(
+            _endpoint(
+              '/v1/projects/${Uri.encodeComponent(projectIdentifier)}/members',
+            ),
+            headers: {
+              'authorization': '******',
+              'x-organization-id': organizationId,
+            },
+          )
+          .timeout(const Duration(seconds: 15)),
+    );
+    final body = _decodeBody(response);
+    if (response.statusCode != 200) {
+      if (response.statusCode == 401) await _tokenStore.delete();
+      throw AuthApiException(
+        _errorMessage(body, 'Could not load project members.'),
+        statusCode: response.statusCode,
+      );
+    }
+    final members = body['members'];
+    if (members is! List) {
+      throw const AuthApiException(
+        'The server returned invalid project member data.',
+      );
+    }
+    return members
+        .map((value) {
+          if (value is! Map<String, dynamic> ||
+              value['id'] is! String ||
+              value['name'] is! String ||
+              value['role'] is! String ||
+              !{'project_manager', 'contributor'}.contains(value['role'])) {
+            throw const AuthApiException(
+              'The server returned an invalid project member.',
+            );
+          }
+          return ProjectMemberModel(
+            id: value['id'] as String,
+            name: value['name'] as String,
+            role: value['role'] as String,
+          );
+        })
+        .toList(growable: false);
   }
 
   Future<TaskModel> getTask({
@@ -486,6 +550,7 @@ class ApiAuthClient {
               'priority': apiPriority,
               'dueDate': task.dueDate.toIso8601String().split('T').first,
               'progress': task.progress,
+              'assignedUserId': task.assignedUserId,
             }),
           )
           .timeout(const Duration(seconds: 15)),
@@ -511,6 +576,7 @@ class ApiAuthClient {
     final projectCode = value['projectCode'];
     final projectName = value['projectName'];
     final assignee = value['assignee'];
+    final assignedUserId = value['assignedUserId'];
     final status = value['status'];
     final priority = value['priority'];
     final dueDate = value['dueDate'];
@@ -528,6 +594,11 @@ class ApiAuthClient {
       dueDate,
     ].any((field) => field is! String)) {
       throw const AuthApiException('The server returned an incomplete task.');
+    }
+    if (assignedUserId != null && assignedUserId is! String) {
+      throw const AuthApiException(
+        'The server returned an invalid task assignment.',
+      );
     }
     const statusMap = {
       'todo': 'To Do',
@@ -565,6 +636,7 @@ class ApiAuthClient {
       projectCode: projectCode as String,
       projectName: projectName as String,
       assignee: assignee as String,
+      assignedUserId: assignedUserId as String?,
       status: normalizedStatus,
       priority: normalizedPriority,
       dueDate: parsedDueDate,

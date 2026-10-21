@@ -153,9 +153,23 @@ are fetched with server-side tenant and membership checks. Owner/admin project
 metadata updates use version-based conflict detection and restricted update
 grants. Project task lists and creation now use tenant-scoped APIs. Creation is
 authorized for owners/admins and assigned project managers and is audited.
-Details and version-checked updates are available to those same authorized
-roles. Task assignment and project member administration remain unavailable in
-API mode.
+Details, version-checked updates, and assignment to active project members are
+available through server-validated APIs. Project member administration remains
+unavailable in API mode.
 Roadmap items 11, 31, and 32 are therefore in progress, not complete.
 The remaining items are not represented as complete merely because they are
 listed here.
+
+## BIM coordination prototype
+
+The local demo includes a permission-gated BIM coordination workspace with a
+sample model register and coordination issue workflow. Users can register model
+metadata, create coordination issues, filter the issue list, and update issue
+statuses; these records are saved in browser-local storage. Coordination issues
+can be imported from and exported to BCF 2.1 archives, with archive size, entry,
+path, version, and topic validation. Exchange currently covers core issue
+fields, not BCF viewpoints or snapshots. This remains a local workflow prototype:
+it does not upload or parse IFC/Revit files, render 3D models, run geometric
+clash detection, or synchronize records between users. Those capabilities
+require a secure model/document service, a production BIM viewer and processing
+pipeline, tenant-scoped APIs, and real project data.

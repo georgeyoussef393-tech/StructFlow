@@ -66,8 +66,13 @@ Project details are also fetched from the server; owners/admins can edit
 project metadata with stale-version conflict protection. Project task lists are
 loaded from the tenant-scoped API, and permitted users can create unassigned
 tasks through the API. Assigned project managers and company owners/admins can
-edit task details through version-checked API updates. Task assignment is not
-connected yet.
+edit task details through version-checked API updates, and assign tasks to active
+project managers or contributors through server-validated membership IDs.
+The local demo also includes a BIM coordination prototype with sample model
+metadata, issue tracking, and BCF 2.1 issue exchange. IFC/Revit upload, 3D
+viewing, clash detection, and server synchronization are not implemented, and
+BIM remains unavailable in API mode. Do not enter confidential project
+information into the local demo.
 Other unfinished modules remain unavailable in API mode.
 See
 [backend/README.md](./backend/README.md) for details.

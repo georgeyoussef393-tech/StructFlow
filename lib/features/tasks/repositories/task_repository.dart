@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:structflow/core/network/api_auth_client.dart';
 import 'package:structflow/features/auth/repositories/auth_repository.dart';
+import 'package:structflow/features/projects/models/project_member_model.dart';
 import 'package:structflow/features/tasks/models/task_model.dart';
 
 class TaskRepository extends ChangeNotifier {
@@ -177,6 +178,7 @@ class TaskRepository extends ChangeNotifier {
           description: task.description,
           priority: task.priority,
           dueDate: task.dueDate,
+          assignedUserId: task.assignedUserId,
         );
       } on AuthApiException catch (error) {
         if (error.statusCode == 401) {
@@ -214,6 +216,31 @@ class TaskRepository extends ChangeNotifier {
       );
       _replaceTask(task);
       return task;
+    } on AuthApiException catch (error) {
+      if (error.statusCode == 401) {
+        await AuthRepository.instance.signOut();
+      }
+      rethrow;
+    }
+  }
+
+  Future<List<ProjectMemberModel>> listProjectMembers(
+    String projectIdentifier,
+  ) async {
+    final user = AuthRepository.instance.currentUser;
+    if (!AuthRepository.instance.usesApiAuth ||
+        user == null ||
+        user.organizationId.isEmpty) {
+      throw const AuthApiException(
+        'An authenticated company is required.',
+        statusCode: 401,
+      );
+    }
+    try {
+      return await ApiAuthClient.configured.listProjectMembers(
+        organizationId: user.organizationId,
+        projectIdentifier: projectIdentifier,
+      );
     } on AuthApiException catch (error) {
       if (error.statusCode == 401) {
         await AuthRepository.instance.signOut();
