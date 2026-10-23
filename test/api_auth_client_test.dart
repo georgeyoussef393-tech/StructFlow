@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:structflow/core/network/api_auth_client.dart';
+import 'package:structflow/features/bim/models/bim_workspace_models.dart';
 import 'package:structflow/features/projects/models/project_model.dart';
 import 'package:structflow/features/tasks/models/task_model.dart';
 
@@ -915,6 +916,379 @@ void main() {
     },
   );
 
+  test(
+    'updates BIM issue status with BCF identity and expected version',
+    () async {
+      final issue = BimIssue(
+        id: '50000000-0000-4000-8000-000000000001',
+        projectCode: 'CIVIL-001',
+        title: 'Coordinate duct routing',
+        description: 'Resolve the level 2 clash.',
+        discipline: 'Mechanical',
+        location: 'Level 2',
+        severity: 'High',
+        status: 'In progress',
+        assignedTo: 'Mechanical team',
+        dueDate: DateTime(2027, 2, 1),
+        bcfGuid: '60000000-0000-4000-8000-000000000001',
+        version: 3,
+      );
+      final client = ApiAuthClient(
+        baseUri: Uri.parse('https://api.example.test'),
+        tokenStore: _MemoryTokenStore()..value = token,
+        httpClient: MockClient((request) async {
+          expect(request.method, 'PATCH');
+          expect(request.url.path, '/v1/bim/issues/${issue.id}');
+          expect(request.headers['x-organization-id'], organizationId);
+          expect(jsonDecode(request.body), {
+            'status': 'in_progress',
+            'expectedVersion': 3,
+          });
+          return http.Response(
+            jsonEncode({
+              'issue': {
+                'id': issue.id,
+                'bcfGuid': issue.bcfGuid,
+                'title': issue.title,
+                'description': issue.description,
+                'discipline': issue.discipline,
+                'location': issue.location,
+                'severity': 'high',
+                'status': 'in_progress',
+                'assignedTo': issue.assignedTo,
+                'dueDate': '2027-02-01',
+                'version': 4,
+              },
+            }),
+            200,
+          );
+        }),
+      );
+
+      final updated = await client.updateBimIssueStatus(
+        organizationId: organizationId,
+        issue: issue,
+      );
+
+      expect(updated.bcfGuid, issue.bcfGuid);
+      expect(updated.status, 'In progress');
+      expect(updated.version, 4);
+    },
+  );
+
+  test('loads and registers project-scoped BIM model metadata', () async {
+    final model = BimModelRecord(
+      id: 'BIM-MOD-local',
+      projectCode: 'CIVIL-001',
+      name: 'Tower Structure',
+      discipline: 'Structure',
+      version: 'v2',
+      status: 'In review',
+      updatedAt: DateTime.utc(2026, 10, 23),
+    );
+    var requestCount = 0;
+    final client = ApiAuthClient(
+      baseUri: Uri.parse('https://api.example.test'),
+      tokenStore: _MemoryTokenStore()..value = token,
+      httpClient: MockClient((request) async {
+        expect(request.headers['authorization'], startsWith('Bearer '));
+        expect(request.headers['x-organization-id'], organizationId);
+        if (request.method == 'GET') {
+          expect(request.url.path, '/v1/projects/CIVIL-001/bim/models');
+          requestCount++;
+          return http.Response(
+            jsonEncode({
+              'projectCode': 'CIVIL-001',
+              'models': [
+                {
+                  'id': '50000000-0000-4000-8000-000000000001',
+                  'name': model.name,
+                  'discipline': model.discipline,
+                  'version': model.version,
+                  'status': 'in_review',
+                  'recordVersion': 2,
+                  'updatedAt': '2026-10-23T00:00:00.000Z',
+                },
+              ],
+            }),
+            200,
+          );
+        }
+        expect(request.method, 'POST');
+        expect(request.url.path, '/v1/projects/CIVIL-001/bim/models');
+        expect(jsonDecode(request.body), {
+          'name': model.name,
+          'discipline': model.discipline,
+          'version': model.version,
+        });
+        requestCount++;
+        return http.Response(
+          jsonEncode({
+            'model': {
+              'id': '50000000-0000-4000-8000-000000000002',
+              'name': model.name,
+              'discipline': model.discipline,
+              'version': model.version,
+              'status': 'in_review',
+              'recordVersion': 1,
+              'updatedAt': '2026-10-23T00:00:00.000Z',
+            },
+          }),
+          201,
+        );
+      }),
+    );
+
+    final loaded = await client.listBimModels(
+      organizationId: organizationId,
+      projectIdentifier: 'CIVIL-001',
+    );
+    final created = await client.createBimModel(
+      organizationId: organizationId,
+      projectIdentifier: 'CIVIL-001',
+      model: model,
+    );
+
+    expect(requestCount, 2);
+    expect(loaded.single.projectCode, 'CIVIL-001');
+    expect(loaded.single.status, 'In review');
+    expect(created.id, '50000000-0000-4000-8000-000000000002');
+    expect(created.updatedAt, DateTime.utc(2026, 10, 23));
+  });
+
+  test('updates BIM model status with optimistic version control', () async {
+    final model = BimModelRecord(
+      id: '50000000-0000-4000-8000-000000000001',
+      projectCode: 'CIVIL-001',
+      name: 'Tower Structure',
+      discipline: 'Structure',
+      version: 'v2',
+      status: 'In review',
+      updatedAt: DateTime.utc(2026, 10, 23),
+      recordVersion: 4,
+    );
+    final client = ApiAuthClient(
+      baseUri: Uri.parse('https://api.example.test'),
+      tokenStore: _MemoryTokenStore()..value = token,
+      httpClient: MockClient((request) async {
+        expect(request.method, 'PATCH');
+        expect(request.url.path, '/v1/bim/models/${model.id}');
+        expect(request.headers['authorization'], 'Bearer $token');
+        expect(request.headers['x-organization-id'], organizationId);
+        expect(jsonDecode(request.body), {
+          'status': 'published',
+          'expectedVersion': 4,
+        });
+        return http.Response(
+          jsonEncode({
+            'model': {
+              'id': model.id,
+              'name': model.name,
+              'discipline': model.discipline,
+              'version': model.version,
+              'status': 'published',
+              'recordVersion': 5,
+              'updatedAt': '2026-10-23T01:00:00.000Z',
+            },
+          }),
+          200,
+        );
+      }),
+    );
+
+    final updated = await client.updateBimModelStatus(
+      organizationId: organizationId,
+      model: model.copyWith(status: 'Published'),
+    );
+
+    expect(updated.status, 'Published');
+    expect(updated.recordVersion, 5);
+  });
+
+  test('surfaces BIM model version conflicts without retrying', () async {
+    final model = BimModelRecord(
+      id: '50000000-0000-4000-8000-000000000001',
+      projectCode: 'CIVIL-001',
+      name: 'Tower Structure',
+      discipline: 'Structure',
+      version: 'v2',
+      status: 'In review',
+      updatedAt: DateTime.utc(2026, 10, 23),
+      recordVersion: 3,
+    );
+    var requestCount = 0;
+    final client = ApiAuthClient(
+      baseUri: Uri.parse('https://api.example.test'),
+      tokenStore: _MemoryTokenStore()..value = token,
+      httpClient: MockClient((_) async {
+        requestCount++;
+        return http.Response(
+          jsonEncode({
+            'error': 'BIM model has changed since it was loaded.',
+            'currentVersion': 4,
+          }),
+          409,
+        );
+      }),
+    );
+
+    await expectLater(
+      client.updateBimModelStatus(
+        organizationId: organizationId,
+        model: model.copyWith(status: 'Published'),
+      ),
+      throwsA(
+        isA<AuthApiException>()
+            .having((error) => error.statusCode, 'statusCode', 409)
+            .having(
+              (error) => error.message,
+              'message',
+              'BIM model has changed since it was loaded.',
+            ),
+      ),
+    );
+    expect(requestCount, 1);
+  });
+
+  test('loads and adds comments to a BIM coordination issue', () async {
+    final issueId = '50000000-0000-4000-8000-000000000001';
+    var requestCount = 0;
+    final client = ApiAuthClient(
+      baseUri: Uri.parse('https://api.example.test'),
+      tokenStore: _MemoryTokenStore()..value = token,
+      httpClient: MockClient((request) async {
+        expect(request.headers['authorization'], 'Bearer $token');
+        expect(request.headers['x-organization-id'], organizationId);
+        requestCount++;
+        if (request.method == 'GET') {
+          expect(request.url.path, '/v1/bim/issues/$issueId/comments');
+          return http.Response(
+            jsonEncode({
+              'comments': [
+                {
+                  'id': '60000000-0000-4000-8000-000000000001',
+                  'body': 'Check the clearance at grid C-2.',
+                  'authorName': 'BIM Coordinator',
+                  'createdAt': '2026-10-23T12:00:00.000Z',
+                },
+              ],
+            }),
+            200,
+          );
+        }
+        expect(request.method, 'POST');
+        expect(request.url.path, '/v1/bim/issues/$issueId/comments');
+        expect(jsonDecode(request.body), {
+          'body': 'Please confirm after the model update.',
+        });
+        return http.Response(
+          jsonEncode({
+            'comment': {
+              'id': '60000000-0000-4000-8000-000000000002',
+              'body': 'Please confirm after the model update.',
+              'authorName': 'Project Manager',
+              'createdAt': '2026-10-23T12:30:00.000Z',
+            },
+          }),
+          201,
+        );
+      }),
+    );
+
+    final comments = await client.listBimIssueComments(
+      organizationId: organizationId,
+      issueId: issueId,
+    );
+    final created = await client.createBimIssueComment(
+      organizationId: organizationId,
+      issueId: issueId,
+      body: ' Please confirm after the model update. ',
+    );
+
+    expect(requestCount, 2);
+    expect(comments.single.issueId, issueId);
+    expect(comments.single.authorName, 'BIM Coordinator');
+    expect(created.body, 'Please confirm after the model update.');
+    expect(created.createdAt, DateTime.utc(2026, 10, 23, 12, 30));
+  });
+
+  test('loads and imports BCF comments for a project', () async {
+    const projectCode = 'CIVIL-001';
+    const topicGuid = '60000000-0000-4000-8000-000000000001';
+    const commentGuid = '60000000-0000-4000-8000-000000000002';
+    final requests = <http.Request>[];
+    final client = ApiAuthClient(
+      baseUri: Uri.parse('https://api.example.test'),
+      tokenStore: _MemoryTokenStore()..value = token,
+      httpClient: MockClient((request) async {
+        requests.add(request);
+        if (request.method == 'GET') {
+          return http.Response(
+            jsonEncode({
+              'comments': [
+                {
+                  'id': commentGuid,
+                  'issueId': '50000000-0000-4000-8000-000000000001',
+                  'bcfGuid': commentGuid,
+                  'body': 'Confirm the clearance.',
+                  'authorName': 'BCF: External Coordinator',
+                  'createdAt': '2026-10-23T12:00:00.000Z',
+                },
+              ],
+            }),
+            200,
+          );
+        }
+        return http.Response(jsonEncode({'imported': 1}), 200);
+      }),
+    );
+    final comment = BimIssueComment(
+      id: commentGuid,
+      issueId: '50000000-0000-4000-8000-000000000001',
+      body: 'Confirm the clearance.',
+      authorName: 'External Coordinator',
+      createdAt: DateTime.utc(2026, 10, 23, 12),
+      bcfGuid: commentGuid,
+    );
+
+    final comments = await client.listProjectBimComments(
+      organizationId: organizationId,
+      projectIdentifier: projectCode,
+    );
+    final imported = await client.importProjectBimComments(
+      organizationId: organizationId,
+      projectIdentifier: projectCode,
+      commentsByTopicGuid: {
+        topicGuid: [comment],
+      },
+    );
+
+    expect(requests, hasLength(2));
+    expect(requests.first.headers['authorization'], isNotEmpty);
+    expect(requests.first.method, 'GET');
+    expect(requests.first.url.path, '/v1/projects/$projectCode/bim/comments');
+    expect(requests.first.headers['x-organization-id'], organizationId);
+    expect(requests.last.headers['authorization'], isNotEmpty);
+    expect(requests.last.method, 'POST');
+    expect(
+      requests.last.url.path,
+      '/v1/projects/$projectCode/bim/comments/import',
+    );
+    expect(requests.last.headers['x-organization-id'], organizationId);
+    final payload = jsonDecode(requests.last.body) as Map<String, dynamic>;
+    expect(payload['comments'], [
+      {
+        'topicGuid': topicGuid,
+        'bcfGuid': commentGuid,
+        'body': 'Confirm the clearance.',
+        'authorName': 'External Coordinator',
+        'createdAt': '2026-10-23T12:00:00.000Z',
+      },
+    ]);
+    expect(comments.single.bcfGuid, commentGuid);
+    expect(comments.single.authorName, 'BCF: External Coordinator');
+    expect(imported, 1);
+  });
   test(
     'revokes the server session and deletes the secure token on sign out',
     () async {

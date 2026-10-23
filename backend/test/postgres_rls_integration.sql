@@ -54,6 +54,57 @@ BEGIN
     ) THEN
         RAISE EXCEPTION 'project manager scope helper is not safely exposed';
     END IF;
+    IF NOT has_table_privilege(
+        'structflow_runtime', 'bim_issues', 'SELECT'
+    ) OR NOT has_column_privilege(
+        'structflow_runtime', 'bim_issues', 'title', 'INSERT'
+    ) OR has_column_privilege(
+        'structflow_runtime', 'bim_issues', 'version', 'INSERT'
+    ) OR NOT has_column_privilege(
+        'structflow_runtime', 'bim_issues', 'status', 'UPDATE'
+    ) OR NOT has_column_privilege(
+        'structflow_runtime', 'bim_issues', 'version', 'UPDATE'
+    ) OR has_column_privilege(
+        'structflow_runtime', 'bim_issues', 'bcf_guid', 'UPDATE'
+    ) OR has_table_privilege(
+        'structflow_runtime', 'bim_issues', 'UPDATE'
+    ) THEN
+        RAISE EXCEPTION 'runtime role has unexpected BIM issue permissions';
+    END IF;
+    IF NOT has_table_privilege(
+        'structflow_runtime', 'bim_models', 'SELECT'
+    ) OR NOT has_column_privilege(
+        'structflow_runtime', 'bim_models', 'name', 'INSERT'
+    ) OR has_column_privilege(
+        'structflow_runtime', 'bim_models', 'status', 'INSERT'
+    ) OR NOT has_column_privilege(
+        'structflow_runtime', 'bim_models', 'status', 'UPDATE'
+    ) OR NOT has_column_privilege(
+        'structflow_runtime', 'bim_models', 'version', 'UPDATE'
+    ) OR has_column_privilege(
+        'structflow_runtime', 'bim_models', 'name', 'UPDATE'
+    ) OR has_table_privilege(
+        'structflow_runtime', 'bim_models', 'UPDATE'
+    ) THEN
+        RAISE EXCEPTION 'runtime role has unexpected BIM model permissions';
+    END IF;
+    IF NOT has_table_privilege(
+        'structflow_runtime', 'bim_issue_comments', 'SELECT'
+    ) OR NOT has_column_privilege(
+        'structflow_runtime', 'bim_issue_comments', 'body', 'INSERT'
+    ) OR NOT has_column_privilege(
+        'structflow_runtime', 'bim_issue_comments', 'source_guid', 'INSERT'
+    ) OR NOT has_column_privilege(
+        'structflow_runtime', 'bim_issue_comments', 'created_at', 'INSERT'
+    ) OR NOT has_column_privilege(
+        'structflow_runtime', 'bim_issue_comments', 'source_author', 'INSERT'
+    ) OR has_table_privilege(
+        'structflow_runtime', 'bim_issue_comments', 'UPDATE'
+    ) OR has_table_privilege(
+        'structflow_runtime', 'bim_issue_comments', 'DELETE'
+    ) THEN
+        RAISE EXCEPTION 'runtime role has unexpected BIM comment permissions';
+    END IF;
 END;
 $$;
 
@@ -216,6 +267,134 @@ BEGIN
     END;
 END;
 $$;
+INSERT INTO bim_issues (
+    organization_id, project_id, bcf_guid, title, description, discipline,
+    location, severity, status, due_date, created_by
+)
+VALUES (
+    '10000000-0000-4000-8000-000000000001',
+    '30000000-0000-4000-8000-000000000001',
+    '60000000-0000-4000-8000-000000000001',
+    'Contributor-created coordination issue', '',
+    'Architecture', 'Level 1', 'high', 'open', '2027-02-01',
+    '20000000-0000-4000-8000-000000000001'
+);
+INSERT INTO bim_models (
+    organization_id, project_id, name, discipline, revision, created_by
+)
+VALUES (
+    '10000000-0000-4000-8000-000000000001',
+    '30000000-0000-4000-8000-000000000001',
+    'Tenant One Structure Model', 'Structure', 'v2',
+    '20000000-0000-4000-8000-000000000001'
+);
+INSERT INTO bim_issue_comments (
+    organization_id, project_id, issue_id, body, created_by
+)
+SELECT organization_id, project_id, id,
+       'Reviewed clearance at grid C-2.',
+       '20000000-0000-4000-8000-000000000001'
+FROM bim_issues
+WHERE title = 'Contributor-created coordination issue';
+DO $$
+DECLARE
+    updated_rows integer;
+BEGIN
+    UPDATE bim_issues
+    SET status = 'resolved', version = version + 1, updated_at = now()
+    WHERE title = 'Contributor-created coordination issue';
+    GET DIAGNOSTICS updated_rows = ROW_COUNT;
+    IF updated_rows <> 0 THEN
+        RAISE EXCEPTION 'project contributor unexpectedly updated a BIM issue';
+    END IF;
+    IF NOT EXISTS (
+        SELECT 1 FROM bim_issues
+        WHERE title = 'Contributor-created coordination issue'
+          AND status = 'open' AND version = 1
+    ) THEN
+        RAISE EXCEPTION 'project contributor changed a protected BIM issue';
+    END IF;
+    IF (SELECT count(*) FROM bim_models) <> 1 THEN
+        RAISE EXCEPTION 'project contributor should see project BIM models';
+    END IF;
+    IF (SELECT count(*) FROM bim_issue_comments) <> 1 THEN
+        RAISE EXCEPTION 'project contributor should see issue discussion';
+    END IF;
+    BEGIN
+        UPDATE bim_models SET name = 'Contributor model update';
+        RAISE EXCEPTION 'project contributor unexpectedly updated BIM model metadata';
+    EXCEPTION
+        WHEN insufficient_privilege THEN NULL;
+    END;
+    UPDATE bim_models
+    SET status = 'published', version = version + 1, updated_at = now()
+    WHERE name = 'Tenant One Structure Model';
+    IF EXISTS (
+        SELECT 1 FROM bim_models
+        WHERE name = 'Tenant One Structure Model' AND status = 'published'
+    ) THEN
+        RAISE EXCEPTION 'project contributor unexpectedly changed BIM model status';
+    END IF;
+END;
+$$;
+SELECT set_config('app.user_id', '20000000-0000-4000-8000-000000000004', true);
+DO $$
+BEGIN
+    IF (SELECT count(*) FROM bim_issues) <> 1 THEN
+        RAISE EXCEPTION 'project viewer should be able to read BIM issues';
+    END IF;
+    IF (SELECT count(*) FROM bim_models) <> 1 THEN
+        RAISE EXCEPTION 'project viewer should be able to read BIM models';
+    END IF;
+    IF (SELECT count(*) FROM bim_issue_comments) <> 1 THEN
+        RAISE EXCEPTION 'project viewer should be able to read issue comments';
+    END IF;
+    BEGIN
+        INSERT INTO bim_issues (
+            organization_id, project_id, title, discipline, location,
+            severity, due_date, created_by
+        )
+        VALUES (
+            '10000000-0000-4000-8000-000000000001',
+            '30000000-0000-4000-8000-000000000001',
+            'Viewer-created coordination issue', 'Architecture', 'Level 2',
+            'low', '2027-02-02',
+            '20000000-0000-4000-8000-000000000004'
+        );
+        RAISE EXCEPTION 'project viewer unexpectedly created a BIM issue';
+    EXCEPTION
+        WHEN insufficient_privilege THEN NULL;
+    END;
+    BEGIN
+        INSERT INTO bim_issue_comments (
+            organization_id, project_id, issue_id, body, created_by
+        )
+        SELECT organization_id, project_id, id,
+               'Viewer should not comment.',
+               '20000000-0000-4000-8000-000000000004'
+        FROM bim_issues
+        WHERE title = 'Contributor-created coordination issue';
+        RAISE EXCEPTION 'project viewer unexpectedly added an issue comment';
+    EXCEPTION
+        WHEN insufficient_privilege THEN NULL;
+    END;
+END;
+$$;
+SELECT set_config('app.organization_id', '10000000-0000-4000-8000-000000000002', true);
+SELECT set_config('app.user_id', '20000000-0000-4000-8000-000000000002', true);
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM bim_issues) THEN
+        RAISE EXCEPTION 'tenant user can see another tenant BIM issue';
+    END IF;
+    IF EXISTS (SELECT 1 FROM bim_models) THEN
+        RAISE EXCEPTION 'tenant user can see another tenant BIM model';
+    END IF;
+    IF EXISTS (SELECT 1 FROM bim_issue_comments) THEN
+        RAISE EXCEPTION 'tenant user can see another tenant BIM comment';
+    END IF;
+END;
+$$;
 COMMIT;
 
 UPDATE project_memberships
@@ -232,6 +411,33 @@ DO $$
 BEGIN
     IF (SELECT count(*) FROM project_memberships) <> 3 THEN
         RAISE EXCEPTION 'assigned project manager should see only their project roster';
+    END IF;
+END;
+$$;
+DO $$
+DECLARE
+    updated_rows integer;
+BEGIN
+    UPDATE bim_issues
+    SET status = 'resolved', version = version + 1, updated_at = now()
+    WHERE title = 'Contributor-created coordination issue';
+    GET DIAGNOSTICS updated_rows = ROW_COUNT;
+    IF updated_rows <> 1 OR NOT EXISTS (
+        SELECT 1 FROM bim_issues
+        WHERE title = 'Contributor-created coordination issue'
+          AND status = 'resolved' AND version = 2
+    ) THEN
+        RAISE EXCEPTION 'project manager should be allowed to update BIM issue status';
+    END IF;
+    UPDATE bim_models
+    SET status = 'published', version = version + 1, updated_at = now()
+    WHERE name = 'Tenant One Structure Model' AND version = 1;
+    IF NOT EXISTS (
+        SELECT 1 FROM bim_models
+        WHERE name = 'Tenant One Structure Model'
+          AND status = 'published' AND version = 2
+    ) THEN
+        RAISE EXCEPTION 'project manager should be allowed to publish a BIM model';
     END IF;
 END;
 $$;

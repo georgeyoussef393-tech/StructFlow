@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:file_selector/file_selector.dart';
 
 import '../../../core/theme/app_colors.dart';
+import '../../auth/repositories/auth_repository.dart';
 import '../../projects/models/project_model.dart';
 import '../../projects/repositories/project_repository.dart';
 import '../models/bim_workspace_models.dart';
@@ -26,6 +27,7 @@ class _BimCoordinationScreenState extends State<BimCoordinationScreen> {
   String _selectedTab = 'Issues';
   String _issueFilter = 'All';
   bool _loading = true;
+  bool _loadingIssues = false;
   String? _loadError;
 
   List<ProjectModel> get _projects => ProjectRepository.instance.projects;
@@ -54,14 +56,38 @@ class _BimCoordinationScreenState extends State<BimCoordinationScreen> {
       _loadError = null;
     });
     try {
+      if (AuthRepository.instance.usesApiAuth) {
+        await ProjectRepository.instance.loadProjects();
+      }
       await _repository.load();
       if (_selectedProjectCode.isEmpty && _projects.isNotEmpty) {
         _selectedProjectCode = _projects.first.code;
+      }
+      if (AuthRepository.instance.usesApiAuth &&
+          _selectedProjectCode.isNotEmpty) {
+        await _loadBimDataForProject(_selectedProjectCode);
       }
     } on Exception catch (error) {
       if (mounted) setState(() => _loadError = error.toString());
     } finally {
       if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _loadBimDataForProject(String projectCode) async {
+    setState(() {
+      _loadingIssues = true;
+      _loadError = null;
+    });
+    try {
+      await Future.wait([
+        _repository.loadIssuesForProject(projectCode),
+        _repository.loadModelsForProject(projectCode),
+      ]);
+    } on Exception catch (error) {
+      if (mounted) _message('Could not load BIM project data: $error');
+    } finally {
+      if (mounted) setState(() => _loadingIssues = false);
     }
   }
 
@@ -214,15 +240,17 @@ class _BimCoordinationScreenState extends State<BimCoordinationScreen> {
       borderRadius: BorderRadius.circular(12),
       border: Border.all(color: const Color(0xffF3D18A)),
     ),
-    child: const Row(
+    child: Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(Icons.info_outline, color: Color(0xff8A5A00)),
-        SizedBox(width: 10),
+        const Icon(Icons.info_outline, color: Color(0xff8A5A00)),
+        const SizedBox(width: 10),
         Expanded(
           child: Text(
-            'Coordination workspace preview. Import/export BCF 2.1 issue packages and core issue fields; records are still stored in this browser. IFC/Revit model upload, 3D viewing, viewpoints, clash detection, and shared server sync are not connected yet. Do not enter confidential project information.',
-            style: TextStyle(color: Color(0xff684500), height: 1.4),
+            AuthRepository.instance.usesApiAuth
+                ? 'Model register metadata and coordination issues are stored in the StructFlow server and are subject to project membership. Model files are not uploaded or viewed here. BCF 2.1 exchange transfers core issue fields only; viewpoints and clash detection are not connected yet.'
+                : 'Coordination workspace preview. Import/export BCF 2.1 issue packages and core issue fields; records are stored in this browser. Model registration stores metadata only. IFC/Revit upload, 3D viewing, viewpoints, and clash detection are not connected yet. Do not enter confidential project information.',
+            style: const TextStyle(color: Color(0xff684500), height: 1.4),
           ),
         ),
       ],
@@ -291,6 +319,9 @@ class _BimCoordinationScreenState extends State<BimCoordinationScreen> {
                   onChanged: (value) {
                     if (value != null) {
                       setState(() => _selectedProjectCode = value);
+                      if (AuthRepository.instance.usesApiAuth) {
+                        _loadBimDataForProject(value);
+                      }
                     }
                   },
                 ),
@@ -300,9 +331,11 @@ class _BimCoordinationScreenState extends State<BimCoordinationScreen> {
               const SizedBox(width: 16),
               const Icon(Icons.sync, size: 18, color: AppColors.textLight),
               const SizedBox(width: 6),
-              const Text(
-                'Local preview',
-                style: TextStyle(color: AppColors.textLight),
+              Text(
+                AuthRepository.instance.usesApiAuth
+                    ? 'Server data'
+                    : 'Local preview',
+                style: const TextStyle(color: AppColors.textLight),
               ),
             ],
           ],
@@ -465,6 +498,7 @@ class _BimCoordinationScreenState extends State<BimCoordinationScreen> {
     final issues = _filteredIssues;
     return Column(
       children: [
+        if (_loadingIssues) const LinearProgressIndicator(),
         Padding(
           padding: const EdgeInsets.all(16),
           child: Wrap(
@@ -663,7 +697,7 @@ class _BimCoordinationScreenState extends State<BimCoordinationScreen> {
                 style: const TextStyle(fontWeight: FontWeight.w700),
               ),
             ),
-            _modelStatusBadge(model.status),
+            _modelStatusDropdown(model),
           ],
         ),
         const Spacer(),
@@ -704,25 +738,33 @@ class _BimCoordinationScreenState extends State<BimCoordinationScreen> {
     );
   }
 
-  Widget _modelStatusBadge(String status) {
-    final color = status == 'Published'
-        ? const Color(0xff25815A)
-        : const Color(0xffC47A0A);
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: .1),
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Text(
-        status,
-        style: TextStyle(
-          color: color,
-          fontSize: 10,
-          fontWeight: FontWeight.w700,
-        ),
-      ),
-    );
+  Widget _modelStatusDropdown(BimModelRecord model) => DropdownButton<String>(
+    value: model.status,
+    underline: const SizedBox.shrink(),
+    isDense: true,
+    items: const ['In review', 'Published', 'Archived']
+        .map(
+          (status) => DropdownMenuItem(
+            value: status,
+            child: Text(status, style: const TextStyle(fontSize: 11)),
+          ),
+        )
+        .toList(),
+    onChanged: (status) {
+      if (status == null || status == model.status) return;
+      _updateModelStatus(model, status);
+    },
+  );
+
+  Future<void> _updateModelStatus(BimModelRecord model, String status) async {
+    try {
+      await _repository.updateModelStatus(model.id, status);
+      _message('Model status updated.');
+    } on Exception catch (error) {
+      _message('Model status could not be updated: $error');
+    } finally {
+      if (mounted) setState(() {});
+    }
   }
 
   Widget _statusDropdown(BimIssue issue) => DropdownButton<String>(
@@ -740,6 +782,7 @@ class _BimCoordinationScreenState extends State<BimCoordinationScreen> {
   );
 
   Future<void> _importBcf() async {
+    int? importedIssueCount;
     try {
       final file = await openFile(
         acceptedTypeGroups: const [
@@ -750,23 +793,31 @@ class _BimCoordinationScreenState extends State<BimCoordinationScreen> {
       if (await file.length() > BcfExchangeService.maxArchiveBytes) {
         throw const FormatException('BCF files must be 25 MB or smaller.');
       }
-      final issues = _bcfExchange.importProject(
+      final importedBcf = _bcfExchange.importProjectBundle(
         bytes: await file.readAsBytes(),
         projectCode: _selectedProjectCode,
       );
-      final imported = await _repository.importIssues(issues);
+      final imported = await _repository.importIssues(importedBcf.issues);
+      importedIssueCount = imported;
+      final importedComments = await _repository.importBcfComments(
+        projectCode: _selectedProjectCode,
+        commentsByTopicGuid: importedBcf.commentsByTopicGuid,
+      );
       setState(() {
         _selectedTab = 'Issues';
         _issueFilter = 'All';
         _searchController.clear();
       });
       _message(
-        imported == 0
-            ? 'The BCF file contained no new issues; duplicates were skipped.'
-            : 'Imported $imported BCF issue${imported == 1 ? '' : 's'}.',
+        'Imported $imported issue${imported == 1 ? '' : 's'} and '
+        '$importedComments comment${importedComments == 1 ? '' : 's'}; '
+        'repeated BCF identifiers were skipped.',
       );
     } on Exception catch (error) {
-      _message('BCF import failed: $error');
+      final partialImport = importedIssueCount == null
+          ? ''
+          : ' $importedIssueCount issue(s) were imported before the failure.';
+      _message('BCF import failed:$partialImport $error');
     }
   }
 
@@ -783,6 +834,9 @@ class _BimCoordinationScreenState extends State<BimCoordinationScreen> {
         _message('There are no coordination issues to export.');
         return;
       }
+      final commentsByIssueId = await _repository.loadProjectIssueComments(
+        project.code,
+      );
       final filename =
           'StructFlow-${project.code.replaceAll(RegExp(r'[^A-Za-z0-9_-]'), '_')}.bcf';
       final destination = await getSaveLocation(
@@ -796,13 +850,20 @@ class _BimCoordinationScreenState extends State<BimCoordinationScreen> {
         projectCode: project.code,
         projectName: project.name,
         issues: issues,
+        commentsByIssueId: commentsByIssueId,
       );
       await XFile.fromData(
         Uint8List.fromList(bytes),
         mimeType: 'application/octet-stream',
         name: filename,
       ).saveTo(destination.path);
-      _message('Exported ${issues.length} issues as a BCF 2.1 file.');
+      final commentCount = commentsByIssueId.values.fold<int>(
+        0,
+        (count, comments) => count + comments.length,
+      );
+      _message(
+        'Exported ${issues.length} issues and $commentCount comments as BCF 2.1.',
+      );
     } on Exception catch (error) {
       _message('BCF export failed: $error');
     }
@@ -816,33 +877,129 @@ class _BimCoordinationScreenState extends State<BimCoordinationScreen> {
     }
   }
 
-  Future<void> _showIssueDetails(BimIssue issue) => showDialog<void>(
-    context: context,
-    builder: (context) => AlertDialog(
-      title: Text(issue.title),
-      content: SizedBox(
-        width: 480,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(issue.description),
-            const SizedBox(height: 18),
-            Text('Discipline: ${issue.discipline}'),
-            Text('Location: ${issue.location}'),
-            Text('Assigned to: ${issue.assignedTo}'),
-            Text('Due: ${_dateLabel(issue.dueDate)}'),
-          ],
-        ),
+  Future<void> _showIssueDetails(BimIssue issue) async {
+    final commentController = TextEditingController();
+    List<BimIssueComment> comments = [];
+    String? commentLoadError;
+    try {
+      comments = await _repository.loadIssueComments(issue.id);
+    } on Exception catch (error) {
+      commentLoadError = error.toString();
+    }
+    if (!mounted) {
+      commentController.dispose();
+      return;
+    }
+    var submitting = false;
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          return AlertDialog(
+            title: Text(issue.title),
+            content: SizedBox(
+              width: 520,
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(issue.description),
+                    const SizedBox(height: 18),
+                    Text('Discipline: ${issue.discipline}'),
+                    Text('Location: ${issue.location}'),
+                    Text('Assigned to: ${issue.assignedTo}'),
+                    Text('Due: ${_dateLabel(issue.dueDate)}'),
+                    const Divider(height: 28),
+                    Text(
+                      'Discussion (${comments.length})',
+                      style: const TextStyle(fontWeight: FontWeight.w700),
+                    ),
+                    const SizedBox(height: 8),
+                    if (commentLoadError != null)
+                      Text('Comments could not be loaded: $commentLoadError')
+                    else if (comments.isEmpty)
+                      const Text(
+                        'No comments yet.',
+                        style: TextStyle(color: AppColors.textLight),
+                      )
+                    else
+                      ...comments.map(
+                        (comment) => ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          title: Text(comment.body),
+                          subtitle: Text(
+                            '${comment.authorName} · ${_dateTimeLabel(comment.createdAt)}',
+                          ),
+                        ),
+                      ),
+                    const SizedBox(height: 8),
+                    TextField(
+                      controller: commentController,
+                      minLines: 2,
+                      maxLines: 4,
+                      maxLength: 5000,
+                      decoration: const InputDecoration(
+                        labelText: 'Add coordination note',
+                        alignLabelWithHint: true,
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: FilledButton.icon(
+                        onPressed: submitting || commentLoadError != null
+                            ? null
+                            : () async {
+                                final body = commentController.text.trim();
+                                if (body.isEmpty) return;
+                                setDialogState(() => submitting = true);
+                                try {
+                                  final comment = await _repository
+                                      .addIssueComment(issue.id, body);
+                                  if (!dialogContext.mounted) return;
+                                  setDialogState(() {
+                                    comments = [...comments, comment];
+                                    commentController.clear();
+                                  });
+                                } on Exception catch (error) {
+                                  _message(
+                                    'Comment could not be saved: $error',
+                                  );
+                                } finally {
+                                  if (dialogContext.mounted) {
+                                    setDialogState(() => submitting = false);
+                                  }
+                                }
+                              },
+                        icon: submitting
+                            ? const SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : const Icon(Icons.send_outlined),
+                        label: const Text('Add comment'),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext),
+                child: const Text('Close'),
+              ),
+            ],
+          );
+        },
       ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('Close'),
-        ),
-      ],
-    ),
-  );
+    );
+    commentController.dispose();
+  }
 
   Future<void> _showCreateIssueDialog() async {
     final title = TextEditingController();
@@ -1049,6 +1206,11 @@ class _BimCoordinationScreenState extends State<BimCoordinationScreen> {
 
   String _dateLabel(DateTime date) =>
       '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+
+  String _dateTimeLabel(DateTime date) {
+    final local = date.toLocal();
+    return '${_dateLabel(local)} ${local.hour.toString().padLeft(2, '0')}:${local.minute.toString().padLeft(2, '0')}';
+  }
 
   void _message(String message) {
     if (!mounted) return;

@@ -37,6 +37,30 @@ class StructFlowApi {
       ..get('/v1/projects', _listProjects)
       ..get('/v1/projects/<projectIdentifier>', _getProject)
       ..get('/v1/projects/<projectIdentifier>/members', _listProjectMembers)
+      ..get('/v1/projects/<projectIdentifier>/bim/models', _listBimModels)
+      ..post('/v1/projects/<projectIdentifier>/bim/models', _createBimModel)
+      ..patch('/v1/bim/models/<modelId>', _updateBimModelStatus)
+      ..get('/v1/projects/<projectIdentifier>/bim/issues', _listBimIssues)
+      ..post('/v1/projects/<projectIdentifier>/bim/issues', _createBimIssue)
+      ..post(
+        '/v1/projects/<projectIdentifier>/bim/issues/import',
+        _importBimIssues,
+      )
+      ..patch('/v1/bim/issues/<issueId>', _updateBimIssueStatus)
+      ..get('/v1/bim/issues/<issueId>/comments', _listBimIssueComments)
+      ..post('/v1/bim/issues/<issueId>/comments', _createBimIssueComment)
+      ..post(
+        '/v1/bim/issues/<issueId>/comments/import',
+        _importBimIssueComments,
+      )
+      ..get(
+        '/v1/projects/<projectIdentifier>/bim/comments',
+        _listProjectBimComments,
+      )
+      ..post(
+        '/v1/projects/<projectIdentifier>/bim/comments/import',
+        _importProjectBimComments,
+      )
       ..patch('/v1/projects/<projectIdentifier>', _updateProject)
       ..post('/v1/projects', _createProject)
       ..get('/v1/tasks', _listTasks)
@@ -900,6 +924,1427 @@ class StructFlowApi {
     });
   }
 
+  Future<Response> _listBimIssues(
+    Request request,
+    String projectIdentifier,
+  ) async {
+    final access = await _organizationAccess(request);
+    if (access.response != null) return access.response!;
+    if (projectIdentifier.isEmpty || projectIdentifier.length > 200) {
+      return _json(400, {'error': 'Project identifier is invalid.'});
+    }
+
+    final result = await database.pool.runTx((transaction) async {
+      await _setTenantContext(
+        transaction,
+        organizationId: access.organizationId!,
+        userId: access.userId!,
+      );
+      final projects = await transaction.execute(
+        Sql.named('''
+          SELECT p.id, p.code
+          FROM projects p
+          WHERE p.organization_id = @organizationId
+            AND (p.id::text = @identifier OR p.code = @identifier)
+            AND (
+              @organizationWide OR EXISTS (
+                SELECT 1
+                FROM project_memberships pm
+                WHERE pm.organization_id = p.organization_id
+                  AND pm.project_id = p.id
+                  AND pm.user_id = @userId
+                  AND pm.status = 'active'
+              )
+            )
+          LIMIT 1
+        '''),
+        parameters: {
+          'organizationId': access.organizationId,
+          'identifier': projectIdentifier,
+          'userId': access.userId,
+          'organizationWide': ProjectAccessPolicy.canListAllProjects(
+            access.role!,
+          ),
+        },
+      );
+      if (projects.isEmpty) return null;
+      final project = projects.first.toColumnMap();
+      final issues = await transaction.execute(
+        Sql.named('''
+          SELECT id, bcf_guid, title, description, discipline, location,
+                 severity, status, assigned_to, due_date, version,
+                 created_at, updated_at
+          FROM bim_issues
+          WHERE organization_id = @organizationId
+            AND project_id = @projectId
+          ORDER BY
+            CASE status WHEN 'open' THEN 0
+                        WHEN 'in_progress' THEN 1 ELSE 2 END,
+            due_date,
+            created_at DESC
+          LIMIT 500
+        '''),
+        parameters: {
+          'organizationId': access.organizationId,
+          'projectId': project['id'],
+        },
+      );
+      return {
+        'projectCode': '${project['code']}',
+        'issues': issues
+            .map((row) => _bimIssueJson(row.toColumnMap()))
+            .toList(),
+      };
+    });
+    if (result == null) return _json(404, {'error': 'Project not found.'});
+    return _json(200, result);
+  }
+
+  Future<Response> _listBimModels(
+    Request request,
+    String projectIdentifier,
+  ) async {
+    final access = await _organizationAccess(request);
+    if (access.response != null) return access.response!;
+    if (projectIdentifier.isEmpty || projectIdentifier.length > 200) {
+      return _json(400, {'error': 'Project identifier is invalid.'});
+    }
+
+    final result = await database.pool.runTx((transaction) async {
+      await _setTenantContext(
+        transaction,
+        organizationId: access.organizationId!,
+        userId: access.userId!,
+      );
+      final projects = await transaction.execute(
+        Sql.named('''
+          SELECT p.id, p.code
+          FROM projects p
+          WHERE p.organization_id = @organizationId
+            AND (p.id::text = @identifier OR p.code = @identifier)
+            AND (
+              @organizationWide OR EXISTS (
+                SELECT 1
+                FROM project_memberships pm
+                WHERE pm.organization_id = p.organization_id
+                  AND pm.project_id = p.id
+                  AND pm.user_id = @userId
+                  AND pm.status = 'active'
+              )
+            )
+          LIMIT 1
+        '''),
+        parameters: {
+          'organizationId': access.organizationId,
+          'identifier': projectIdentifier,
+          'userId': access.userId,
+          'organizationWide': ProjectAccessPolicy.canListAllProjects(
+            access.role!,
+          ),
+        },
+      );
+      if (projects.isEmpty) return null;
+      final project = projects.first.toColumnMap();
+      final models = await transaction.execute(
+        Sql.named('''
+          SELECT id, name, discipline, revision, status, version, updated_at
+          FROM bim_models
+          WHERE organization_id = @organizationId
+            AND project_id = @projectId
+          ORDER BY updated_at DESC, created_at DESC
+          LIMIT 500
+        '''),
+        parameters: {
+          'organizationId': access.organizationId,
+          'projectId': project['id'],
+        },
+      );
+      return {
+        'projectCode': '${project['code']}',
+        'models': models
+            .map((row) => _bimModelJson(row.toColumnMap()))
+            .toList(),
+      };
+    });
+    if (result == null) return _json(404, {'error': 'Project not found.'});
+    return _json(200, result);
+  }
+
+  Future<Response> _createBimModel(
+    Request request,
+    String projectIdentifier,
+  ) async {
+    final access = await _organizationAccess(request);
+    if (access.response != null) return access.response!;
+    if (projectIdentifier.isEmpty || projectIdentifier.length > 200) {
+      return _json(400, {'error': 'Project identifier is invalid.'});
+    }
+
+    late final String name;
+    late final String discipline;
+    late final String revision;
+    try {
+      final body = await _readJson(request);
+      final nameValue = body['name'];
+      final disciplineValue = body['discipline'];
+      final revisionValue = body['version'];
+      if (nameValue is! String ||
+          disciplineValue is! String ||
+          revisionValue is! String) {
+        throw const FormatException('BIM model fields are invalid.');
+      }
+      name = nameValue.trim();
+      discipline = disciplineValue.trim();
+      revision = revisionValue.trim();
+      if (name.length < 2 ||
+          name.length > 200 ||
+          discipline.isEmpty ||
+          discipline.length > 120 ||
+          revision.isEmpty ||
+          revision.length > 80) {
+        throw const FormatException('BIM model fields are invalid.');
+      }
+    } on FormatException catch (error) {
+      return _json(400, {'error': error.message});
+    }
+
+    final result = await database.pool.runTx((transaction) async {
+      await _setTenantContext(
+        transaction,
+        organizationId: access.organizationId!,
+        userId: access.userId!,
+      );
+      final projects = await transaction.execute(
+        Sql.named('''
+          SELECT p.id, p.code
+          FROM projects p
+          WHERE p.organization_id = @organizationId
+            AND (p.id::text = @identifier OR p.code = @identifier)
+            AND (
+              @organizationWide OR EXISTS (
+                SELECT 1
+                FROM project_memberships pm
+                WHERE pm.organization_id = p.organization_id
+                  AND pm.project_id = p.id
+                  AND pm.user_id = @userId
+                  AND pm.role IN ('project_manager', 'contributor')
+                  AND pm.status = 'active'
+              )
+            )
+          LIMIT 1
+        '''),
+        parameters: {
+          'organizationId': access.organizationId,
+          'identifier': projectIdentifier,
+          'userId': access.userId,
+          'organizationWide': ProjectAccessPolicy.canListAllProjects(
+            access.role!,
+          ),
+        },
+      );
+      if (projects.isEmpty) return null;
+      final project = projects.first.toColumnMap();
+      final created = await transaction.execute(
+        Sql.named('''
+          INSERT INTO bim_models (
+            organization_id, project_id, name, discipline, revision, created_by
+          )
+          VALUES (
+            @organizationId, @projectId, @name, @discipline, @revision, @userId
+          )
+          RETURNING id, name, discipline, revision, status, version, updated_at
+        '''),
+        parameters: {
+          'organizationId': access.organizationId,
+          'projectId': project['id'],
+          'name': name,
+          'discipline': discipline,
+          'revision': revision,
+          'userId': access.userId,
+        },
+      );
+      final row = created.first.toColumnMap();
+      await _insertAuditEvent(
+        transaction,
+        organizationId: access.organizationId!,
+        actorUserId: access.userId!,
+        action: 'bim_model.registered',
+        entityType: 'bim_model',
+        entityId: '${row['id']}',
+        metadata: {
+          'projectCode': project['code'],
+          'discipline': discipline,
+          'revision': revision,
+        },
+      );
+      return _bimModelJson(row);
+    });
+    if (result == null) {
+      return _json(404, {'error': 'Project not found or access denied.'});
+    }
+    return _json(201, {'model': result});
+  }
+
+  Future<Response> _updateBimModelStatus(
+    Request request,
+    String modelId,
+  ) async {
+    final access = await _organizationAccess(request);
+    if (access.response != null) return access.response!;
+    if (!_isUuid(modelId)) {
+      return _json(400, {'error': 'BIM model identifier is invalid.'});
+    }
+
+    final body = await _readJson(request);
+    final status = body['status'];
+    final expectedVersion = body['expectedVersion'];
+    const statuses = {'in_review', 'published', 'archived'};
+    if (status is! String ||
+        !statuses.contains(status) ||
+        expectedVersion is! int ||
+        expectedVersion < 1) {
+      return _json(400, {'error': 'BIM model update fields are invalid.'});
+    }
+
+    final outcome = await database.pool.runTx((transaction) async {
+      await _setTenantContext(
+        transaction,
+        organizationId: access.organizationId!,
+        userId: access.userId!,
+      );
+      final rows = await transaction.execute(
+        Sql.named('''
+          SELECT m.project_id, m.version,
+                 EXISTS (
+                   SELECT 1
+                   FROM project_memberships pm
+                   WHERE pm.organization_id = m.organization_id
+                     AND pm.project_id = m.project_id
+                     AND pm.user_id = @userId
+                     AND pm.role = 'project_manager'
+                     AND pm.status = 'active'
+                 ) AS is_project_manager
+          FROM bim_models m
+          WHERE m.organization_id = @organizationId
+            AND m.id = @modelId
+        '''),
+        parameters: {
+          'organizationId': access.organizationId,
+          'modelId': modelId,
+          'userId': access.userId,
+        },
+      );
+      if (rows.isEmpty) return {'kind': 'not_found'};
+      final current = rows.first.toColumnMap();
+      if (!ProjectAccessPolicy.canUpdateProject(access.role!) &&
+          current['is_project_manager'] != true) {
+        return {'kind': 'forbidden'};
+      }
+      final version = current['version'] as int;
+      if (version != expectedVersion) {
+        return {'kind': 'conflict', 'currentVersion': version};
+      }
+      final updated = await transaction.execute(
+        Sql.named('''
+          UPDATE bim_models
+          SET status = @status, version = version + 1, updated_at = now()
+          WHERE organization_id = @organizationId
+            AND id = @modelId
+            AND version = @expectedVersion
+          RETURNING id, name, discipline, revision, status, version, updated_at
+        '''),
+        parameters: {
+          'organizationId': access.organizationId,
+          'modelId': modelId,
+          'expectedVersion': expectedVersion,
+          'status': status,
+        },
+      );
+      if (updated.isEmpty) {
+        return {'kind': 'conflict', 'currentVersion': version};
+      }
+      final row = updated.first.toColumnMap();
+      await _insertAuditEvent(
+        transaction,
+        organizationId: access.organizationId!,
+        actorUserId: access.userId!,
+        action: 'bim_model.status_updated',
+        entityType: 'bim_model',
+        entityId: modelId,
+        metadata: {
+          'previousVersion': version,
+          'version': version + 1,
+          'status': status,
+        },
+      );
+      return {'kind': 'updated', 'model': _bimModelJson(row)};
+    });
+    return switch (outcome['kind']) {
+      'not_found' => _json(404, {'error': 'BIM model not found.'}),
+      'forbidden' => _json(403, {'error': 'Insufficient permissions.'}),
+      'conflict' => _json(409, {
+        'error': 'BIM model has changed since it was loaded.',
+        'currentVersion': outcome['currentVersion'],
+      }),
+      'updated' => _json(200, {'model': outcome['model']}),
+      _ => throw StateError('Unexpected BIM model update result.'),
+    };
+  }
+
+  Future<Response> _createBimIssue(
+    Request request,
+    String projectIdentifier,
+  ) async {
+    final access = await _organizationAccess(request);
+    if (access.response != null) return access.response!;
+    if (projectIdentifier.isEmpty || projectIdentifier.length > 200) {
+      return _json(400, {'error': 'Project identifier is invalid.'});
+    }
+
+    late final Map<String, Object?> issue;
+    try {
+      issue = _parseBimIssuePayload(await _readJson(request));
+    } on FormatException catch (error) {
+      return _json(400, {'error': error.message});
+    }
+
+    final result = await database.pool.runTx((transaction) async {
+      await _setTenantContext(
+        transaction,
+        organizationId: access.organizationId!,
+        userId: access.userId!,
+      );
+      final projects = await transaction.execute(
+        Sql.named('''
+          SELECT p.id, p.code
+          FROM projects p
+          WHERE p.organization_id = @organizationId
+            AND (p.id::text = @identifier OR p.code = @identifier)
+            AND (
+              @organizationWide OR EXISTS (
+                SELECT 1
+                FROM project_memberships pm
+                WHERE pm.organization_id = p.organization_id
+                  AND pm.project_id = p.id
+                  AND pm.user_id = @userId
+                  AND pm.role IN ('project_manager', 'contributor')
+                  AND pm.status = 'active'
+              )
+            )
+          LIMIT 1
+        '''),
+        parameters: {
+          'organizationId': access.organizationId,
+          'identifier': projectIdentifier,
+          'userId': access.userId,
+          'organizationWide': ProjectAccessPolicy.canListAllProjects(
+            access.role!,
+          ),
+        },
+      );
+      if (projects.isEmpty) return null;
+      final project = projects.first.toColumnMap();
+      final created = await transaction.execute(
+        Sql.named('''
+          INSERT INTO bim_issues (
+            organization_id, project_id, bcf_guid, title, description,
+            discipline, location, severity, assigned_to, due_date, created_by
+          )
+          VALUES (
+            @organizationId, @projectId, CAST(@bcfGuid AS uuid), @title,
+            @description, @discipline, @location, @severity, @assignedTo,
+            CAST(@dueDate AS date), @userId
+          )
+          RETURNING id, bcf_guid, title, description, discipline, location,
+                    severity, status, assigned_to, due_date, version,
+                    created_at, updated_at
+        '''),
+        parameters: {
+          'organizationId': access.organizationId,
+          'projectId': project['id'],
+          'bcfGuid': issue['bcfGuid'],
+          'title': issue['title'],
+          'description': issue['description'],
+          'discipline': issue['discipline'],
+          'location': issue['location'],
+          'severity': issue['severity'],
+          'assignedTo': issue['assignedTo'],
+          'dueDate': issue['dueDate'],
+          'userId': access.userId,
+        },
+      );
+      final row = created.first.toColumnMap();
+      await _insertAuditEvent(
+        transaction,
+        organizationId: access.organizationId!,
+        actorUserId: access.userId!,
+        action: 'bim_issue.created',
+        entityType: 'bim_issue',
+        entityId: '${row['id']}',
+        metadata: {
+          'projectCode': project['code'],
+          'severity': issue['severity'],
+          'bcfGuid': issue['bcfGuid'],
+        },
+      );
+      return _bimIssueJson(row);
+    });
+    if (result == null) {
+      return _json(404, {'error': 'Project not found or access denied.'});
+    }
+    return _json(201, {'issue': result});
+  }
+
+  Future<Response> _importBimIssues(
+    Request request,
+    String projectIdentifier,
+  ) async {
+    final access = await _organizationAccess(request);
+    if (access.response != null) return access.response!;
+    if (projectIdentifier.isEmpty || projectIdentifier.length > 200) {
+      return _json(400, {'error': 'Project identifier is invalid.'});
+    }
+
+    late final List<Map<String, Object?>> issues;
+    try {
+      final body = await _readJson(request);
+      final input = body['issues'];
+      if (input is! List || input.isEmpty || input.length > 500) {
+        throw const FormatException(
+          'A batch of 1 to 500 BIM issues is required.',
+        );
+      }
+      issues = input
+          .map((item) {
+            if (item is! Map<String, dynamic>) {
+              throw const FormatException('Each BIM issue must be an object.');
+            }
+            return _parseBimIssuePayload(item, preserveStatus: true);
+          })
+          .toList(growable: false);
+      final bcfGuids = issues
+          .map((issue) => issue['bcfGuid'])
+          .whereType<String>()
+          .toList();
+      if (bcfGuids.length != bcfGuids.toSet().length) {
+        throw const FormatException(
+          'The BCF batch contains duplicate topic identifiers.',
+        );
+      }
+    } on FormatException catch (error) {
+      return _json(400, {'error': error.message});
+    }
+
+    final result = await database.pool.runTx((transaction) async {
+      await _setTenantContext(
+        transaction,
+        organizationId: access.organizationId!,
+        userId: access.userId!,
+      );
+      final projects = await transaction.execute(
+        Sql.named('''
+          SELECT p.id, p.code
+          FROM projects p
+          WHERE p.organization_id = @organizationId
+            AND (p.id::text = @identifier OR p.code = @identifier)
+            AND (
+              @organizationWide OR EXISTS (
+                SELECT 1
+                FROM project_memberships pm
+                WHERE pm.organization_id = p.organization_id
+                  AND pm.project_id = p.id
+                  AND pm.user_id = @userId
+                  AND pm.role IN ('project_manager', 'contributor')
+                  AND pm.status = 'active'
+              )
+            )
+          LIMIT 1
+        '''),
+        parameters: {
+          'organizationId': access.organizationId,
+          'identifier': projectIdentifier,
+          'userId': access.userId,
+          'organizationWide': ProjectAccessPolicy.canListAllProjects(
+            access.role!,
+          ),
+        },
+      );
+      if (projects.isEmpty) return null;
+      final project = projects.first.toColumnMap();
+      final imported = <Map<String, Object?>>[];
+      for (final issue in issues) {
+        final inserted = await transaction.execute(
+          Sql.named('''
+            INSERT INTO bim_issues (
+              organization_id, project_id, bcf_guid, title, description,
+              discipline, location, severity, status, assigned_to, due_date,
+              created_by
+            )
+            VALUES (
+              @organizationId, @projectId, CAST(@bcfGuid AS uuid), @title,
+              @description, @discipline, @location, @severity, @status,
+              @assignedTo, CAST(@dueDate AS date), @userId
+            )
+            ON CONFLICT (organization_id, project_id, bcf_guid)
+              WHERE bcf_guid IS NOT NULL
+            DO NOTHING
+            RETURNING id, bcf_guid, title, description, discipline, location,
+                      severity, status, assigned_to, due_date, version,
+                      created_at, updated_at
+          '''),
+          parameters: {
+            'organizationId': access.organizationId,
+            'projectId': project['id'],
+            'bcfGuid': issue['bcfGuid'],
+            'title': issue['title'],
+            'description': issue['description'],
+            'discipline': issue['discipline'],
+            'location': issue['location'],
+            'severity': issue['severity'],
+            'status': issue['status'],
+            'assignedTo': issue['assignedTo'],
+            'dueDate': issue['dueDate'],
+            'userId': access.userId,
+          },
+        );
+        if (inserted.isEmpty) continue;
+        final row = inserted.first.toColumnMap();
+        await _insertAuditEvent(
+          transaction,
+          organizationId: access.organizationId!,
+          actorUserId: access.userId!,
+          action: 'bim_issue.imported',
+          entityType: 'bim_issue',
+          entityId: '${row['id']}',
+          metadata: {
+            'projectCode': project['code'],
+            'bcfGuid': issue['bcfGuid'],
+          },
+        );
+        imported.add(_bimIssueJson(row));
+      }
+      return {'projectCode': '${project['code']}', 'issues': imported};
+    });
+    if (result == null) {
+      return _json(404, {'error': 'Project not found or access denied.'});
+    }
+    return _json(200, result);
+  }
+
+  Future<Response> _updateBimIssueStatus(
+    Request request,
+    String issueId,
+  ) async {
+    final access = await _organizationAccess(request);
+    if (access.response != null) return access.response!;
+    if (!_isUuid(issueId)) {
+      return _json(400, {'error': 'BIM issue identifier is invalid.'});
+    }
+    final body = await _readJson(request);
+    final status = body['status'];
+    final expectedVersion = body['expectedVersion'];
+    const statuses = {'open', 'in_progress', 'resolved'};
+    if (status is! String ||
+        !statuses.contains(status) ||
+        expectedVersion is! int ||
+        expectedVersion < 1) {
+      return _json(400, {'error': 'BIM issue update fields are invalid.'});
+    }
+
+    final outcome = await database.pool.runTx((transaction) async {
+      await _setTenantContext(
+        transaction,
+        organizationId: access.organizationId!,
+        userId: access.userId!,
+      );
+      final rows = await transaction.execute(
+        Sql.named('''
+          SELECT i.project_id, i.version,
+                 EXISTS (
+                   SELECT 1
+                   FROM project_memberships pm
+                   WHERE pm.organization_id = i.organization_id
+                     AND pm.project_id = i.project_id
+                     AND pm.user_id = @userId
+                     AND pm.role = 'project_manager'
+                     AND pm.status = 'active'
+                 ) AS is_project_manager
+          FROM bim_issues i
+          WHERE i.organization_id = @organizationId
+            AND i.id = @issueId
+          FOR UPDATE
+        '''),
+        parameters: {
+          'organizationId': access.organizationId,
+          'issueId': issueId,
+          'userId': access.userId,
+        },
+      );
+      if (rows.isEmpty) return {'kind': 'not_found'};
+      final current = rows.first.toColumnMap();
+      final organizationWide = ProjectAccessPolicy.canUpdateProject(
+        access.role!,
+      );
+      if (!organizationWide && current['is_project_manager'] != true) {
+        return {'kind': 'forbidden'};
+      }
+      final version = current['version'] as int;
+      if (version != expectedVersion) {
+        return {'kind': 'conflict', 'currentVersion': version};
+      }
+      final updated = await transaction.execute(
+        Sql.named('''
+          UPDATE bim_issues
+          SET status = @status,
+              version = version + 1,
+              updated_at = now()
+          WHERE organization_id = @organizationId
+            AND id = @issueId
+            AND version = @expectedVersion
+          RETURNING id, bcf_guid, title, description, discipline, location,
+                    severity, status, assigned_to, due_date, version,
+                    created_at, updated_at
+        '''),
+        parameters: {
+          'organizationId': access.organizationId,
+          'issueId': issueId,
+          'expectedVersion': expectedVersion,
+          'status': status,
+        },
+      );
+      if (updated.isEmpty) {
+        return {'kind': 'conflict', 'currentVersion': version};
+      }
+      final row = updated.first.toColumnMap();
+      await _insertAuditEvent(
+        transaction,
+        organizationId: access.organizationId!,
+        actorUserId: access.userId!,
+        action: 'bim_issue.status_updated',
+        entityType: 'bim_issue',
+        entityId: issueId,
+        metadata: {
+          'previousVersion': version,
+          'version': version + 1,
+          'status': status,
+        },
+      );
+      return {'kind': 'updated', 'issue': _bimIssueJson(row)};
+    });
+    return switch (outcome['kind']) {
+      'not_found' => _json(404, {'error': 'BIM issue not found.'}),
+      'forbidden' => _json(403, {'error': 'Insufficient permissions.'}),
+      'conflict' => _json(409, {
+        'error': 'BIM issue has changed since it was loaded.',
+        'currentVersion': outcome['currentVersion'],
+      }),
+      'updated' => _json(200, {'issue': outcome['issue']}),
+      _ => throw StateError('Unexpected BIM issue update result.'),
+    };
+  }
+
+  Future<Response> _listBimIssueComments(
+    Request request,
+    String issueId,
+  ) async {
+    final access = await _organizationAccess(request);
+    if (access.response != null) return access.response!;
+    if (!_isUuid(issueId)) {
+      return _json(400, {'error': 'BIM issue identifier is invalid.'});
+    }
+    final result = await database.pool.runTx((transaction) async {
+      await _setTenantContext(
+        transaction,
+        organizationId: access.organizationId!,
+        userId: access.userId!,
+      );
+      final issue = await transaction.execute(
+        Sql.named('''
+          SELECT id FROM bim_issues
+          WHERE organization_id = @organizationId AND id = @issueId
+        '''),
+        parameters: {
+          'organizationId': access.organizationId,
+          'issueId': issueId,
+        },
+      );
+      if (issue.isEmpty) return null;
+      final comments = await transaction.execute(
+        Sql.named('''
+          SELECT recent.id, recent.body, recent.created_at,
+                 recent.source_guid,
+                 CASE WHEN recent.source_author IS NOT NULL
+                      THEN 'BCF: ' || recent.source_author
+                      ELSE u.full_name END AS author_name
+          FROM (
+            SELECT id, body, created_at, created_by, source_guid,
+                   source_author
+            FROM bim_issue_comments
+            WHERE organization_id = @organizationId AND issue_id = @issueId
+            ORDER BY created_at DESC, id DESC
+            LIMIT 500
+          ) recent
+          JOIN users u ON u.id = recent.created_by
+          ORDER BY recent.created_at, recent.id
+        '''),
+        parameters: {
+          'organizationId': access.organizationId,
+          'issueId': issueId,
+        },
+      );
+      return comments
+          .map((row) => _bimIssueCommentJson(row.toColumnMap()))
+          .toList(growable: false);
+    });
+    if (result == null) return _json(404, {'error': 'BIM issue not found.'});
+    return _json(200, {'comments': result});
+  }
+
+  Future<Response> _createBimIssueComment(
+    Request request,
+    String issueId,
+  ) async {
+    final access = await _organizationAccess(request);
+    if (access.response != null) return access.response!;
+    if (!_isUuid(issueId)) {
+      return _json(400, {'error': 'BIM issue identifier is invalid.'});
+    }
+    late final String text;
+    try {
+      final body = await _readJson(request);
+      final value = body['body'];
+      if (value is! String ||
+          value.trim().isEmpty ||
+          value.trim().length > 5000) {
+        throw const FormatException(
+          'Comment text must contain between 1 and 5000 characters.',
+        );
+      }
+      text = value.trim();
+    } on FormatException catch (error) {
+      return _json(400, {'error': error.message});
+    }
+
+    final result = await database.pool.runTx((transaction) async {
+      await _setTenantContext(
+        transaction,
+        organizationId: access.organizationId!,
+        userId: access.userId!,
+      );
+      final issues = await transaction.execute(
+        Sql.named('''
+          SELECT project_id,
+                 EXISTS (
+                   SELECT 1
+                   FROM memberships m
+                   WHERE m.organization_id = bim_issues.organization_id
+                     AND m.user_id = @userId
+                     AND m.role IN ('owner', 'admin')
+                     AND m.status = 'active'
+                 ) OR EXISTS (
+                   SELECT 1
+                   FROM project_memberships pm
+                   WHERE pm.organization_id = bim_issues.organization_id
+                     AND pm.project_id = bim_issues.project_id
+                     AND pm.user_id = @userId
+                     AND pm.role IN ('project_manager', 'contributor')
+                     AND pm.status = 'active'
+                 ) AS can_comment
+          FROM bim_issues
+          WHERE organization_id = @organizationId AND id = @issueId
+        '''),
+        parameters: {
+          'organizationId': access.organizationId,
+          'issueId': issueId,
+          'userId': access.userId,
+        },
+      );
+      if (issues.isEmpty) return null;
+      final issue = issues.first.toColumnMap();
+      if (!ProjectAccessPolicy.canListAllProjects(access.role!) &&
+          issue['can_comment'] != true) {
+        return {'kind': 'forbidden'};
+      }
+      final projectId = issue['project_id'];
+      final inserted = await transaction.execute(
+        Sql.named('''
+          INSERT INTO bim_issue_comments (
+            organization_id, project_id, issue_id, body, created_by
+          )
+          VALUES (
+            @organizationId, @projectId, @issueId, @body, @userId
+          )
+          RETURNING id, body, created_at, created_by, source_guid
+        '''),
+        parameters: {
+          'organizationId': access.organizationId,
+          'projectId': projectId,
+          'issueId': issueId,
+          'body': text,
+          'userId': access.userId,
+        },
+      );
+      final comment = inserted.first.toColumnMap();
+      final users = await transaction.execute(
+        Sql.named('SELECT full_name FROM users WHERE id = @userId'),
+        parameters: {'userId': access.userId},
+      );
+      final json = _bimIssueCommentJson({
+        ...comment,
+        'author_name': users.first.toColumnMap()['full_name'],
+      });
+      await _insertAuditEvent(
+        transaction,
+        organizationId: access.organizationId!,
+        actorUserId: access.userId!,
+        action: 'bim_issue.comment_added',
+        entityType: 'bim_issue',
+        entityId: issueId,
+        metadata: {'commentId': comment['id']},
+      );
+      return {'kind': 'created', 'comment': json};
+    });
+    if (result == null) return _json(404, {'error': 'BIM issue not found.'});
+    if (result['kind'] == 'forbidden') {
+      return _json(403, {'error': 'Insufficient permissions.'});
+    }
+    return _json(201, {'comment': result['comment']});
+  }
+
+  Future<Response> _importBimIssueComments(
+    Request request,
+    String issueId,
+  ) async {
+    final access = await _organizationAccess(request);
+    if (access.response != null) return access.response!;
+    if (!_isUuid(issueId)) {
+      return _json(400, {'error': 'BIM issue identifier is invalid.'});
+    }
+
+    late final List<Map<String, Object?>> comments;
+    try {
+      final input = (await _readJson(request))['comments'];
+      if (input is! List || input.length > 500) {
+        throw const FormatException(
+          'At most 500 BCF comments can be imported for one issue.',
+        );
+      }
+      comments = input
+          .map((item) {
+            if (item is! Map<String, dynamic>) {
+              throw const FormatException(
+                'Each BCF comment must be an object.',
+              );
+            }
+            final guid = item['bcfGuid'];
+            final body = item['body'];
+            final author = item['authorName'];
+            final createdAt = item['createdAt'];
+            final parsedDate = createdAt is String
+                ? DateTime.tryParse(createdAt)
+                : null;
+            if (guid is! String ||
+                !_isUuid(guid) ||
+                body is! String ||
+                body.trim().isEmpty ||
+                body.trim().length > 5000 ||
+                author is! String ||
+                author.trim().isEmpty ||
+                author.trim().length > 200 ||
+                parsedDate == null) {
+              throw const FormatException('A BCF comment is invalid.');
+            }
+            return <String, Object?>{
+              'bcfGuid': guid,
+              'body': body.trim(),
+              'authorName': author.trim(),
+              'createdAt': parsedDate.toUtc(),
+            };
+          })
+          .toList(growable: false);
+      final guids = comments
+          .map((comment) => comment['bcfGuid'] as String)
+          .toSet();
+      if (guids.length != comments.length) {
+        throw const FormatException(
+          'BCF comments contain duplicate identifiers.',
+        );
+      }
+    } on FormatException catch (error) {
+      return _json(400, {'error': error.message});
+    }
+
+    final outcome = await database.pool.runTx((transaction) async {
+      await _setTenantContext(
+        transaction,
+        organizationId: access.organizationId!,
+        userId: access.userId!,
+      );
+      final issues = await transaction.execute(
+        Sql.named('''
+          SELECT i.project_id,
+                 EXISTS (
+                   SELECT 1 FROM memberships m
+                   WHERE m.organization_id = i.organization_id
+                     AND m.user_id = @userId
+                     AND m.role IN ('owner', 'admin')
+                     AND m.status = 'active'
+                 ) OR EXISTS (
+                   SELECT 1 FROM project_memberships pm
+                   WHERE pm.organization_id = i.organization_id
+                     AND pm.project_id = i.project_id
+                     AND pm.user_id = @userId
+                     AND pm.role IN ('project_manager', 'contributor')
+                     AND pm.status = 'active'
+                 ) AS can_comment
+          FROM bim_issues i
+          WHERE i.organization_id = @organizationId AND i.id = @issueId
+        '''),
+        parameters: {
+          'organizationId': access.organizationId,
+          'issueId': issueId,
+          'userId': access.userId,
+        },
+      );
+      if (issues.isEmpty) return {'kind': 'not_found'};
+      final issue = issues.first.toColumnMap();
+      if (!ProjectAccessPolicy.canListAllProjects(access.role!) &&
+          issue['can_comment'] != true) {
+        return {'kind': 'forbidden'};
+      }
+
+      var imported = 0;
+      for (final comment in comments) {
+        final inserted = await transaction.execute(
+          Sql.named('''
+            INSERT INTO bim_issue_comments (
+              organization_id, project_id, issue_id, body, created_by,
+              created_at, source_guid, source_author
+            )
+            VALUES (
+              @organizationId, @projectId, @issueId, @body, @userId,
+              @createdAt, CAST(@sourceGuid AS uuid), @sourceAuthor
+            )
+            ON CONFLICT (organization_id, issue_id, source_guid)
+              WHERE source_guid IS NOT NULL
+            DO NOTHING
+            RETURNING id
+          '''),
+          parameters: {
+            'organizationId': access.organizationId,
+            'projectId': issue['project_id'],
+            'issueId': issueId,
+            'body': comment['body'],
+            'userId': access.userId,
+            'createdAt': comment['createdAt'],
+            'sourceGuid': comment['bcfGuid'],
+            'sourceAuthor': comment['authorName'],
+          },
+        );
+        if (inserted.isNotEmpty) imported++;
+      }
+      if (imported > 0) {
+        await _insertAuditEvent(
+          transaction,
+          organizationId: access.organizationId!,
+          actorUserId: access.userId!,
+          action: 'bim_issue.comments_imported',
+          entityType: 'bim_issue',
+          entityId: issueId,
+          metadata: {'importedCount': imported},
+        );
+      }
+      return {'kind': 'imported', 'count': imported};
+    });
+    if (outcome['kind'] == 'not_found') {
+      return _json(404, {'error': 'BIM issue not found.'});
+    }
+    if (outcome['kind'] == 'forbidden') {
+      return _json(403, {'error': 'Insufficient permissions.'});
+    }
+    return _json(200, {'imported': outcome['count']});
+  }
+
+  Future<Response> _listProjectBimComments(
+    Request request,
+    String projectIdentifier,
+  ) async {
+    final access = await _organizationAccess(request);
+    if (access.response != null) return access.response!;
+    if (projectIdentifier.isEmpty || projectIdentifier.length > 200) {
+      return _json(400, {'error': 'Project identifier is invalid.'});
+    }
+
+    final result = await database.pool.runTx((transaction) async {
+      await _setTenantContext(
+        transaction,
+        organizationId: access.organizationId!,
+        userId: access.userId!,
+      );
+      final projects = await transaction.execute(
+        Sql.named('''
+          SELECT p.id, p.code
+          FROM projects p
+          WHERE p.organization_id = @organizationId
+            AND (p.id::text = @identifier OR p.code = @identifier)
+            AND (
+              @organizationWide OR EXISTS (
+                SELECT 1 FROM project_memberships pm
+                WHERE pm.organization_id = p.organization_id
+                  AND pm.project_id = p.id
+                  AND pm.user_id = @userId
+                  AND pm.status = 'active'
+              )
+            )
+          LIMIT 1
+        '''),
+        parameters: {
+          'organizationId': access.organizationId,
+          'identifier': projectIdentifier,
+          'userId': access.userId,
+          'organizationWide': ProjectAccessPolicy.canListAllProjects(
+            access.role!,
+          ),
+        },
+      );
+      if (projects.isEmpty) return null;
+      final project = projects.first.toColumnMap();
+      final comments = await transaction.execute(
+        Sql.named('''
+          SELECT c.id, c.issue_id, c.body, c.created_at, c.source_guid,
+                 CASE WHEN c.source_author IS NOT NULL
+                      THEN 'BCF: ' || c.source_author
+                      ELSE u.full_name END AS author_name
+          FROM bim_issue_comments c
+          JOIN users u ON u.id = c.created_by
+          WHERE c.organization_id = @organizationId
+            AND c.project_id = @projectId
+          ORDER BY c.created_at, c.id
+          LIMIT 5001
+        '''),
+        parameters: {
+          'organizationId': access.organizationId,
+          'projectId': project['id'],
+        },
+      );
+      return {
+        'projectCode': '${project['code']}',
+        'comments': comments.map((row) {
+          final comment = row.toColumnMap();
+          return {
+            ..._bimIssueCommentJson(comment),
+            'issueId': '${comment['issue_id']}',
+          };
+        }).toList(),
+      };
+    });
+    if (result == null) return _json(404, {'error': 'Project not found.'});
+    return _json(200, result);
+  }
+
+  Future<Response> _importProjectBimComments(
+    Request request,
+    String projectIdentifier,
+  ) async {
+    final access = await _organizationAccess(request);
+    if (access.response != null) return access.response!;
+    if (projectIdentifier.isEmpty || projectIdentifier.length > 200) {
+      return _json(400, {'error': 'Project identifier is invalid.'});
+    }
+
+    late final List<Map<String, Object?>> comments;
+    try {
+      final input = (await _readJson(
+        request,
+        maxBytes: 32 * 1024 * 1024,
+      ))['comments'];
+      if (input is! List || input.length > 5000) {
+        throw const FormatException(
+          'At most 5000 BCF comments can be imported at once.',
+        );
+      }
+      comments = input
+          .map((item) {
+            if (item is! Map<String, dynamic>) {
+              throw const FormatException(
+                'Each BCF comment must be an object.',
+              );
+            }
+            final topicGuid = item['topicGuid'];
+            final guid = item['bcfGuid'];
+            final body = item['body'];
+            final author = item['authorName'];
+            final createdAt = item['createdAt'];
+            final parsedDate = createdAt is String
+                ? DateTime.tryParse(createdAt)
+                : null;
+            if (topicGuid is! String ||
+                !_isUuid(topicGuid) ||
+                guid is! String ||
+                !_isUuid(guid) ||
+                body is! String ||
+                body.trim().isEmpty ||
+                body.trim().length > 5000 ||
+                author is! String ||
+                author.trim().isEmpty ||
+                author.trim().length > 200 ||
+                parsedDate == null) {
+              throw const FormatException('A BCF comment is invalid.');
+            }
+            return <String, Object?>{
+              'topicGuid': topicGuid.toLowerCase(),
+              'bcfGuid': guid.toLowerCase(),
+              'body': body.trim(),
+              'authorName': author.trim(),
+              'createdAt': parsedDate.toUtc(),
+            };
+          })
+          .toList(growable: false);
+      final identities = comments
+          .map((comment) => '${comment['topicGuid']}:${comment['bcfGuid']}')
+          .toSet();
+      if (identities.length != comments.length) {
+        throw const FormatException(
+          'BCF comments contain duplicate identifiers.',
+        );
+      }
+    } on FormatException catch (error) {
+      return _json(400, {'error': error.message});
+    }
+
+    final outcome = await database.pool.runTx((transaction) async {
+      await _setTenantContext(
+        transaction,
+        organizationId: access.organizationId!,
+        userId: access.userId!,
+      );
+      final projects = await transaction.execute(
+        Sql.named('''
+          SELECT p.id, p.code,
+                 @organizationWide OR EXISTS (
+                   SELECT 1 FROM project_memberships pm
+                   WHERE pm.organization_id = p.organization_id
+                     AND pm.project_id = p.id
+                     AND pm.user_id = @userId
+                     AND pm.role IN ('project_manager', 'contributor')
+                     AND pm.status = 'active'
+                 ) AS can_comment
+          FROM projects p
+          WHERE p.organization_id = @organizationId
+            AND (p.id::text = @identifier OR p.code = @identifier)
+          LIMIT 1
+        '''),
+        parameters: {
+          'organizationId': access.organizationId,
+          'identifier': projectIdentifier,
+          'userId': access.userId,
+          'organizationWide': ProjectAccessPolicy.canListAllProjects(
+            access.role!,
+          ),
+        },
+      );
+      if (projects.isEmpty) return {'kind': 'not_found'};
+      final project = projects.first.toColumnMap();
+      if (project['can_comment'] != true) return {'kind': 'forbidden'};
+      if (comments.isEmpty) return {'kind': 'imported', 'count': 0};
+
+      final topicGuids = comments
+          .map((comment) => comment['topicGuid'] as String)
+          .toSet();
+      final topicGuidList = topicGuids.toList(growable: false);
+      final topicGuidParameters = <String, Object?>{
+        for (var index = 0; index < topicGuidList.length; index++)
+          'topicGuid$index': topicGuidList[index],
+      };
+      final topicGuidPlaceholders = List.generate(
+        topicGuidList.length,
+        (index) => '@topicGuid$index',
+      ).join(', ');
+      final issueRows = await transaction.execute(
+        Sql.named('''
+          SELECT id, bcf_guid
+          FROM bim_issues
+          WHERE organization_id = @organizationId
+            AND project_id = @projectId
+            AND bcf_guid IN ($topicGuidPlaceholders)
+        '''),
+        parameters: {
+          'organizationId': access.organizationId,
+          'projectId': project['id'],
+          ...topicGuidParameters,
+        },
+      );
+      final issueIds = <String, Object?>{};
+      for (final row in issueRows) {
+        final issue = row.toColumnMap();
+        issueIds['${issue['bcf_guid']}'.toLowerCase()] = issue['id'];
+      }
+      if (!issueIds.keys.toSet().containsAll(topicGuids)) {
+        return {'kind': 'missing_topic'};
+      }
+
+      var imported = 0;
+      for (var offset = 0; offset < comments.length; offset += 250) {
+        final chunk = comments.skip(offset).take(250).toList(growable: false);
+        final rows = <String>[];
+        final parameters = <String, Object?>{
+          'organizationId': access.organizationId,
+          'projectId': project['id'],
+          'userId': access.userId,
+        };
+        for (var index = 0; index < chunk.length; index++) {
+          final comment = chunk[index];
+          rows.add('''
+            (
+              @organizationId, @projectId, @issueId$index, @body$index,
+              @userId, @createdAt$index, CAST(@sourceGuid$index AS uuid),
+              @sourceAuthor$index
+            )
+          ''');
+          parameters
+            ..['issueId$index'] = issueIds[comment['topicGuid']]
+            ..['body$index'] = comment['body']
+            ..['createdAt$index'] = comment['createdAt']
+            ..['sourceGuid$index'] = comment['bcfGuid']
+            ..['sourceAuthor$index'] = comment['authorName'];
+        }
+        final inserted = await transaction.execute(
+          Sql.named('''
+            INSERT INTO bim_issue_comments (
+              organization_id, project_id, issue_id, body, created_by,
+              created_at, source_guid, source_author
+            )
+            VALUES ${rows.join(', ')}
+            ON CONFLICT (organization_id, issue_id, source_guid)
+              WHERE source_guid IS NOT NULL
+            DO NOTHING
+            RETURNING id
+          '''),
+          parameters: parameters,
+        );
+        imported += inserted.length;
+      }
+      if (imported > 0) {
+        await _insertAuditEvent(
+          transaction,
+          organizationId: access.organizationId!,
+          actorUserId: access.userId!,
+          action: 'bim_issue.comments_imported',
+          entityType: 'project',
+          entityId: '${project['id']}',
+          metadata: {'importedCount': imported},
+        );
+      }
+      return {'kind': 'imported', 'count': imported};
+    });
+    if (outcome['kind'] == 'not_found') {
+      return _json(404, {'error': 'Project not found.'});
+    }
+    if (outcome['kind'] == 'forbidden') {
+      return _json(403, {'error': 'Insufficient permissions.'});
+    }
+    if (outcome['kind'] == 'missing_topic') {
+      return _json(400, {
+        'error': 'Every BCF comment must match an issue in this project.',
+      });
+    }
+    return _json(200, {'imported': outcome['count']});
+  }
+
+  Map<String, Object?> _parseBimIssuePayload(
+    Map<String, dynamic> body, {
+    bool preserveStatus = false,
+  }) {
+    final title = _boundedString(body, 'title', minimum: 2, maximum: 200);
+    final description = _boundedString(
+      body,
+      'description',
+      minimum: 0,
+      maximum: 10000,
+    );
+    final discipline = _boundedString(
+      body,
+      'discipline',
+      minimum: 1,
+      maximum: 200,
+    );
+    final location = _boundedString(body, 'location', minimum: 1, maximum: 300);
+    final assignedToValue = body['assignedTo'] ?? '';
+    if (assignedToValue is! String || assignedToValue.trim().length > 160) {
+      throw const FormatException('assignedTo must be at most 160 characters.');
+    }
+    final severityValue = body['severity'];
+    const severities = {'low', 'medium', 'high', 'critical'};
+    if (severityValue is! String ||
+        !severities.contains(severityValue.toLowerCase())) {
+      throw const FormatException('BIM issue severity is invalid.');
+    }
+    final dueDate = _parseDateOnly(body['dueDate']);
+    if (dueDate == null) {
+      throw const FormatException('BIM issue dueDate must be a valid date.');
+    }
+    final bcfGuidValue = body['bcfGuid'];
+    if (bcfGuidValue != null &&
+        (bcfGuidValue is! String || !_isUuid(bcfGuidValue))) {
+      throw const FormatException('BIM issue BCF topic identifier is invalid.');
+    }
+    var status = 'open';
+    if (preserveStatus) {
+      final statusValue = body['status'];
+      const allowedStatuses = {'open', 'in_progress', 'resolved'};
+      if (statusValue is! String ||
+          !allowedStatuses.contains(statusValue.toLowerCase())) {
+        throw const FormatException('BIM issue status is invalid.');
+      }
+      status = statusValue.toLowerCase();
+    }
+    return {
+      'title': title,
+      'description': description,
+      'discipline': discipline,
+      'location': location,
+      'severity': severityValue.toLowerCase(),
+      'status': status,
+      'assignedTo': assignedToValue.trim(),
+      'dueDate': _dateOnly(dueDate),
+      'bcfGuid': bcfGuidValue,
+    };
+  }
+
+  Map<String, Object?> _bimModelJson(Map<String, dynamic> row) => {
+    'id': '${row['id']}',
+    'name': '${row['name']}',
+    'discipline': '${row['discipline']}',
+    'version': '${row['revision']}',
+    'status': '${row['status']}',
+    'recordVersion': row['version'],
+    'updatedAt': (row['updated_at'] as DateTime).toUtc().toIso8601String(),
+  };
+
+  Map<String, Object?> _bimIssueCommentJson(Map<String, dynamic> row) => {
+    'id': '${row['id']}',
+    'body': '${row['body']}',
+    'authorName': '${row['author_name']}',
+    'createdAt': (row['created_at'] as DateTime).toUtc().toIso8601String(),
+    'bcfGuid': row['source_guid']?.toString(),
+  };
+
+  Map<String, Object?> _bimIssueJson(Map<String, dynamic> row) => {
+    'id': '${row['id']}',
+    'bcfGuid': row['bcf_guid']?.toString(),
+    'title': '${row['title']}',
+    'description': '${row['description']}',
+    'discipline': '${row['discipline']}',
+    'location': '${row['location']}',
+    'severity': '${row['severity']}',
+    'status': '${row['status']}',
+    'assignedTo': '${row['assigned_to']}',
+    'dueDate': _dateOnly(row['due_date']),
+    'version': row['version'],
+    'createdAt': (row['created_at'] as DateTime).toUtc().toIso8601String(),
+    'updatedAt': (row['updated_at'] as DateTime).toUtc().toIso8601String(),
+  };
+
   Future<Response> _getProject(
     Request request,
     String projectIdentifier,
@@ -1529,7 +2974,10 @@ class StructFlowApi {
         }
       };
 
-  Future<Map<String, dynamic>> _readJson(Request request) async {
+  Future<Map<String, dynamic>> _readJson(
+    Request request, {
+    int maxBytes = 16 * 1024,
+  }) async {
     final contentType = request.headers['content-type']
         ?.split(';')
         .first
@@ -1540,7 +2988,7 @@ class StructFlowApi {
     }
     final bytes = <int>[];
     await for (final chunk in request.read()) {
-      if (bytes.length + chunk.length > 16 * 1024) {
+      if (bytes.length + chunk.length > maxBytes) {
         throw const FormatException('Request body is too large.');
       }
       bytes.addAll(chunk);

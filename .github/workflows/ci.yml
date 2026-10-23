@@ -63,4 +63,9 @@ jobs:
           psql -h localhost -U postgres -d structflow -v ON_ERROR_STOP=1 -f backend/migrations/006_task_creation_access.sql
           psql -h localhost -U postgres -d structflow -v ON_ERROR_STOP=1 -f backend/migrations/007_task_update_access.sql
           psql -h localhost -U postgres -d structflow -v ON_ERROR_STOP=1 -f backend/migrations/008_task_assignment.sql
+          psql -h localhost -U postgres -d structflow -v ON_ERROR_STOP=1 -f backend/migrations/009_bim_issues.sql
+          psql -h localhost -U postgres -d structflow -v ON_ERROR_STOP=1 -f backend/migrations/010_bim_models.sql
+          psql -h localhost -U postgres -d structflow -v ON_ERROR_STOP=1 -f backend/migrations/011_bim_model_lifecycle.sql
+          psql -h localhost -U postgres -d structflow -v ON_ERROR_STOP=1 -f backend/migrations/012_bim_issue_comments.sql
+          psql -h localhost -U postgres -d structflow -v ON_ERROR_STOP=1 -f backend/migrations/013_bcf_comment_exchange.sql
           psql -h localhost -U postgres -d structflow -v ON_ERROR_STOP=1 -f backend/test/postgres_rls_integration.sql

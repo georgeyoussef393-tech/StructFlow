@@ -10,6 +10,8 @@ class BcfExchangeService {
   static const maxArchiveBytes = 25 * 1024 * 1024;
   static const maxExpandedBytes = 40 * 1024 * 1024;
   static const maxArchiveEntries = 5000;
+  static const maxComments = 5000;
+  static const maxCommentsPerTopic = 500;
   static const _guidPattern =
       r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$';
 
@@ -17,7 +19,22 @@ class BcfExchangeService {
     required String projectCode,
     required String projectName,
     required List<BimIssue> issues,
+    Map<String, List<BimIssueComment>> commentsByIssueId = const {},
   }) {
+    if (issues.length + 2 > maxArchiveEntries) {
+      throw const FormatException(
+        'The BCF project contains too many coordination topics.',
+      );
+    }
+    final commentCount = commentsByIssueId.values.fold<int>(
+      0,
+      (count, comments) => count + comments.length,
+    );
+    if (commentCount > maxComments) {
+      throw const FormatException(
+        'The BCF project contains too many comments to export.',
+      );
+    }
     final archive = Archive()
       ..add(
         ArchiveFile.string(
@@ -59,8 +76,14 @@ class BcfExchangeService {
 
     for (var index = 0; index < issues.length; index++) {
       final issue = issues[index];
-      final guid = _guidForIssue(issue.id);
+      final guid = _guidForIssue(issue.bcfGuid ?? issue.id);
       final now = DateTime.now().toUtc();
+      final comments = commentsByIssueId[issue.id] ?? const [];
+      if (comments.length > maxCommentsPerTopic) {
+        throw const FormatException(
+          'A BCF topic cannot contain more than 500 comments.',
+        );
+      }
       final topic = XmlElement(
         XmlName.parts('Topic'),
         [
@@ -95,15 +118,49 @@ class BcfExchangeService {
       archive.add(
         ArchiveFile.string(
           'topics/$guid/markup.bcf',
-          _xml(XmlElement(XmlName.parts('Markup'), [], [topic])),
+          _xml(
+            XmlElement(XmlName.parts('Markup'), [], [
+              topic,
+              for (final comment in comments)
+                XmlElement(
+                  XmlName.parts('Comment'),
+                  [
+                    XmlAttribute(
+                      XmlName.parts('Guid'),
+                      _guidForComment(comment.bcfGuid ?? comment.id),
+                    ),
+                  ],
+                  [
+                    _textElement(
+                      'Date',
+                      comment.createdAt.toUtc().toIso8601String(),
+                    ),
+                    _textElement('Author', comment.authorName),
+                    _textElement('Comment', comment.body),
+                    _textElement('TopicGuid', guid),
+                  ],
+                ),
+            ]),
+          ),
         ),
       );
     }
 
-    return ZipEncoder().encode(archive);
+    final bytes = ZipEncoder().encode(archive);
+    if (bytes.length > maxArchiveBytes) {
+      throw const FormatException(
+        'The exported BCF file exceeds the 25 MB size limit.',
+      );
+    }
+    return bytes;
   }
 
   List<BimIssue> importProject({
+    required List<int> bytes,
+    required String projectCode,
+  }) => importProjectBundle(bytes: bytes, projectCode: projectCode).issues;
+
+  BcfProjectImport importProjectBundle({
     required List<int> bytes,
     required String projectCode,
   }) {
@@ -170,6 +227,9 @@ class BcfExchangeService {
 
     final topics = <BimIssue>[];
     final topicIds = <String>{};
+    final commentIds = <String>{};
+    final commentsByTopicGuid = <String, List<BimIssueComment>>{};
+    var commentCount = 0;
     for (final path in markupPaths) {
       final folderGuid = path.split('/')[1];
       if (!RegExp(_guidPattern).hasMatch(folderGuid)) {
@@ -203,9 +263,10 @@ class BcfExchangeService {
           .map((e) => e.innerText)
           .toList();
       final description = _childText(topic, 'Description');
+      final issueId = 'BCF-${guid.toLowerCase()}';
       topics.add(
         BimIssue(
-          id: 'BCF-${guid.toLowerCase()}',
+          id: issueId,
           projectCode: projectCode,
           title: title,
           description: description,
@@ -217,10 +278,56 @@ class BcfExchangeService {
               ? 'Unassigned'
               : _childText(topic, 'AssignedTo'),
           dueDate: dueDate ?? DateTime.now(),
+          bcfGuid: guid.toLowerCase(),
         ),
       );
+      final comments = <BimIssueComment>[];
+      for (final element in document.rootElement.findElements('Comment')) {
+        if (comments.length >= maxCommentsPerTopic ||
+            commentCount >= maxComments) {
+          throw const FormatException(
+            'BCF project contains too many comments to import.',
+          );
+        }
+        final commentGuid = element.getAttribute('Guid');
+        final author = _childText(element, 'Author').trim();
+        final body = _childText(element, 'Comment').trim();
+        final createdAt = DateTime.tryParse(_childText(element, 'Date'));
+        final topicGuid = _childText(element, 'TopicGuid');
+        if (commentGuid == null ||
+            !RegExp(_guidPattern).hasMatch(commentGuid) ||
+            !commentIds.add(commentGuid.toLowerCase()) ||
+            author.isEmpty ||
+            author.length > 200 ||
+            body.isEmpty ||
+            body.length > 5000 ||
+            createdAt == null ||
+            (topicGuid.isNotEmpty &&
+                topicGuid.toLowerCase() != guid.toLowerCase())) {
+          throw FormatException('BCF topic "$path" has an invalid comment.');
+        }
+        comments.add(
+          BimIssueComment(
+            id: 'BCF-COMMENT-${commentGuid.toLowerCase()}',
+            issueId: issueId,
+            body: body,
+            authorName: author,
+            createdAt: createdAt,
+            bcfGuid: commentGuid.toLowerCase(),
+          ),
+        );
+        commentCount++;
+      }
+      if (comments.isNotEmpty) {
+        commentsByTopicGuid[guid.toLowerCase()] = comments;
+      }
     }
-    return topics;
+    return BcfProjectImport(
+      issues: topics,
+      commentsByTopicGuid: commentsByTopicGuid.map(
+        (guid, comments) => MapEntry(guid, List.unmodifiable(comments)),
+      ),
+    );
   }
 
   String _guidForIssue(String issueId) {
@@ -231,6 +338,15 @@ class BcfExchangeService {
       return candidate.toLowerCase();
     }
     return _newGuid();
+  }
+
+  String _guidForComment(String id) {
+    final candidate = id.startsWith('BCF-COMMENT-')
+        ? id.substring('BCF-COMMENT-'.length)
+        : id;
+    return RegExp(_guidPattern).hasMatch(candidate)
+        ? candidate.toLowerCase()
+        : _newGuid();
   }
 
   String _newGuid() {
@@ -302,4 +418,14 @@ class BcfExchangeService {
 
   String _childText(XmlElement element, String name) =>
       _child(element, name)?.innerText.trim() ?? '';
+}
+
+class BcfProjectImport {
+  const BcfProjectImport({
+    required this.issues,
+    required this.commentsByTopicGuid,
+  });
+
+  final List<BimIssue> issues;
+  final Map<String, List<BimIssueComment>> commentsByTopicGuid;
 }

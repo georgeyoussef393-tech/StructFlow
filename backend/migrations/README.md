@@ -19,6 +19,11 @@ CREATE ROLE structflow_runtime LOGIN NOSUPERUSER NOBYPASSRLS NOINHERIT;
 \i backend/migrations/006_task_creation_access.sql
 \i backend/migrations/007_task_update_access.sql
 \i backend/migrations/008_task_assignment.sql
+\i backend/migrations/009_bim_issues.sql
+\i backend/migrations/010_bim_models.sql
+\i backend/migrations/011_bim_model_lifecycle.sql
+\i backend/migrations/012_bim_issue_comments.sql
+\i backend/migrations/013_bcf_comment_exchange.sql
 ```
 
 Migrations are intentionally SQL files and should be reviewed and applied by a

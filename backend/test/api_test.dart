@@ -132,6 +132,138 @@ void main() {
     expect(await response.readAsString(), contains('Authentication required'));
   });
 
+  test('BIM issue endpoints require an authenticated session', () async {
+    final requests = [
+      Request(
+        'GET',
+        Uri.parse('https://api.example.test/v1/projects/CIVIL-001/bim/issues'),
+      ),
+      Request(
+        'POST',
+        Uri.parse('https://api.example.test/v1/projects/CIVIL-001/bim/issues'),
+        headers: {'content-type': 'application/json'},
+        body: '{}',
+      ),
+      Request(
+        'POST',
+        Uri.parse(
+          'https://api.example.test/v1/projects/CIVIL-001/bim/issues/import',
+        ),
+        headers: {'content-type': 'application/json'},
+        body: '{"issues":[]}',
+      ),
+      Request(
+        'PATCH',
+        Uri.parse(
+          'https://api.example.test/v1/bim/issues/50000000-0000-4000-8000-000000000001',
+        ),
+        headers: {'content-type': 'application/json'},
+        body: '{"status":"resolved","expectedVersion":1}',
+      ),
+    ];
+
+    for (final request in requests) {
+      final response = await api.handler(request);
+      expect(response.statusCode, 401);
+      expect(
+        await response.readAsString(),
+        contains('Authentication required'),
+      );
+    }
+  });
+
+  test('BIM model endpoints require an authenticated session', () async {
+    final requests = [
+      Request(
+        'GET',
+        Uri.parse('https://api.example.test/v1/projects/CIVIL-001/bim/models'),
+      ),
+      Request(
+        'POST',
+        Uri.parse('https://api.example.test/v1/projects/CIVIL-001/bim/models'),
+        headers: {'content-type': 'application/json'},
+        body:
+            '{"name":"Tower Structure","discipline":"Structure","version":"v2"}',
+      ),
+      Request(
+        'PATCH',
+        Uri.parse(
+          'https://api.example.test/v1/bim/models/50000000-0000-4000-8000-000000000001',
+        ),
+        headers: {'content-type': 'application/json'},
+        body: '{"status":"published","expectedVersion":1}',
+      ),
+    ];
+
+    for (final request in requests) {
+      final response = await api.handler(request);
+      expect(response.statusCode, 401);
+      expect(
+        await response.readAsString(),
+        contains('Authentication required'),
+      );
+    }
+  });
+
+  test('BIM issue comment endpoints require an authenticated session', () async {
+    final requests = [
+      Request(
+        'GET',
+        Uri.parse(
+          'https://api.example.test/v1/bim/issues/50000000-0000-4000-8000-000000000001/comments',
+        ),
+      ),
+      Request(
+        'POST',
+        Uri.parse(
+          'https://api.example.test/v1/bim/issues/50000000-0000-4000-8000-000000000001/comments',
+        ),
+        headers: {'content-type': 'application/json'},
+        body: jsonEncode({'body': 'Reviewed the coordination clearance.'}),
+      ),
+    ];
+
+    for (final request in requests) {
+      final response = await api.handler(request);
+      expect(response.statusCode, 401);
+      expect(
+        await response.readAsString(),
+        contains('Authentication required'),
+      );
+    }
+  });
+
+  test(
+    'BCF project comment endpoints require an authenticated session',
+    () async {
+      final requests = [
+        Request(
+          'GET',
+          Uri.parse(
+            'https://api.example.test/v1/projects/CIVIL-001/bim/comments',
+          ),
+        ),
+        Request(
+          'POST',
+          Uri.parse(
+            'https://api.example.test/v1/projects/CIVIL-001/bim/comments/import',
+          ),
+          headers: {'content-type': 'application/json'},
+          body: jsonEncode({'comments': []}),
+        ),
+      ];
+
+      for (final request in requests) {
+        final response = await api.handler(request);
+        expect(response.statusCode, 401);
+        expect(
+          await response.readAsString(),
+          contains('Authentication required'),
+        );
+      }
+    },
+  );
+
   test('task detail endpoint requires an authenticated session', () async {
     final response = await api.handler(
       Request(

@@ -6,6 +6,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 
 import '../../features/auth/models/auth_user_model.dart';
+import '../../features/bim/models/bim_workspace_models.dart';
 import '../../features/projects/models/project_member_model.dart';
 import '../../features/projects/models/project_model.dart';
 import '../../features/tasks/models/task_model.dart';
@@ -424,7 +425,7 @@ class ApiAuthClient {
               '/v1/projects/${Uri.encodeComponent(projectIdentifier)}/members',
             ),
             headers: {
-              'authorization': '******',
+              'authorization': 'Bearer $token',
               'x-organization-id': organizationId,
             },
           )
@@ -462,6 +463,723 @@ class ApiAuthClient {
           );
         })
         .toList(growable: false);
+  }
+
+  Future<List<BimIssue>> listBimIssues({
+    required String organizationId,
+    required String projectIdentifier,
+  }) async {
+    if (projectIdentifier.isEmpty) {
+      throw const AuthApiException('A project identifier is required.');
+    }
+    final token = await _requireSessionToken();
+    final response = await _send(
+      () => _httpClient
+          .get(
+            _endpoint(
+              '/v1/projects/${Uri.encodeComponent(projectIdentifier)}/bim/issues',
+            ),
+            headers: {
+              'authorization': 'Bearer $token',
+              'x-organization-id': organizationId,
+            },
+          )
+          .timeout(const Duration(seconds: 15)),
+    );
+    final body = _decodeBody(response);
+    if (response.statusCode != 200) {
+      await _clearExpiredToken(response.statusCode);
+      throw AuthApiException(
+        _errorMessage(body, 'Could not load BIM coordination issues.'),
+        statusCode: response.statusCode,
+      );
+    }
+    final projectCode = body['projectCode'];
+    final issues = body['issues'];
+    if (projectCode is! String || issues is! List) {
+      throw const AuthApiException(
+        'The server returned invalid BIM coordination data.',
+      );
+    }
+    return issues
+        .map((issue) => _parseBimIssue(issue, projectCode))
+        .toList(growable: false);
+  }
+
+  Future<List<BimModelRecord>> listBimModels({
+    required String organizationId,
+    required String projectIdentifier,
+  }) async {
+    if (projectIdentifier.isEmpty) {
+      throw const AuthApiException('A project identifier is required.');
+    }
+    final token = await _requireSessionToken();
+    final response = await _send(
+      () => _httpClient
+          .get(
+            _endpoint(
+              '/v1/projects/${Uri.encodeComponent(projectIdentifier)}/bim/models',
+            ),
+            headers: {
+              'authorization': 'Bearer $token',
+              'x-organization-id': organizationId,
+            },
+          )
+          .timeout(const Duration(seconds: 15)),
+    );
+    final body = _decodeBody(response);
+    if (response.statusCode != 200) {
+      await _clearExpiredToken(response.statusCode);
+      throw AuthApiException(
+        _errorMessage(body, 'Could not load BIM models.'),
+        statusCode: response.statusCode,
+      );
+    }
+    final projectCode = body['projectCode'];
+    final models = body['models'];
+    if (projectCode is! String || models is! List) {
+      throw const AuthApiException('The server returned invalid BIM models.');
+    }
+    return models
+        .map((model) => _parseBimModel(model, projectCode))
+        .toList(growable: false);
+  }
+
+  Future<BimModelRecord> createBimModel({
+    required String organizationId,
+    required String projectIdentifier,
+    required BimModelRecord model,
+  }) async {
+    final token = await _requireSessionToken();
+    final response = await _send(
+      () => _httpClient
+          .post(
+            _endpoint(
+              '/v1/projects/${Uri.encodeComponent(projectIdentifier)}/bim/models',
+            ),
+            headers: {
+              'authorization': 'Bearer $token',
+              'x-organization-id': organizationId,
+              'content-type': 'application/json',
+            },
+            body: jsonEncode({
+              'name': model.name,
+              'discipline': model.discipline,
+              'version': model.version,
+            }),
+          )
+          .timeout(const Duration(seconds: 15)),
+    );
+    final body = _decodeBody(response);
+    if (response.statusCode != 201) {
+      await _clearExpiredToken(response.statusCode);
+      throw AuthApiException(
+        _errorMessage(body, 'Could not register the BIM model.'),
+        statusCode: response.statusCode,
+      );
+    }
+    return _parseBimModel(body['model'], model.projectCode);
+  }
+
+  Future<BimModelRecord> updateBimModelStatus({
+    required String organizationId,
+    required BimModelRecord model,
+  }) async {
+    if (model.id.isEmpty || model.recordVersion < 1) {
+      throw const AuthApiException('BIM model update data is invalid.');
+    }
+    final status = switch (model.status.toLowerCase()) {
+      'published' => 'published',
+      'archived' => 'archived',
+      'in review' || 'in_review' => 'in_review',
+      _ => throw const AuthApiException('BIM model status is invalid.'),
+    };
+    final token = await _requireSessionToken();
+    final response = await _send(
+      () => _httpClient
+          .patch(
+            _endpoint('/v1/bim/models/${Uri.encodeComponent(model.id)}'),
+            headers: {
+              'authorization': 'Bearer $token',
+              'x-organization-id': organizationId,
+              'content-type': 'application/json',
+            },
+            body: jsonEncode({
+              'status': status,
+              'expectedVersion': model.recordVersion,
+            }),
+          )
+          .timeout(const Duration(seconds: 15)),
+    );
+    final body = _decodeBody(response);
+    if (response.statusCode != 200) {
+      await _clearExpiredToken(response.statusCode);
+      throw AuthApiException(
+        _errorMessage(body, 'Could not update the BIM model.'),
+        statusCode: response.statusCode,
+      );
+    }
+    return _parseBimModel(body['model'], model.projectCode);
+  }
+
+  Future<BimIssue> createBimIssue({
+    required String organizationId,
+    required String projectIdentifier,
+    required BimIssue issue,
+  }) async {
+    final token = await _requireSessionToken();
+    final response = await _send(
+      () => _httpClient
+          .post(
+            _endpoint(
+              '/v1/projects/${Uri.encodeComponent(projectIdentifier)}/bim/issues',
+            ),
+            headers: {
+              'authorization': 'Bearer $token',
+              'x-organization-id': organizationId,
+              'content-type': 'application/json',
+            },
+            body: jsonEncode(_bimIssueRequest(issue)),
+          )
+          .timeout(const Duration(seconds: 15)),
+    );
+    final body = _decodeBody(response);
+    if (response.statusCode != 201) {
+      await _clearExpiredToken(response.statusCode);
+      throw AuthApiException(
+        _errorMessage(body, 'Could not create the BIM issue.'),
+        statusCode: response.statusCode,
+      );
+    }
+    return _parseBimIssue(body['issue'], issue.projectCode);
+  }
+
+  Future<List<BimIssue>> importBimIssues({
+    required String organizationId,
+    required String projectIdentifier,
+    required List<BimIssue> issues,
+  }) async {
+    if (issues.isEmpty || issues.length > 500) {
+      throw const AuthApiException(
+        'Import between 1 and 500 BIM issues at a time.',
+      );
+    }
+    final token = await _requireSessionToken();
+    final response = await _send(
+      () => _httpClient
+          .post(
+            _endpoint(
+              '/v1/projects/${Uri.encodeComponent(projectIdentifier)}/bim/issues/import',
+            ),
+            headers: {
+              'authorization': 'Bearer $token',
+              'x-organization-id': organizationId,
+              'content-type': 'application/json',
+            },
+            body: jsonEncode({
+              'issues': issues.map(_bimIssueRequest).toList(growable: false),
+            }),
+          )
+          .timeout(const Duration(seconds: 30)),
+    );
+    final body = _decodeBody(response);
+    if (response.statusCode != 200) {
+      await _clearExpiredToken(response.statusCode);
+      throw AuthApiException(
+        _errorMessage(body, 'Could not import BIM issues.'),
+        statusCode: response.statusCode,
+      );
+    }
+    final projectCode = body['projectCode'];
+    final imported = body['issues'];
+    if (projectCode is! String || imported is! List) {
+      throw const AuthApiException(
+        'The server returned invalid imported BIM issue data.',
+      );
+    }
+    return imported
+        .map((issue) => _parseBimIssue(issue, projectCode))
+        .toList(growable: false);
+  }
+
+  Future<BimIssue> updateBimIssueStatus({
+    required String organizationId,
+    required BimIssue issue,
+  }) async {
+    if (issue.id.isEmpty || issue.version < 1) {
+      throw const AuthApiException('BIM issue update data is invalid.');
+    }
+    final token = await _requireSessionToken();
+    final response = await _send(
+      () => _httpClient
+          .patch(
+            _endpoint('/v1/bim/issues/${Uri.encodeComponent(issue.id)}'),
+            headers: {
+              'authorization': 'Bearer $token',
+              'x-organization-id': organizationId,
+              'content-type': 'application/json',
+            },
+            body: jsonEncode({
+              'status': _apiBimStatus(issue.status),
+              'expectedVersion': issue.version,
+            }),
+          )
+          .timeout(const Duration(seconds: 15)),
+    );
+    final body = _decodeBody(response);
+    if (response.statusCode != 200) {
+      await _clearExpiredToken(response.statusCode);
+      throw AuthApiException(
+        _errorMessage(body, 'Could not update the BIM issue.'),
+        statusCode: response.statusCode,
+      );
+    }
+    return _parseBimIssue(body['issue'], issue.projectCode);
+  }
+
+  Future<List<BimIssueComment>> listBimIssueComments({
+    required String organizationId,
+    required String issueId,
+  }) async {
+    if (issueId.isEmpty) {
+      throw const AuthApiException('A BIM issue identifier is required.');
+    }
+    final token = await _requireSessionToken();
+    final response = await _send(
+      () => _httpClient
+          .get(
+            _endpoint(
+              '/v1/bim/issues/${Uri.encodeComponent(issueId)}/comments',
+            ),
+            headers: {
+              'authorization': 'Bearer $token',
+              'x-organization-id': organizationId,
+            },
+          )
+          .timeout(const Duration(seconds: 15)),
+    );
+    final body = _decodeBody(response);
+    if (response.statusCode != 200) {
+      await _clearExpiredToken(response.statusCode);
+      throw AuthApiException(
+        _errorMessage(body, 'Could not load issue comments.'),
+        statusCode: response.statusCode,
+      );
+    }
+    final comments = body['comments'];
+    if (comments is! List) {
+      throw const AuthApiException(
+        'The server returned invalid BIM issue comments.',
+      );
+    }
+    return comments
+        .map((comment) => _parseBimIssueComment(comment, issueId))
+        .toList(growable: false);
+  }
+
+  Future<BimIssueComment> createBimIssueComment({
+    required String organizationId,
+    required String issueId,
+    required String body,
+  }) async {
+    final text = body.trim();
+    if (issueId.isEmpty || text.isEmpty || text.length > 5000) {
+      throw const AuthApiException('BIM issue comment text is invalid.');
+    }
+    final token = await _requireSessionToken();
+    final response = await _send(
+      () => _httpClient
+          .post(
+            _endpoint(
+              '/v1/bim/issues/${Uri.encodeComponent(issueId)}/comments',
+            ),
+            headers: {
+              'authorization': 'Bearer $token',
+              'x-organization-id': organizationId,
+              'content-type': 'application/json',
+            },
+            body: jsonEncode({'body': text}),
+          )
+          .timeout(const Duration(seconds: 15)),
+    );
+    final responseBody = _decodeBody(response);
+    if (response.statusCode != 201) {
+      await _clearExpiredToken(response.statusCode);
+      throw AuthApiException(
+        _errorMessage(responseBody, 'Could not add the issue comment.'),
+        statusCode: response.statusCode,
+      );
+    }
+    return _parseBimIssueComment(responseBody['comment'], issueId);
+  }
+
+  Future<List<BimIssueComment>> listProjectBimComments({
+    required String organizationId,
+    required String projectIdentifier,
+  }) async {
+    final token = await _requireSessionToken();
+    final response = await _send(
+      () => _httpClient
+          .get(
+            _endpoint(
+              '/v1/projects/${Uri.encodeComponent(projectIdentifier)}/bim/comments',
+            ),
+            headers: {
+              'authorization': 'Bearer $token',
+              'x-organization-id': organizationId,
+            },
+          )
+          .timeout(const Duration(seconds: 30)),
+    );
+    final body = _decodeBody(response);
+    if (response.statusCode != 200) {
+      await _clearExpiredToken(response.statusCode);
+      throw AuthApiException(
+        _errorMessage(body, 'Could not load project BIM comments.'),
+        statusCode: response.statusCode,
+      );
+    }
+    final comments = body['comments'];
+    if (comments is! List) {
+      throw const AuthApiException(
+        'The server returned invalid project BIM comments.',
+      );
+    }
+    if (comments.length > 5000) {
+      throw const AuthApiException(
+        'This project has too many comments for a single BCF export.',
+      );
+    }
+    return comments
+        .map((comment) => _parseProjectBimIssueComment(comment))
+        .toList(growable: false);
+  }
+
+  Future<int> importBimIssueComments({
+    required String organizationId,
+    required String issueId,
+    required List<BimIssueComment> comments,
+  }) async {
+    if (comments.isEmpty) return 0;
+    if (issueId.isEmpty ||
+        comments.length > 500 ||
+        comments.any(
+          (comment) =>
+              comment.bcfGuid == null ||
+              comment.bcfGuid!.isEmpty ||
+              comment.body.trim().isEmpty,
+        )) {
+      throw const AuthApiException('BCF issue comments are invalid.');
+    }
+    final token = await _requireSessionToken();
+    final response = await _send(
+      () => _httpClient
+          .post(
+            _endpoint(
+              '/v1/bim/issues/${Uri.encodeComponent(issueId)}/comments/import',
+            ),
+            headers: {
+              'authorization': 'Bearer $token',
+              'x-organization-id': organizationId,
+              'content-type': 'application/json',
+            },
+            body: jsonEncode({
+              'comments': comments
+                  .map(
+                    (comment) => {
+                      'bcfGuid': comment.bcfGuid,
+                      'body': comment.body,
+                      'authorName': comment.authorName,
+                      'createdAt': comment.createdAt.toUtc().toIso8601String(),
+                    },
+                  )
+                  .toList(growable: false),
+            }),
+          )
+          .timeout(const Duration(seconds: 30)),
+    );
+    final body = _decodeBody(response);
+    if (response.statusCode != 200) {
+      await _clearExpiredToken(response.statusCode);
+      throw AuthApiException(
+        _errorMessage(body, 'Could not import BCF comments.'),
+        statusCode: response.statusCode,
+      );
+    }
+    final imported = body['imported'];
+    if (imported is! int || imported < 0 || imported > comments.length) {
+      throw const AuthApiException(
+        'The server returned an invalid BCF comment import result.',
+      );
+    }
+    return imported;
+  }
+
+  Future<int> importProjectBimComments({
+    required String organizationId,
+    required String projectIdentifier,
+    required Map<String, List<BimIssueComment>> commentsByTopicGuid,
+  }) async {
+    final comments = [
+      for (final entry in commentsByTopicGuid.entries)
+        for (final comment in entry.value)
+          {
+            'topicGuid': entry.key,
+            'bcfGuid': comment.bcfGuid,
+            'body': comment.body,
+            'authorName': comment.authorName,
+            'createdAt': comment.createdAt.toUtc().toIso8601String(),
+          },
+    ];
+    if (comments.isEmpty) return 0;
+    if (projectIdentifier.isEmpty ||
+        comments.length > 5000 ||
+        comments.any(
+          (comment) =>
+              comment['bcfGuid'] is! String ||
+              (comment['bcfGuid'] as String).isEmpty ||
+              (comment['topicGuid'] as String).isEmpty,
+        )) {
+      throw const AuthApiException('BCF project comments are invalid.');
+    }
+    final token = await _requireSessionToken();
+    final response = await _send(
+      () => _httpClient
+          .post(
+            _endpoint(
+              '/v1/projects/${Uri.encodeComponent(projectIdentifier)}/bim/comments/import',
+            ),
+            headers: {
+              'authorization': 'Bearer $token',
+              'x-organization-id': organizationId,
+              'content-type': 'application/json',
+            },
+            body: jsonEncode({'comments': comments}),
+          )
+          .timeout(const Duration(seconds: 45)),
+    );
+    final body = _decodeBody(response);
+    if (response.statusCode != 200) {
+      await _clearExpiredToken(response.statusCode);
+      throw AuthApiException(
+        _errorMessage(body, 'Could not import BCF comments.'),
+        statusCode: response.statusCode,
+      );
+    }
+    final imported = body['imported'];
+    if (imported is! int || imported < 0 || imported > comments.length) {
+      throw const AuthApiException(
+        'The server returned an invalid BCF comment import result.',
+      );
+    }
+    return imported;
+  }
+
+  Map<String, Object?> _bimIssueRequest(BimIssue issue) => {
+    'bcfGuid': issue.bcfGuid,
+    'title': issue.title,
+    'description': issue.description,
+    'discipline': issue.discipline,
+    'location': issue.location,
+    'severity': issue.severity.toLowerCase(),
+    'status': _apiBimStatus(issue.status),
+    'assignedTo': issue.assignedTo,
+    'dueDate': issue.dueDate.toIso8601String().split('T').first,
+  };
+
+  BimModelRecord _parseBimModel(Object? value, String projectCode) {
+    if (value is! Map<String, dynamic>) {
+      throw const AuthApiException('The server returned an invalid BIM model.');
+    }
+    final id = value['id'];
+    final name = value['name'];
+    final discipline = value['discipline'];
+    final version = value['version'];
+    final status = value['status'];
+    final updatedAt = value['updatedAt'];
+    final recordVersion = value['recordVersion'];
+    if ([
+      id,
+      name,
+      discipline,
+      version,
+      status,
+      updatedAt,
+    ].any((field) => field is! String)) {
+      throw const AuthApiException(
+        'The server returned incomplete BIM model data.',
+      );
+    }
+    final parsedUpdatedAt = DateTime.tryParse(updatedAt as String);
+    const statuses = {'in_review', 'published', 'archived'};
+    if ((id as String).isEmpty ||
+        (name as String).isEmpty ||
+        (discipline as String).isEmpty ||
+        (version as String).isEmpty ||
+        !statuses.contains(status) ||
+        parsedUpdatedAt == null ||
+        recordVersion is! int ||
+        recordVersion < 1) {
+      throw const AuthApiException(
+        'The server returned invalid BIM model fields.',
+      );
+    }
+    return BimModelRecord(
+      id: id,
+      projectCode: projectCode,
+      name: name,
+      discipline: discipline,
+      version: version,
+      status: switch (status) {
+        'published' => 'Published',
+        'archived' => 'Archived',
+        _ => 'In review',
+      },
+      updatedAt: parsedUpdatedAt,
+      recordVersion: recordVersion,
+    );
+  }
+
+  BimIssueComment _parseBimIssueComment(Object? value, String issueId) {
+    if (value is! Map<String, dynamic>) {
+      throw const AuthApiException(
+        'The server returned an invalid BIM issue comment.',
+      );
+    }
+    final id = value['id'];
+    final body = value['body'];
+    final authorName = value['authorName'];
+    final createdAt = value['createdAt'];
+    final bcfGuid = value['bcfGuid'];
+    if (id is! String ||
+        id.isEmpty ||
+        body is! String ||
+        body.trim().isEmpty ||
+        authorName is! String ||
+        authorName.trim().isEmpty ||
+        createdAt is! String ||
+        (bcfGuid != null && bcfGuid is! String)) {
+      throw const AuthApiException(
+        'The server returned incomplete BIM issue comment data.',
+      );
+    }
+    final parsedCreatedAt = DateTime.tryParse(createdAt);
+    if (parsedCreatedAt == null) {
+      throw const AuthApiException(
+        'The server returned invalid BIM issue comment fields.',
+      );
+    }
+    return BimIssueComment(
+      id: id,
+      issueId: issueId,
+      body: body,
+      authorName: authorName,
+      createdAt: parsedCreatedAt,
+      bcfGuid: bcfGuid as String?,
+    );
+  }
+
+  BimIssueComment _parseProjectBimIssueComment(Object? value) {
+    if (value is! Map<String, dynamic>) {
+      throw const AuthApiException(
+        'The server returned an invalid project BIM comment.',
+      );
+    }
+    final issueId = value['issueId'];
+    if (issueId is! String || issueId.isEmpty) {
+      throw const AuthApiException(
+        'The server returned an invalid project BIM comment issue.',
+      );
+    }
+    return _parseBimIssueComment(value, issueId);
+  }
+
+  String _apiBimStatus(String status) => switch (status.toLowerCase()) {
+    'in progress' || 'in_progress' => 'in_progress',
+    'resolved' => 'resolved',
+    _ => 'open',
+  };
+
+  BimIssue _parseBimIssue(Object? value, String projectCode) {
+    if (value is! Map<String, dynamic>) {
+      throw const AuthApiException('The server returned an invalid BIM issue.');
+    }
+    final id = value['id'];
+    final title = value['title'];
+    final description = value['description'];
+    final discipline = value['discipline'];
+    final location = value['location'];
+    final severity = value['severity'];
+    final status = value['status'];
+    final assignedTo = value['assignedTo'];
+    final dueDate = value['dueDate'];
+    final bcfGuid = value['bcfGuid'];
+    final version = value['version'];
+    if ([
+      id,
+      title,
+      description,
+      discipline,
+      location,
+      severity,
+      status,
+      assignedTo,
+      dueDate,
+    ].any((field) => field is! String)) {
+      throw const AuthApiException(
+        'The server returned incomplete BIM issue data.',
+      );
+    }
+    if (bcfGuid != null && bcfGuid is! String) {
+      throw const AuthApiException(
+        'The server returned an invalid BCF topic identifier.',
+      );
+    }
+    const severities = {'low', 'medium', 'high', 'critical'};
+    const statuses = {'open', 'in_progress', 'resolved'};
+    final parsedDueDate = DateTime.tryParse(dueDate as String);
+    if (!severities.contains(severity) ||
+        !statuses.contains(status) ||
+        parsedDueDate == null ||
+        version is! int ||
+        version < 1) {
+      throw const AuthApiException(
+        'The server returned invalid BIM issue fields.',
+      );
+    }
+    return BimIssue(
+      id: id as String,
+      projectCode: projectCode,
+      title: title as String,
+      description: description as String,
+      discipline: discipline as String,
+      location: location as String,
+      severity: (severity as String)[0].toUpperCase() + severity.substring(1),
+      status: switch (status) {
+        'in_progress' => 'In progress',
+        'resolved' => 'Resolved',
+        _ => 'Open',
+      },
+      assignedTo: assignedTo as String,
+      dueDate: parsedDueDate,
+      bcfGuid: bcfGuid as String?,
+      version: version,
+    );
+  }
+
+  Future<String> _requireSessionToken() async {
+    final token = await _tokenStore.read();
+    if (token == null || token.isEmpty) {
+      throw const AuthApiException(
+        'Your session has expired. Sign in again.',
+        statusCode: 401,
+      );
+    }
+    return token;
+  }
+
+  Future<void> _clearExpiredToken(int statusCode) async {
+    if (statusCode == 401) await _tokenStore.delete();
   }
 
   Future<TaskModel> getTask({

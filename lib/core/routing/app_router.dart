@@ -57,6 +57,7 @@ final GoRouter appRouter = GoRouter(
 
     if (AuthRepository.instance.usesApiAuth) {
       if (path == '/api-readiness' || path == '/projects') return null;
+      if (path == '/bim') return null;
       if (path == '/tasks') return null;
       if (path.startsWith('/tasks/')) {
         final segments = path.split('/');

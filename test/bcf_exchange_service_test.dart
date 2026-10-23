@@ -18,12 +18,24 @@ void main() {
       status: 'In progress',
       assignedTo: 'BIM Coordinator',
       dueDate: DateTime.utc(2026, 11, 4),
+      bcfGuid: '60000000-0000-4000-8000-000000000001',
+    );
+    final comment = BimIssueComment(
+      id: 'BCF-COMMENT-60000000-0000-4000-8000-000000000002',
+      issueId: issue.id,
+      body: 'Please verify the clearance after revision v3.',
+      authorName: 'BIM Coordinator',
+      createdAt: DateTime.utc(2026, 10, 22, 14, 30),
+      bcfGuid: '60000000-0000-4000-8000-000000000002',
     );
 
     final bytes = service.exportProject(
       projectCode: 'PRJ-501',
       projectName: 'Tower One',
       issues: [issue],
+      commentsByIssueId: {
+        issue.id: [comment],
+      },
     );
     final archive = ZipDecoder().decodeBytes(bytes);
 
@@ -34,27 +46,34 @@ void main() {
         .toList();
     expect(markupFiles, hasLength(1));
 
-    final imported = service.importProject(
+    final imported = service.importProjectBundle(
       bytes: bytes,
       projectCode: 'PRJ-501',
     );
 
-    expect(imported, hasLength(1));
-    expect(imported.single.title, issue.title);
-    expect(imported.single.description, issue.description);
-    expect(imported.single.discipline, issue.discipline);
-    expect(imported.single.location, issue.location);
-    expect(imported.single.severity, issue.severity);
-    expect(imported.single.status, issue.status);
-    expect(imported.single.assignedTo, issue.assignedTo);
-    expect(imported.single.dueDate, issue.dueDate);
-    expect(imported.single.projectCode, 'PRJ-501');
-    expect(imported.single.id, startsWith('BCF-'));
+    expect(imported.issues, hasLength(1));
+    expect(imported.issues.single.title, issue.title);
+    expect(imported.issues.single.description, issue.description);
+    expect(imported.issues.single.discipline, issue.discipline);
+    expect(imported.issues.single.location, issue.location);
+    expect(imported.issues.single.severity, issue.severity);
+    expect(imported.issues.single.status, issue.status);
+    expect(imported.issues.single.assignedTo, issue.assignedTo);
+    expect(imported.issues.single.dueDate, issue.dueDate);
+    expect(imported.issues.single.projectCode, 'PRJ-501');
+    expect(imported.issues.single.id, startsWith('BCF-'));
+    final importedComments = imported.commentsByTopicGuid[issue.bcfGuid]!;
+    expect(importedComments, hasLength(1));
+    expect(importedComments.single.body, comment.body);
+    expect(importedComments.single.authorName, comment.authorName);
+    expect(importedComments.single.createdAt, comment.createdAt);
+    expect(importedComments.single.bcfGuid, comment.bcfGuid);
 
     final reExport = service.exportProject(
       projectCode: 'PRJ-501',
       projectName: 'Tower One',
-      issues: imported,
+      issues: imported.issues,
+      commentsByIssueId: {imported.issues.single.id: importedComments},
     );
     final reExportedTopicPath = ZipDecoder()
         .decodeBytes(reExport)
